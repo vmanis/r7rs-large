@@ -1,0 +1,34 @@
+The list queues described in this SRFI are objects of a disjoint type
+that provide an ordered sequence of arbitrary Scheme objects. Like
+lists, they provide sequential access to their elements; unlike lists,
+they normally should not share storage with other list queues, unless
+special precautions have been taken.
+
+Technically, a queue is an object that makes it efficient to remove
+elements from the front and to add elements to the back. List queues
+also make it efficient to add elements to the front, but removing
+elements from the back is inefficient. Therefore, because these objects
+do not provide the normal behavioral guarantees of
+\href{http://en.wikipedia.org/wiki/Double-ended_queue}{deques}, they are
+not referred to as deques. True deques will be provided in a future
+SRFI.
+
+Historically, objects of this form were called ``tconc structures''
+(where ``tconc'' is short for ``tail concatenate''), and Lispers have
+tended to roll their own using pairs. This version uses a record to hold
+the first-pair and last-pair pointers rather than a pair, but uses pairs
+and the empty list internally.
+
+Because the representation of list queues as lists is exposed by the
+implementation, it's not necessary to provide a comprehensive API for
+list queues. Instead,
+\href{http://srfi.schemers.org/srfi-1/srfi-1.html}{SRFI 1} and other
+list APIs can serve the same purpose, using the conversion procedures to
+convert between list queues and lists fairly cheaply. Consequently, the
+API provided here over and above the bare necessities of queueing and
+dequeueing elements is roughly analogous to the R7RS-small API for
+lists. It also subsumes the
+\href{http://wiki.call-cc.org/man/4/Unit\%20data-structures\#queues}{Chicken}
+and
+\href{http://people.csail.mit.edu/jaffer/slib/Queues.html\#Queues}{​SLIB}
+APIs.

@@ -1,0 +1,130 @@
+\section{{Rationale}}\label{rationale}
+
+The first question about this library is why it should exist at all. Why
+not simply eliminate mutability from Scheme's ordinary pairs and use a
+version of SRFI-1 that treats the linear-update procedures (with
+\texttt{!}) as identical to their functional counterparts, as Racket
+does? The main answer is that this approach breaks
+R\textsuperscript{5}RS and R\textsuperscript{7}RS-small. All the data
+structures in these versions of Scheme are inherently mutable, and
+portable code is allowed to depend on that property.
+
+R\textsuperscript{6}RS segregates \texttt{set-car!} and
+\texttt{set-cdr!} into a separate library, thus allowing implementations
+to provide immutable Scheme pairs if this library is not (transitively)
+imported into a program, and mutable ones if it is. However, it is not
+possible to write portable R\textsuperscript{6}RS programs that
+differentiate between mutable and immutable pairs, for example by using
+immutable pairs most of the time and mutable pairs where necessary.
+
+Because of the Liskov Substitution Principle, it is not possible to
+treat mutable pairs as either a subtype or a supertype of mutable ones;
+they must be distinct, and if operations are to apply to both, they can
+do so only by \emph{ad hoc} polymorphism of the kind that Scheme
+traditionally avoids for several reasons, including clarity, efficiency,
+and flexibility. This proposal, therefore, treats mutable and immutable
+pairs separately, while allowing easy conversion from one to the other.
+
+Rather than attempting to design this library from scratch, I have
+chosen the conservative option of modifying
+\href{http://srfi.schemers.org/srfi-1/srfi-1.html}{SRFI 1}.
+Consequently, most of the rationale given in that document applies to
+this one as well. I have made the following changes:
+
+\begin{itemize}
+\tightlist
+\item
+  Removed all linear-update procedures ending in \texttt{!}
+\item
+  Removed all references to circular lists (there will be a future SRFI
+  for immutable bidirectional cycles).
+\item
+  Removed the O(n\textsuperscript{2}) lists-as-sets procedures (there
+  will be a future SRFI supporting O(log n) immutable sets).
+\item
+  Inserted an \texttt{i} at a judicious place in each identifier,
+  usually at the beginning. However, because ``icons'' means something
+  else in both ordinary English and computer jargon, the basic
+  constructor and its immediate relatives are named \texttt{ipair},
+  \texttt{xipair} and \texttt{ipair*} instead.
+\item
+  Added procedures for conversion between ordinary and immutable pairs,
+  lists, and trees.
+\item
+  Added an analogue of \texttt{apply} for applying a procedure to an
+  immutable list of arguments.
+\item
+  Added SRFI 114 comparators for immutable pairs, lists, and dotted
+  lists.
+\end{itemize}
+
+Note: In the prose, immutable pairs and lists are known as ipairs and
+ilists throughout.
+
+\subsection{{General discussion}}
+
+A set of general criteria guided the design of the SRFI-1 library that
+underlies this library. They are reproduced here.
+
+List-filtering procedures such as \texttt{ifilter} or \texttt{idelete}
+do not disorder lists. Elements appear in the answer list in the same
+order as they appear in the argument list. This constrains
+implementation, but seems like a desirable feature, since in many uses
+of lists, order matters. (In particular, disordering an association list
+is definitely a bad idea.)
+
+Contrariwise, although the sample implementations of the list-filtering
+procedures share longest common tails between argument and answer lists,
+it is not part of the spec.
+
+Because ilists are an inherently sequential data structure (unlike, say,
+vectors), inspection procedures such as \texttt{ifind},
+\texttt{ifind-tail}, \texttt{ifor-each}, \texttt{iany} and
+\texttt{ievery} commit to a left-to-right traversal order of their
+argument list.
+
+However, constructors, such as \texttt{ilist-tabulate} and the mapping
+procedures (\texttt{iappend-map}, \texttt{ipair-for-each},
+\texttt{ifilter-map}, \texttt{imap-in-order}), do \emph{not} specify the
+dynamic order in which their procedural argument is applied to its
+various values.
+
+Predicates return useful true values wherever possible. Thus
+\texttt{iany} must return the true value produced by its predicate, and
+\texttt{ievery} returns the final true value produced by applying its
+predicate argument to the last element of its argument list.
+
+No special status is accorded Scheme's built-in equality predicate. Any
+functionality provided in terms of \texttt{eq?}, \texttt{eqv?},
+\texttt{equal?} is also available using a client-provided equality
+predicate.
+
+These procedures are \emph{not} generic as between ordinary pairs/lists
+and immutable pairs/lists; they are specific to immutable lists. Like
+Olin, I prefer to keep the library simple and focused. However, there
+are a few conversions between mutable and immutable lists provided.
+
+\subsection{{Improper Lists}}\label{improper-lists}
+
+Scheme does not properly have a list type, just as C does not have a
+string type. Rather, Scheme has a binary-tuple type, from which one can
+build binary trees. There is an \emph{interpretation} of Scheme values
+that allows one to treat these trees as lists. The same interpretation
+is applied to immutable pairs.
+
+Because the empty list, written as \texttt{()}, is already immutable, it
+is shared between mutable and immutable lists as the termination marker.
+It is the only Scheme object that is both a mutable list and an
+immutable list.
+
+Users should note that dotted lists, whether mutable or immutable, are
+not commonly used, and are considered by many Scheme programmers to be
+an ugly artifact of Scheme's lack of a true list type. Dotted ilists are
+\emph{not} fully supported by this SRFI. Most procedures are defined
+only on proper ilists --- that is, \texttt{()}-terminated ilists. The
+procedures that will also handle dotted ilists are specifically marked.
+While this design decision restricts the domain of possible arguments
+one can pass to these procedures, it has the benefit of allowing the
+procedures to catch the error cases where programmers inadvertently pass
+scalar values to an ilist procedure by accident, \emph{e.g.}, by
+switching the arguments to a procedure call.

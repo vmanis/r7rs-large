@@ -1,0 +1,46 @@
+\section{Rationale}\label{rationale}
+
+The main purpose of generators is high performance. Although
+\href{http://srfi.schemers.org/srfi-41/srfi-41.html}{SRFI 41} streams
+can do everything generators can do and more, SRFI 41 uses lazy pairs
+that require making a thunk for every item. Generators can generate
+items without consing, so they are very lightweight and are useful for
+implementing simple on-demand calculations.
+
+Existing examples of generators are readers from the current input port
+and \href{http://srfi.schemers.org/srfi-27/srfi-27.html}{SRFI 27} random
+numbers. If Scheme had streams as one of its built-in abstractions,
+these would have been naturally represented by lazy streams. But Scheme
+usually does not expose this kind of API using lazy streams.
+Generator-like interfaces are common, so it seems worthwhile to have
+some common idioms extracted into a library.
+
+Calling a generator is a side-effecting construct; you can't safely
+backtrack, for example, as you can with streams. Persistent lazy
+sequences based on generators and ordinary Scheme pairs (which are
+heavier weight than generators, but lighter weight than lazy pairs) is
+the subject of SRFI 127. Of course the efficiency of streams depends on
+the implementation. Some implementations may have have super-light thunk
+creation. But in most, thunk creation is probably slower than simple
+consing.
+
+The generators of this SRFI don't belong to a disjoint type. They are
+just procedures that conform to a calling convention, so you can
+construct a generator with \texttt{lambda}. The constructors of this
+SRFI are provided for convenience. Any procedure that can be called with
+no arguments can serve as a generator.
+
+Using an end-of-file object to indicate that there is no more input
+makes it impossible to include such an object in the stream of generated
+values. However, it is compatible with the existing design of input
+ports, and it makes for more compact code than returning a
+user-specified termination object (as in Common Lisp) or returning
+multiple values. (Note that some generators are infinite in length, and
+never return an end-of-file object.)
+
+The combination of \texttt{make-for-each-generator} and
+\texttt{generator-unfold} makes it possible to convert any collection
+that has a for-each procedure into any collection that has an unfold
+constructor. This generalizes such conversion procedures as
+\texttt{\&list-\textgreater{}vector} and
+\texttt{string-\textgreater{}list}.

@@ -1,0 +1,1953 @@
+\section{Title}\label{title}
+
+Immutable List Library
+
+\section{Author}\label{author}
+
+John Cowan
+
+\url{http://www.ccil.org/~cowan}\\
+\href{mailto:cowan@ccil.org}{\nolinkurl{cowan@ccil.org}}
+
+\section{Status}\label{status}
+
+To see an explanation of each status that a SRFI can hold, see
+\href{http://srfi.schemers.org/srfi-process.html}{here}. To provide
+input on this SRFI, please
+\href{mailto:srfi\%20minus\%20116\%20at\%20srfi\%20dot\%20schemers\%20dot\%20org}{mail
+to
+\texttt{\textless{}srfi\ minus\ 116\ at\ srfi\ dot\ schemers\ dot\ org\textgreater{}}}.
+See \href{../srfi-list-subscribe.html}{instructions here} to subscribe
+to the list. You can access previous messages via
+\href{mail-archive/maillist.html}{the archive of the mailing list}. You
+can access post-finalization messages via
+\href{http://srfi.schemers.org/srfi-111/post-mail-archive/maillist.html}{the
+archive of the mailing list}.
+
+\textbf{Post-finalization note:} One sentence has been added to the
+section ``The procedures'' below, and several errors in the examples
+have been silently corrected. These do not affect the conformance
+conditions for this SRFI.
+
+\begin{itemize}
+\tightlist
+\item
+  Received:
+  \href{http://srfi.schemers.org/srfi-116/srfi-116-1.1.html}{2013/05/31}
+\item
+  Revised:
+  \href{http://srfi.schemers.org/srfi-116/srfi-116-1.4.html}{2014/11/16}
+\item
+  Draft: 2014/09/08-2014/11/08
+\item
+  Final:
+  \href{http://srfi.schemers.org/srfi-116/srfi-116-1.5.html}{2014/11/28}
+\item
+  Revised to fix errata: 2016/1/20
+\end{itemize}
+
+\section{Table of contents}\label{table-of-contents}
+
+\protect\hyperlink{Abstract}{Abstract}
+
+\protect\hyperlink{Rationale}{Rationale}
+
+\protect\hyperlink{ProcedureIndex}{Procedure index}
+
+\protect\hyperlink{GeneralDiscussion}{General discussion}
+
+\begin{itemize}
+\tightlist
+\item
+  \protect\hyperlink{ImproperIlists}{Improper ilists}
+\end{itemize}
+
+\protect\hyperlink{Quotation}{Quotation}
+
+\protect\hyperlink{TheProcedures}{The procedures}
+
+\begin{itemize}
+\tightlist
+\item
+  \protect\hyperlink{Constructors}{Constructors}
+\item
+  \protect\hyperlink{Predicates}{Predicates}
+\item
+  \protect\hyperlink{Selectors}{Selectors}
+\item
+  \protect\hyperlink{Miscellaneous}{Miscellaneous: length, append,
+  reverse, zip \& count}
+\item
+  \protect\hyperlink{FoldUnfoldMap}{Fold, unfold, and map}
+\item
+  \protect\hyperlink{FilteringPartitioning}{Filtering \& partitioning}
+\item
+  \protect\hyperlink{Searching}{Searching}
+\item
+  \protect\hyperlink{Deletion}{Deletion}
+\item
+  \protect\hyperlink{ImmutableassociationLists}{Immutable association
+  lists}
+\item
+  \protect\hyperlink{Replacers}{Replacers}
+\item
+  \protect\hyperlink{Conversion}{Conversion}
+\item
+  \protect\hyperlink{ProcedureApplication}{Procedure application}
+\item
+  \protect\hyperlink{Comparators}{Comparators}
+\end{itemize}
+
+\protect\hyperlink{SampleImplementation}{Sample Implementation}
+
+\protect\hyperlink{Acknowledgements}{Acknowledgements}
+
+\protect\hyperlink{ReferencesLinks}{References \& links}
+
+\protect\hyperlink{Copyright}{Copyright}
+
+\section{\texorpdfstring{\href{}{Abstract}}{Abstract}}\label{abstract}
+
+Scheme currently does not provide immutable pairs corresponding to its
+existing mutable pairs, although most uses of pairs do not exploit their
+mutability. The \href{http://www.racket-lang.org}{Racket} system takes
+the radical approach of making Scheme's pairs immutable, and providing a
+minimal library of mutable pairs with procedures named
+\texttt{mpair?,\ mcons,\ mcar,\ mcdr,\ set-mcar!,\ set-mcdr!}. This SRFI
+takes the opposite approach of leaving Scheme's pairs unchanged and
+providing a full set of routines for creating and dealing with immutable
+pairs. The sample implementation is portable (to systems with SRFI 9)
+and efficient.
+
+\section{\texorpdfstring{\href{}{Rationale}}{Rationale}}\label{rationale}
+
+The first question about this library is why it should exist at all. Why
+not simply eliminate mutability from Scheme's ordinary pairs and use a
+version of SRFI-1 that treats the linear-update procedures (with
+\texttt{!}) as identical to their functional counterparts, as Racket
+does? The main answer is that this approach breaks
+R\textsuperscript{5}RS and R\textsuperscript{7}RS-small. All the data
+structures in these versions of Scheme are inherently mutable, and
+portable code is allowed to depend on that property.
+
+R\textsuperscript{6}RS segregates \texttt{set-car!} and
+\texttt{set-cdr!} into a separate library, thus allowing implementations
+to provide immutable Scheme pairs if this library is not (transitively)
+imported into a program, and mutable ones if it is. However, it is not
+possible to write portable R\textsuperscript{6}RS programs that
+differentiate between mutable and immutable pairs, for example by using
+immutable pairs most of the time and mutable pairs where necessary.
+
+Because of the Liskov Substitution Principle, it is not possible to
+treat mutable pairs as either a subtype or a supertype of mutable ones;
+they must be distinct, and if operations are to apply to both, they can
+do so only by \emph{ad hoc} polymorphism of the kind that Scheme
+traditionally avoids for several reasons, including clarity, efficiency,
+and flexibility. This proposal, therefore, treats mutable and immutable
+pairs separately, while allowing easy conversion from one to the other.
+
+Rather than attempting to design this library from scratch, I have
+chosen the conservative option of modifying
+\href{http://srfi.schemers.org/srfi-1/srfi-1.html}{SRFI 1}.
+Consequently, most of the rationale given in that document applies to
+this one as well. I have made the following changes:
+
+\begin{itemize}
+\tightlist
+\item
+  Removed all linear-update procedures ending in \texttt{!}
+\item
+  Removed all references to circular lists (there will be a future SRFI
+  for immutable bidirectional cycles).
+\item
+  Removed the O(n\textsuperscript{2}) lists-as-sets procedures (there
+  will be a future SRFI supporting O(log n) immutable sets).
+\item
+  Inserted an \texttt{i} at a judicious place in each identifier,
+  usually at the beginning. However, because ``icons'' means something
+  else in both ordinary English and computer jargon, the basic
+  constructor and its immediate relatives are named \texttt{ipair},
+  \texttt{xipair} and \texttt{ipair*} instead.
+\item
+  Added procedures for conversion between ordinary and immutable pairs,
+  lists, and trees.
+\item
+  Added an analogue of \texttt{apply} for applying a procedure to an
+  immutable list of arguments.
+\item
+  Added SRFI 114 comparators for immutable pairs, lists, and dotted
+  lists.
+\end{itemize}
+
+Note: In the prose, immutable pairs and lists are known as ipairs and
+ilists throughout.
+
+\section{\texorpdfstring{\href{}{Procedure
+Index}}{Procedure Index}}\label{procedure-index}
+
+Here is a short list of the procedures provided by this SRFI.
+
+\begin{description}
+\item[ Constructors ]
+\begin{verbatim}
+ipair ilist
+xipair ipair* make-ilist ilist-tabulate  
+ilist-copy iiota
+\end{verbatim}
+\item[ Predicates ]
+\begin{verbatim}
+ipair?
+proper-ilist?/ilist? dotted-ilist? 
+not-ipair? null-ilist?
+ilist=
+\end{verbatim}
+\item[ Selectors ]
+\begin{verbatim}
+icar icdr ... icddadr icddddr ilist-ref
+ifirst isecond ithird ifourth ififth isixth iseventh ieighth ininth itenth
+icar+icdr
+itake       idrop/ilist-tail
+itake-right idrop-right
+isplit-at   
+ilast last-ipair
+\end{verbatim}
+\item[ Miscellaneous: length, append, concatenate, reverse, zip \& count
+]
+\begin{verbatim}
+ilength 
+iappend  iconcatenate  ireverse  iappend-reverse
+izip iunzip1 iunzip2 iunzip3 iunzip4 iunzip5
+icount
+\end{verbatim}
+\item[ Fold, unfold \& map ]
+\begin{verbatim}
+imap        ifor-each
+ifold       iunfold        ipair-fold       ireduce 
+ifold-right iunfold-right  ipair-fold-right ireduce-right 
+iappend-map ipair-for-each ifilter-map      imap-in-order
+\end{verbatim}
+\item[ Filtering \& partitioning ]
+\begin{verbatim}
+ifilter  ipartition  iremove
+\end{verbatim}
+\item[ Searching ]
+\begin{verbatim}
+imember imemq imemv
+ifind         ifind-tail 
+iany ievery
+ilist-index
+itake-while   idrop-while
+ispan ibreak
+\end{verbatim}
+\item[ Deleting ]
+\begin{verbatim}
+idelete       idelete-duplicates 
+\end{verbatim}
+\item[ Immutable association lists ]
+\begin{verbatim}
+iassoc iassq iassv
+ialist-cons  ialist-delete
+\end{verbatim}
+\item[ Replacement ]
+\begin{verbatim}
+replace-icar replace-icdr
+\end{verbatim}
+\item[ Conversion ]
+\begin{verbatim}
+pair->ipair  ipair->pair
+list->ilist  ilist->list
+tree->itree  itree->tree
+gtree->itree gtree->tree
+\end{verbatim}
+\item[ Procedure application ]
+\begin{verbatim}
+iapply
+\end{verbatim}
+\item[ Comparators ]
+\begin{verbatim}
+ipair-comparator        ilist-comparator
+make-ilist-comparator   make-improper-ilist-comparator
+make-icar-comparator    make-icdr-comparator
+\end{verbatim}
+\end{description}
+
+\section{\texorpdfstring{\href{}{General
+discussion}}{General discussion}}\label{general-discussion}
+
+A set of general criteria guided the design of the SRFI-1 library that
+underlies this library. They are reproduced here.
+
+List-filtering procedures such as \texttt{ifilter} or \texttt{idelete}
+do not disorder lists. Elements appear in the answer list in the same
+order as they appear in the argument list. This constrains
+implementation, but seems like a desirable feature, since in many uses
+of lists, order matters. (In particular, disordering an association list
+is definitely a bad idea.)
+
+Contrariwise, although the sample implementations of the list-filtering
+procedures share longest common tails between argument and answer lists,
+it is not part of the spec.
+
+Because ilists are an inherently sequential data structure (unlike, say,
+vectors), inspection procedures such as \texttt{ifind},
+\texttt{ifind-tail}, \texttt{ifor-each}, \texttt{iany} and
+\texttt{ievery} commit to a left-to-right traversal order of their
+argument list.
+
+However, constructors, such as \texttt{ilist-tabulate} and the mapping
+procedures (\texttt{iappend-map}, \texttt{ipair-for-each},
+\texttt{ifilter-map}, \texttt{imap-in-order}), do \emph{not} specify the
+dynamic order in which their procedural argument is applied to its
+various values.
+
+Predicates return useful true values wherever possible. Thus
+\texttt{iany} must return the true value produced by its predicate, and
+\texttt{ievery} returns the final true value produced by applying its
+predicate argument to the last element of its argument list.
+
+No special status is accorded Scheme's built-in equality predicate. Any
+functionality provided in terms of \texttt{eq?}, \texttt{eqv?},
+\texttt{equal?} is also available using a client-provided equality
+predicate.
+
+These procedures are \emph{not} generic as between ordinary pairs/lists
+and immutable pairs/lists; they are specific to immutable lists. Like
+Olin, I prefer to keep the library simple and focused. However, there
+are a few conversions between mutable and immutable lists provided.
+
+\subsection{\texorpdfstring{\href{}{Improper
+Lists}}{Improper Lists}}\label{improper-lists}
+
+Scheme does not properly have a list type, just as C does not have a
+string type. Rather, Scheme has a binary-tuple type, from which one can
+build binary trees. There is an \emph{interpretation} of Scheme values
+that allows one to treat these trees as lists. The same interpretation
+is applied to immutable pairs.
+
+Because the empty list, written as \texttt{()}, is already immutable, it
+is shared between mutable and immutable lists as the termination marker.
+It is the only Scheme object that is both a mutable list and an
+immutable list.
+
+Users should note that dotted lists, whether mutable or immutable, are
+not commonly used, and are considered by many Scheme programmers to be
+an ugly artifact of Scheme's lack of a true list type. Dotted ilists are
+\emph{not} fully supported by this SRFI. Most procedures are defined
+only on proper ilists --- that is, \texttt{()}-terminated ilists. The
+procedures that will also handle dotted ilists are specifically marked.
+While this design decision restricts the domain of possible arguments
+one can pass to these procedures, it has the benefit of allowing the
+procedures to catch the error cases where programmers inadvertently pass
+scalar values to an ilist procedure by accident, \emph{e.g.}, by
+switching the arguments to a procedure call.
+
+\section{\texorpdfstring{\href{}{Quotation}}{Quotation}}\label{quotation}
+
+The various Scheme standards permit, but do not require, Scheme
+implementations to treat quoted pairs and lists as immutable. Thus
+whereas the expression
+\texttt{(let\ ((foo\ (list\ 1\ 2\ 3)))\ (set-car!\ foo\ 10)\ foo)}
+evaluates to \texttt{(10\ 2\ 3)}, the value of
+\texttt{(let\ ((foo\ \textquotesingle{}(1\ 2\ 3)))\ (set-car!\ foo\ 10)\ foo)}
+is not portable, and is in fact an error.
+
+This SRFI recommends that implementations that provide both this SRFI
+and immutable quotations should cause quotations to return the same
+immutable pairs that this SRFI describes. This means that the standard
+Scheme pair and list operations, as well as libraries like SRFI 1 which
+are built on them, should accept both mutable and immutable pairs: thus
+\texttt{(car\ (ilist\ 1\ 2))} should evaluate to \texttt{1}.
+
+This SRFI further recommends that \texttt{read} should return mutable
+pairs and lists when reading list structure. No recommendation is made
+about the behavior of \texttt{write}, \texttt{display}, and similar
+output procedures on immutable lists.
+
+To make life easier for Scheme programmers, given that many
+implementations do not provide immutable quotation, the syntax keyword
+\texttt{iq} is provided as part of this SRFI. It is analogous to
+\texttt{quote}, taking an arbitrary number of literals and constructing
+an ilist from them, with any pairs in the literals converted to ipairs.
+It is useful for providing constant ipair-based objects. Note that pairs
+within literal vectors or other implementation-dependent literals will
+not be converted. Unfortunately, there is no ilist analogue of
+\texttt{\textquotesingle{}}, so we save keystrokes by using \texttt{iq}
+rather than \texttt{iquote} and omitting the top-level parentheses.
+
+\section{\texorpdfstring{\href{}{The
+procedures}}{The procedures}}\label{the-procedures}
+
+The templates given below obey the following conventions for procedure
+formals:
+
+\begin{longtable}[]{@{}ll@{}}
+\toprule
+ilist & A proper (\texttt{()}-terminated) ilist\tabularnewline
+dilist & A proper or dotted ilist\tabularnewline
+ipair & An immutable pair\tabularnewline
+x, y, d, a & Any value\tabularnewline
+object, value & Any value\tabularnewline
+n, i & A natural number (an integer \textgreater{}= 0)\tabularnewline
+proc & A procedure\tabularnewline
+pred & A procedure whose return value is treated as a
+boolean\tabularnewline
+= & A boolean procedure taking two arguments\tabularnewline
+\bottomrule
+\end{longtable}
+
+To interpret the examples, pretend that they are executed on a Scheme
+that prints immutable pairs and lists with the syntax of mutable ones.
+
+It is an error to pass a dotted ilist to a procedure not defined to
+accept such an argument.
+
+\textbf{Added after finalization:} Implementers should extend the Scheme
+predicate \texttt{equal?} to descend into immutable pairs in the same
+way that it descends into mutable pairs.
+
+\subsection{\texorpdfstring{\href{}{Constructors}}{Constructors}}\label{constructors}
+
+\begin{description}
+\item[ \href{}{} \texttt{ipair} a d -\textgreater{} ipair ]
+The primitive constructor. Returns a newly allocated ipair whose icar is
+a and whose icdr is d. The ipair is guaranteed to be different (in the
+sense of \texttt{eqv?}) from every existing object.
+
+\begin{verbatim}
+(ipair 'a '())        => (a)
+(ipair (iq a) (iq b c d)) => ((a) b c d)
+(ipair "a" (iq b c))    => ("a" b c)
+(ipair 'a 3)          => (a . 3)
+(ipair (iq a b) 'c)     => ((a b ) . c)
+\end{verbatim}
+\item[ \href{}{} \texttt{ilist} object \ldots{} -\textgreater{} ilist ]
+Returns a newly allocated ilist of its arguments.
+
+\begin{verbatim}
+(ilist 'a (+ 3 4) 'c) =>  (a 7 c)
+(ilist)               =>  ()
+\end{verbatim}
+\item[ \href{}{} \texttt{xipair} d a -\textgreater{} ipair ]
+\begin{verbatim}
+(lambda (d a) (ipair a d))
+\end{verbatim}
+
+Of utility only as a value to be conveniently passed to higher-order
+procedures.
+
+\begin{verbatim}
+(xipair (iq b c) 'a) => (a b c)
+\end{verbatim}
+
+The name stands for ``eXchanged Immutable PAIR.'' \href{}{}
+\item[\texttt{ipair*} elt\textsubscript{1} elt\textsubscript{2} \ldots{}
+-\textgreater{} object ]
+Like \texttt{ilist}, but the last argument provides the tail of the
+constructed ilist, returning
+
+\texttt{\ (ipair\ elt1\ (ipair\ elt2\ (ipair\ ...\ eltn)))\ \ \ \ \ }
+
+\begin{verbatim}
+(ipair* 1 2 3 4) => (1 2 3 . 4)
+(ipair* 1) => 1
+\end{verbatim}
+
+\href{}{}
+\item[ \texttt{make-ilist} n {[}fill{]} -\textgreater{} ilist ]
+Returns an n-element ilist, whose elements are all the value fill. If
+the fill argument is not given, the elements of the ilist may be
+arbitrary values.
+
+\begin{verbatim}
+(make-ilist 4 'c) => (c c c c)
+\end{verbatim}
+
+\href{}{}
+\item[\texttt{ilist-tabulate} n init-proc -\textgreater{} ilist ]
+Returns an n-element ilist. Element i of the ilist, where 0 \textless{}=
+i \textless{} n, is produced by \texttt{(init-proc\ i)}. No guarantee is
+made about the dynamic order in which init-proc is applied to these
+indices.
+
+\begin{verbatim}
+(ilist-tabulate 4 values) => (0 1 2 3)
+\end{verbatim}
+
+\href{}{}
+\item[\texttt{ilist-copy} dilist -\textgreater{} dilist ]
+Copies the spine of the argument, including the ilist tail. \href{}{}
+\item[\texttt{iiota} count {[}start step{]} -\textgreater{} ilist ]
+Returns an ilist containing the elements
+
+\begin{verbatim}
+(start start+step ... start+(count-1)*step)
+\end{verbatim}
+
+The start and step parameters default to 0 and 1, respectively. This
+procedure takes its name from the APL primitive.
+
+\begin{verbatim}
+(iiota 5) => (0 1 2 3 4)
+(iiota 5 0 -0.1) => (0 -0.1 -0.2 -0.3 -0.4)
+\end{verbatim}
+\end{description}
+
+\subsection{\texorpdfstring{\href{}{Predicates}}{Predicates}}\label{predicates}
+
+\begin{description}
+\item[ \texttt{proper-ilist?} x -\textgreater{} boolean \href{}{}\\
+\texttt{ilist?} x -\textgreater{} boolean \href{}{} ]
+These identifiers are bound either to the same procedure, or to
+procedures of equivalent behavior. In either case, true is returned iff
+x is a proper ilist --- a \texttt{()}-terminated ilist.
+
+More carefully: The empty list is a proper ilist. An ipair whose icdr is
+a proper ilist is also a proper ilist. Everything else is a dotted
+ilist. This includes non-ipair, non-() values (\emph{e.g.} symbols,
+numbers, mutable pairs), which are considered to be dotted ilists of
+length 0.
+
+\href{}{}
+\item[\texttt{dotted-ilist?} x -\textgreater{} boolean ]
+True if x is a finite, non-nil-terminated ilist. That is, there exists
+an n \textgreater{}= 0 such that icdr\textsuperscript{n}(x) is neither
+an ipair nor (). This includes non-ipair, non-() values (\emph{e.g.}
+symbols, numbers), which are considered to be dotted ilists of length 0.
+
+\begin{verbatim}
+(dotted-ilist? x) = (not (proper-ilist? x))
+\end{verbatim}
+
+\href{}{}
+\item[\texttt{ipair?} object -\textgreater{} boolean ]
+Returns \#t if object is an ipair; otherwise, \#f.
+
+\begin{verbatim}
+(ipair? (ipair 'a 'b)) =>  #t
+(ipair? (iq a b c)) =>  #t
+(ipair? (cons 1 2)) =>  #f
+(ipair? '())        =>  #f
+(ipair? '#(a b))    =>  #f
+(ipair? 7)          =>  #f
+(ipair? 'a)         =>  #f
+\end{verbatim}
+
+\href{}{}
+\item[\texttt{null-ilist?} ilist -\textgreater{} boolean ]
+Ilist is a proper ilist. This procedure returns true if the argument is
+the empty list (), and false otherwise. It is an error to pass this
+procedure a value which is not a proper ilist. This procedure is
+recommended as the termination condition for ilist-processing procedures
+that are not defined on dotted ilists.
+\item[ \href{}{} \texttt{not-ipair?} x -\textgreater{} boolean ]
+\begin{verbatim}
+(lambda (x) (not (ipair? x)))
+\end{verbatim}
+
+Provided as a procedure as it can be useful as the termination condition
+for ilist-processing procedures that wish to handle all ilists, both
+proper and dotted.
+\item[ \href{}{} \texttt{ilist=} elt= ilist\textsubscript{1} \ldots{}
+-\textgreater{} boolean ]
+Determines ilist equality, given an element-equality procedure. Proper
+ilist A equals proper ilist B if they are of the same length, and their
+corresponding elements are equal, as determined by elt=. If the
+element-comparison procedure's first argument is from
+ilist\textsubscript{i}, then its second argument is from
+ilist\textsubscript{i+1}, \emph{i.e.} it is always called as
+\texttt{(elt=\ a\ b)} for a an element of ilist A, and b an element of
+ilist B.
+
+In the n-ary case, every ilist\textsubscript{i} is compared to
+ilist\textsubscript{i+1} (as opposed, for example, to comparing
+ilist\textsubscript{1} to ilist\textsubscript{i}, for i\textgreater{}1).
+If there are no ilist arguments at all, \texttt{ilist=} simply returns
+true.
+
+It is an error to apply \texttt{ilist=} to anything except proper
+ilists. It cannot reasonably be extended to dotted ilists, as it
+provides no way to specify an equality procedure for comparing the ilist
+terminators.
+
+Note that the dynamic order in which the elt= procedure is applied to
+pairs of elements is not specified. For example, if \texttt{ilist=} is
+applied to three ilists, A, B, and C, it may first completely compare A
+to B, then compare B to C, or it may compare the first elements of A and
+B, then the first elements of B and C, then the second elements of A and
+B, and so forth.
+
+The equality procedure must be consistent with \texttt{eq?}. That is, it
+must be the case that
+
+\texttt{(eq?\ x\ y)} =\textgreater{} \texttt{(elt=\ x\ y)}.
+
+Note that this implies that two ilists which are \texttt{eq?} are always
+\texttt{ilist=}, as well; implementations may exploit this fact to
+``short-cut'' the element-by-element comparisons.
+
+\begin{verbatim}
+(ilist= eq?) => #t       ; Trivial cases
+(ilist= eq? (iq a)) => #t
+\end{verbatim}
+\end{description}
+
+\subsection{\texorpdfstring{\href{}{Selectors}}{Selectors}}\label{selectors}
+
+\begin{description}
+\item[\texttt{icar} ipair -\textgreater{} value\\
+\texttt{icdr} ipair -\textgreater{} value ]
+These procedures return the contents of the icar and icdr field of their
+argument, respectively. Note that it is an error to apply them to the
+empty ilist.
+
+\begin{verbatim}
+(icar (iq a b c))       =>  a        (icdr (iq a b c))     =>  (b c)  
+(icar (iq (a) b c d))   =>  (a)       (icdr (iq (a) b c d)) =>  (b c d)
+(icar (ipair 1 2))      =>  1         (icdr (ipair 1 2))    =>  2      
+(icar '())              =>  *error*  (icdr '())            =>  *error*
+\end{verbatim}
+
+\href{}{} \href{}{} \href{}{} \href{}{}
+\item[\texttt{icaar} ipair -\textgreater{} value\\
+\texttt{icadr} ipair -\textgreater{} value\\
+\texttt{:}\\
+\texttt{icdddar} ipair -\textgreater{} value\\
+\texttt{icddddr} ipair -\textgreater{} value ]
+These procedures are compositions of \texttt{icar} and \texttt{icdr},
+where for example \texttt{icaddr} could be defined by
+
+\begin{verbatim}
+    
+(define icaddr (lambda (x) (icar (icdr (icdr x))))).
+\end{verbatim}
+
+Arbitrary compositions, up to four deep, are provided. There are
+twenty-eight of these procedures in all. \href{}{}
+\item[\texttt{ilist-ref} ilist i -\textgreater{} value ]
+Returns the i\textsuperscript{th} element of ilist. (This is the same as
+the icar of \texttt{(idrop\ ilist\ i)}.) It is an error if i
+\textgreater{}= n, where n is the length of ilist.
+
+\begin{verbatim}
+    
+(ilist-ref (iq a b c d) 2) => c
+\end{verbatim}
+\item[ \href{}{} \texttt{ifirst~~~}ipair -\textgreater{} object\\
+\href{}{} \texttt{isecond~~}ipair -\textgreater{} object\\
+\href{}{} \texttt{ithird~~~}ipair -\textgreater{} object\\
+\href{}{} \texttt{ifourth~~}ipair -\textgreater{} object\\
+\href{}{} \texttt{ififth~~~}ipair -\textgreater{} object\\
+\href{}{} \texttt{isixth~~~}ipair -\textgreater{} object\\
+\href{}{} \texttt{iseventh~}ipair -\textgreater{} object\\
+\href{}{} \texttt{ieighth~~}ipair -\textgreater{} object\\
+\href{}{} \texttt{ininth~~~}ipair -\textgreater{} object\\
+\href{}{} \texttt{itenth~~~}ipair -\textgreater{} object ]
+Synonyms for \texttt{car}, \texttt{cadr}, \texttt{caddr}, \ldots{}
+
+\begin{verbatim}
+(ithird '(a b c d e)) => c
+\end{verbatim}
+\item[ \href{}{} \texttt{icar+icdr} ipair -\textgreater{} {[}x y{]} ]
+The fundamental ipair deconstructor:
+
+\begin{verbatim}
+(lambda (p) (values (icar p) (icdr p)))
+\end{verbatim}
+
+This can, of course, be implemented more efficiently by a compiler.
+\item[ \href{}{} \texttt{itake} x i -\textgreater{} ilist\\
+\href{}{} \texttt{idrop} x i -\textgreater{} object\\
+\href{}{} \texttt{ilist-tail} x i -\textgreater{} object ]
+\texttt{itake} returns the first i elements of ilist x.\\
+\texttt{idrop} returns all but the first i elements of ilist x.\\
+\texttt{ilist-tail} is either the same procedure as \texttt{idrop} or
+else a procedure with the same behavior.
+
+\begin{verbatim}
+(itake (iq a b c d e)  2) => (a b)
+(idrop (iq a b c d e)  2) => (c d e)
+\end{verbatim}
+
+x may be any value --- a proper or dotted ilist:
+
+\begin{verbatim}
+(itake (ipair 1 (ipair 2 (ipair 3 'd)))    => (1 2)
+(idrop (ipair 1 (ipair 2 (ipair 3 'd))) 2) => (3 . d)
+(itake (ipair 1 (ipair 2 (ipair 3 'd))) 3) => (1 2 3)
+(idrop (ipair 1 (ipair 2 (ipair 3 'd))) 3) => d
+\end{verbatim}
+
+For a legal i, \texttt{itake} and \texttt{idrop} partition the ilist in
+a manner which can be inverted with \texttt{iappend}:
+
+\begin{verbatim}
+(iappend (itake x i) (idrop x i)) = x
+\end{verbatim}
+
+\texttt{idrop} is exactly equivalent to performing i icdr operations on
+x; the returned value shares a common tail with x.
+\item[ \href{}{} \texttt{itake-right} dilist i -\textgreater{} object\\
+\href{}{} \texttt{idrop-right} dilist i -\textgreater{} ilist ]
+\texttt{itake-right} returns the last i elements of dilist.\\
+\texttt{idrop-right} returns all but the last i elements of dilist.
+
+\begin{verbatim}
+(itake-right (iq a b c d e) 2) => (d e)
+(idrop-right (iq a b c d e) 2) => (a b c)
+\end{verbatim}
+
+The returned ilist may share a common tail with the argument ilist.
+
+dilist may be any ilist, either proper or dotted:
+
+\begin{verbatim}
+(itake-right (iq ipair 1 (ipair 2 (ipair 3 'd))) 2) => (2 3 . d)
+(idrop-right (ipair 1 (ipair 2 (ipair 3 'd))) 2)    => (1)
+(itake-right (ipair 1 (ipair 2 (ipair 3 'd))) 0)    => d
+(idrop-right (ipair 1 (ipair 2 (ipair 3 'd))) 0)    => (1 2 3)
+\end{verbatim}
+
+For a legal i, \texttt{itake-right} and \texttt{idrop-right} partition
+the ilist in a manner which can be inverted with \texttt{iappend}:
+
+\begin{verbatim}
+(iappend (itake dilist i) (idrop dilist i)) = dilist
+\end{verbatim}
+
+\texttt{itake-right}'s return value is guaranteed to share a common tail
+with dilist.
+\item[ \href{}{} \texttt{isplit-at~} x i -\textgreater{} {[}ilist
+object{]} ]
+\texttt{isplit-at} splits the ilist x at index i, returning an ilist of
+the first i elements, and the remaining tail. It is equivalent to
+
+\begin{verbatim}
+(values (itake x i) (idrop x i))
+\end{verbatim}
+\item[ \href{}{} \texttt{ilast} ipair -\textgreater{} object\\
+\href{}{} \texttt{last-ipair} ipair -\textgreater{} ipair ]
+Returns the last element of the non-empty, possibly dotted, ilist ipair.
+\texttt{last-ipair} returns the last ipair in the non-empty ilist pair.
+
+\begin{verbatim}
+(ilast (iq a b c))      => c
+(last-ipair (iq a b c)) => (c)
+\end{verbatim}
+\end{description}
+
+\subsection{\texorpdfstring{\href{}{Miscellaneous: length, append,
+concatenate, reverse, zip \&
+count}}{Miscellaneous: length, append, concatenate, reverse, zip \& count}}\label{miscellaneous-length-append-concatenate-reverse-zip-count}
+
+\begin{description}
+\item[ \href{}{} \texttt{ilength~~}ilist -\textgreater{} integer ]
+Returns the length of its argument. It is an error to pass a value to
+\texttt{ilength} which is not a proper ilist (\texttt{()}-terminated).
+
+The length of a proper ilist is a non-negative integer n such that
+\texttt{icdr} applied n times to the ilist produces the empty list.
+\item[ \href{}{} \texttt{iappend~} ilist\textsubscript{1} \ldots{}
+-\textgreater{} ilist ]
+Returns an ilist consisting of the elements of ilist\textsubscript{1}
+followed by the elements of the other ilist parameters.
+
+\begin{verbatim}
+(iappend (iq x) (iq y))        =>  (x y)
+(iappend (iq a) (iq b c d))    =>  (a b c d)
+(iappend (iq a (b)) (iq (c)))  =>  (a (b) (c))
+\end{verbatim}
+
+The resulting ilist is always newly allocated, except that it shares
+structure with the final ilist\textsubscript{i} argument. This last
+argument may be any value at all; an improper ilist results if it is not
+a proper ilist. All other arguments must be proper ilists.
+
+\begin{verbatim}
+(iappend (iq a b) (ipair 'c 'd))  =>  (a b c . d)
+(iappend '() 'a)           =>  a
+(iappend (iq x y))         =>  (x y)
+(iappend)                  =>  ()
+\end{verbatim}
+\item[ \href{}{} \texttt{iconcatenate~} ilist-of-ilists -\textgreater{}
+value ]
+Appends the elements of its argument together. That is,
+\texttt{iconcatenate} returns
+
+\begin{verbatim}
+(iapply iappend ilist-of-ilists)
+\end{verbatim}
+
+or, equivalently,
+
+\begin{verbatim}
+(ireduce-right iappend '() ilist-of-ilists)
+\end{verbatim}
+
+Note that some Scheme implementations do not support passing more than a
+certain number (\emph{e.g.}, 64) of arguments to an n-ary procedure. In
+these implementations, the \texttt{(iapply\ iappend\ ...)} idiom would
+fail when applied to long lists, but \texttt{iconcatenate} would
+continue to function properly.
+
+As with \texttt{iappend}, the last element of the input list may be any
+value at all.
+\item[ \href{}{} \texttt{ireverse~} ilist -\textgreater{} ilist ]
+Returns a newly allocated ilist consisting of the elements of ilist in
+reverse order.
+
+\begin{verbatim}
+(ireverse (iq a b c)) =>  (c b a)
+(ireverse (iq a (b c) d (e (f))))
+    =>  ((e (f)) d (b c) a)
+\end{verbatim}
+\item[ \href{}{} \texttt{iappend-reverse~~}rev-head tail -\textgreater{}
+ilist ]
+\texttt{iappend-reverse} returns
+\texttt{(iappend\ (ireverse\ rev-head)\ tail)}. It is provided because
+it is a common operation --- a common list-processing style calls for
+this exact operation to transfer values accumulated in reverse order
+onto the front of another ilist, and because the implementation is
+significantly more efficient than the simple composition it replaces.
+(But note that this pattern of iterative computation followed by a
+reverse can frequently be rewritten as a recursion, dispensing with the
+\texttt{reverse} and \texttt{iappend-reverse} steps, and shifting
+temporary, intermediate storage from the heap to the stack, which is
+typically a win for reasons of cache locality and eager storage
+reclamation.) \href{}{}
+\item[\texttt{izip} ilist\textsubscript{1} ilist\textsubscript{2}
+\ldots{} -\textgreater{} ilist ]
+\begin{verbatim}
+(lambda ilists (iapply imap ilist ilists))
+\end{verbatim}
+
+If \texttt{izip} is passed n ilists, it returns an ilist as long as the
+shortest of these ilists, each element of which is an n-element ilist
+comprised of the corresponding elements from the parameter ilists.
+
+\begin{verbatim}
+(izip (iq one two three) 
+     (iq 1 2 3)
+     (iq odd even odd even odd even odd even))
+    => ((one 1 odd) (two 2 even) (three 3 odd))
+
+(izip (iq 1 2 3)) => ((1) (2) (3))
+\end{verbatim}
+
+\href{}{}
+\item[ \texttt{iunzip1} ilist -\textgreater{} ilist \href{}{}\\
+\texttt{iunzip2} ilist -\textgreater{} {[}ilist ilist{]} \href{}{}\\
+\texttt{iunzip3} ilist -\textgreater{} {[}ilist ilist ilist{]}
+\href{}{}\\
+\texttt{iunzip4} ilist -\textgreater{} {[}ilist ilist ilist ilist{]}
+\href{}{}\\
+\texttt{iunzip5} ilist -\textgreater{} {[}ilist ilist ilist ilist
+ilist{]} ]
+\texttt{iunzip1} takes an ilist of ilists, where every ilist must
+contain at least one element, and returns an ilist containing the
+initial element of each such ilist. That is, it returns
+\texttt{(imap\ icar\ ilists)}. \texttt{iunzip2} takes an ilist of
+ilists, where every ilist must contain at least two elements, and
+returns two values: an ilist of the first elements, and an ilist of the
+second elements. \texttt{iunzip3} does the same for the first three
+elements of the ilists, and so forth.
+
+\begin{verbatim}
+(iunzip2 (iq (1 one) (2 two) (3 three))) =>
+    (1 2 3) 
+    (one two three)
+\end{verbatim}
+\item[ \href{}{} \texttt{icount} pred ilist\textsubscript{1}
+ilist\textsubscript{2} \ldots{} -\textgreater{} integer ]
+pred is a procedure taking as many arguments as there are ilists and
+returning a single value. It is applied element-wise to the elements of
+the ilists, and a count is tallied of the number of elements that
+produce a true value. This count is returned. \texttt{count} is
+``iterative'' in that it is guaranteed to apply pred to the ilist
+elements in a left-to-right order. The counting stops when the shortest
+ilist expires.
+
+\begin{verbatim}
+(count even? (iq 3 1 4 1 5 9 2 5 6)) => 3
+(count < (iq 1 2 4 8) (iq 2 4 6 8 10 12 14 16)) => 3
+\end{verbatim}
+\end{description}
+
+\subsection{\texorpdfstring{\href{}{Fold, unfold \&
+map}}{Fold, unfold \& map}}\label{fold-unfold-map}
+
+\begin{description}
+\item[ \href{}{} \texttt{ifold} kons knil ilist\textsubscript{1}
+ilist\textsubscript{2} \ldots{} -\textgreater{} value ]
+The fundamental ilist iterator.
+
+First, consider the single ilist-parameter case. If
+ilist\textsubscript{1} = (e\textsubscript{1} e\textsubscript{2} \ldots{}
+e\textsubscript{n}), then this procedure returns
+
+\texttt{(kons\ en\ ...\ (kons\ e2\ (kons\ e1\ knil))\ ...\ )}
+
+That is, it obeys the (tail) recursion
+
+\begin{verbatim}
+(ifold kons knil lis) = (ifold kons (kons (icar lis) knil) (icdr lis))
+(ifold kons knil '()) = knil
+\end{verbatim}
+
+Examples:
+
+\begin{verbatim}
+(ifold + 0 lis)           ; Add up the elements of LIS.
+
+(ifold ipair '() lis)       ; Reverse LIS.
+
+(ifold ipair tail rev-head) ; See APPEND-REVERSE.
+
+;; How many symbols in LIS?
+(ifold (lambda (x count) (if (symbol? x) (+ count 1) count))
+      0
+      lis)
+
+;; Length of the longest string in LIS:
+(ifold (lambda (s max-len) (max max-len (string-length s)))
+      0
+      lis)
+\end{verbatim}
+
+If n ilist arguments are provided, then the kons function must take n+1
+parameters: one element from each ilist, and the ``seed'' or fold state,
+which is initially knil. The fold operation terminates when the shortest
+ilist runs out of values:
+
+\begin{verbatim}
+(ifold ipair* '() (iq a b c) (iq 1 2 3 4 5)) => (c 3 b 2 a 1)
+\end{verbatim}
+\item[ \href{}{} \texttt{ifold-right} kons knil ilist\textsubscript{1}
+ilist\textsubscript{2} \ldots{} -\textgreater{} value ]
+The fundamental ilist recursion operator.
+
+First, consider the single ilist-parameter case. If
+ilist\textsubscript{1} = \texttt{(e1\ e2\ ...\ en)}, then this procedure
+returns
+
+\texttt{\ (kons\ e1\ (kons\ e2\ ...\ (kons\ en\ knil)))}
+
+That is, it obeys the recursion
+
+\begin{verbatim}
+(ifold-right kons knil lis) = (kons (icar lis) (ifold-right kons knil (icdr lis)))
+(ifold-right kons knil '()) = knil
+\end{verbatim}
+
+Examples:
+
+\begin{verbatim}
+(ifold-right ipair '() lis)       ; Copy LIS.
+
+;; Filter the even numbers out of LIS.
+(ifold-right (lambda (x l) (if (even? x) (ipair x l) l)) '() lis))
+\end{verbatim}
+
+If n ilist arguments are provided, then the kons procedure must take n+1
+parameters: one element from each ilist, and the ``seed'' or fold state,
+which is initially knil. The fold operation terminates when the shortest
+ilist runs out of values:
+
+\begin{verbatim}
+(ifold-right ipair* '() (iq a b c) (iq 1 2 3 4 5)) => (a 1 b 2 c 3)
+\end{verbatim}
+\item[ \href{}{} \texttt{ipair-fold} kons knil ilist\textsubscript{1}
+ilist\textsubscript{2} \ldots{} -\textgreater{} value ]
+Analogous to \texttt{fold}, but kons is applied to successive sub-ilists
+of the ilists, rather than successive elements --- that is, kons is
+applied to the ipairs making up the lists, giving this (tail) recursion:
+
+\begin{verbatim}
+(ipair-fold kons knil lis) = (let ((tail (icdr lis)))
+                              (ipair-fold kons (kons lis knil) tail))
+(ipair-fold kons knil '()) = knil
+\end{verbatim}
+
+Example:
+
+\begin{verbatim}
+(ipair-fold ipair '() (iq a b c)) => ((c) (b c) (a b c))
+\end{verbatim}
+\item[ \href{}{} \texttt{ipair-fold-right} kons knil
+ilist\textsubscript{1} ilist\textsubscript{2} \ldots{} -\textgreater{}
+value ]
+Holds the same relationship with \texttt{ifold-right} that
+\texttt{ipair-fold} holds with \texttt{ifold}. Obeys the recursion
+
+\begin{verbatim}
+(ipair-fold-right kons knil lis) = 
+    (kons lis (ipair-fold-right kons knil (icdr lis)))
+(ipair-fold-right kons knil '()) = knil
+\end{verbatim}
+
+Example:
+
+\begin{verbatim}
+(ipair-fold-right ipair '() (iq a b c)) => ((a b c) (b c) (c))
+\end{verbatim}
+\item[ \href{}{} \texttt{ireduce} f ridentity ilist -\textgreater{}
+value ]
+\texttt{ireduce} is a variant of \texttt{ifold}.
+
+ridentity should be a ``right identity'' of the procedure f --- that is,
+for any value x acceptable to f,
+
+\begin{verbatim}
+(f x ridentity) = x
+\end{verbatim}
+
+\texttt{ireduce} has the following definition:
+
+If ilist = (), return ridentity;\\
+Otherwise, return \texttt{(ifold\ f\ (icar\ ilist)\ (icdr\ ilist))}.
+
+\ldots{}in other words, we compute
+\texttt{(ifold\ f\ ridentity\ ilist)}.
+
+Note that ridentity is used \emph{only} in the empty-list case. You
+typically use \texttt{ireduce} when applying f is expensive and you'd
+like to avoid the extra application incurred when \texttt{ifold} applies
+f to the head of ilist and the identity value, redundantly producing the
+same value passed in to f. For example, if f involves searching a file
+directory or performing a database query, this can be significant. In
+general, however, \texttt{ifold} is useful in many contexts where
+\texttt{ireduce} is not (consider the examples given in the
+\texttt{ifold} definition --- only one of the five folds uses a function
+with a right identity. The other four may not be performed with
+\texttt{ireduce}).
+
+\begin{verbatim}
+;; take the max of an ilist of non-negative integers.
+(ireduce max 0 nums) ; i.e., (iapply max 0 nums)
+\end{verbatim}
+\item[ \href{}{} \texttt{ireduce-right} f ridentity ilist
+-\textgreater{} value ]
+\texttt{ireduce-right} is the fold-right variant of \texttt{ireduce}. It
+obeys the following definition:
+
+\begin{verbatim}
+(ireduce-right f ridentity '()) = ridentity
+(ireduce-right f ridentity (iq e1)) = (f e1 ridentity) = e1
+(ireduce-right f ridentity (iq e1 e2 ...)) =
+    (f e1 (ireduce f ridentity (e2 ...)))
+\end{verbatim}
+
+\ldots{}in other words, we compute
+\texttt{(ifold-right\ f\ ridentity\ ilist)}.
+
+\begin{verbatim}
+;; Append a bunch of ilists together.
+;; I.e., (iapply iappend ilist-of-ilists)
+(ireduce-right iappend '() ilist-of-ilists)
+\end{verbatim}
+\item[ \href{}{} \texttt{iunfold} p f g seed {[}tail-gen{]}
+-\textgreater{} ilist ]
+\texttt{iunfold} is best described by its basic recursion:
+
+\begin{verbatim}
+(iunfold p f g seed) = 
+    (if (p seed) (tail-gen seed)
+        (ipair (f seed)
+              (iunfold p f g (g seed))))
+\end{verbatim}
+
+\begin{description}
+\tightlist
+\item[ p ]
+Determines when to stop unfolding.
+\item[ f ]
+Maps each seed value to the corresponding ilist element.
+\item[ g ]
+Maps each seed value to next seed value.
+\item[ seed ]
+The ``state'' value for the unfold.
+\item[ tail-gen ]
+Creates the tail of the ilist; defaults to
+\texttt{(lambda\ (x)\ \textquotesingle{}())}
+\end{description}
+
+In other words, we use g to generate a sequence of seed values
+
+seed, g(seed), g\textsuperscript{2}(seed), g\textsuperscript{3}(seed),
+\ldots{}
+
+These seed values are mapped to ilist elements by f, producing the
+elements of the result ilist in a left-to-right order. P says when to
+stop.
+
+\texttt{iunfold} is the fundamental recursive ilist constructor, just as
+\texttt{ifold-right} is the fundamental recursive ilist consumer. While
+\texttt{iunfold} may seem a bit abstract to novice functional
+programmers, it can be used in a number of ways:
+
+\begin{verbatim}
+;; Ilist of squares: 1^2 ... 10^2
+(iunfold (lambda (x) (> x 10))
+        (lambda (x) (* x x))
+    (lambda (x) (+ x 1))
+    1)
+        
+(iunfold null-ilist? icar icdr lis) ; Copy a proper ilist.
+
+;; Read current input port into an ilist of values.
+(iunfold eof-object? values (lambda (x) (read)) (read))
+
+;; Copy a possibly non-proper ilist:
+(iunfold not-ipair? icar icdr lis 
+              values)
+
+;; Append HEAD onto TAIL:
+(iunfold null-ilist? icar icdr head 
+              (lambda (x) tail))
+\end{verbatim}
+
+Interested functional programmers may enjoy noting that
+\texttt{ifold-right} and \texttt{iunfold} are in some sense inverses.
+That is, given operations knull?, kar, kdr, kons, and knil satisfying
+
+\texttt{(kons\ (kar\ x)\ (kdr\ x))} = \texttt{x} and
+\texttt{(knull?\ knil)} = \texttt{\#t}
+
+then
+
+\texttt{(ifold-right\ kons\ knil\ (iunfold\ knull?\ kar\ kdr\ x))} = x
+
+and
+
+\texttt{(iunfold\ knull?\ kar\ kdr\ (ifold-right\ kons\ knil\ x))} = x.
+
+This combinator sometimes is called an ``anamorphism;'' when an explicit
+tail-gen procedure is supplied, it is called an ``apomorphism.''
+\item[ \href{}{} \texttt{iunfold-right} p f g seed {[}tail{]}
+-\textgreater{} ilist ]
+\texttt{iunfold-right} constructs an ilist with the following loop:
+
+\begin{verbatim}
+(let lp ((seed seed) (lis tail))
+  (if (p seed) lis
+      (lp (g seed)
+          (ipair (f seed) lis))))
+\end{verbatim}
+
+\begin{description}
+\tightlist
+\item[ p ]
+Determines when to stop unfolding.
+\item[ f ]
+Maps each seed value to the corresponding ilist element.
+\item[ g ]
+Maps each seed value to next seed value.
+\item[ seed ]
+The ``state'' value for the unfold.
+\item[ tail ]
+ilist terminator; defaults to \texttt{\textquotesingle{}()}.
+\end{description}
+
+In other words, we use g to generate a sequence of seed values
+
+seed, g(seed), g\textsuperscript{2}(seed), g\textsuperscript{3}(seed),
+\ldots{}
+
+These seed values are mapped to ilist elements by f, producing the
+elements of the result ilist in a right-to-left order. P says when to
+stop.
+
+\texttt{iunfold-right} is the fundamental iterative ilist constructor,
+just as \texttt{ifold} is the fundamental iterative ilist consumer.
+While \texttt{iunfold-right} may seem a bit abstract to novice
+functional programmers, it can be used in a number of ways:
+
+\begin{verbatim}
+;; Ilist of squares: 1^2 ... 10^2
+(iunfold-right zero? 
+              (lambda (x) (* x x))
+              (lambda (x) (- x 1))
+              10)
+    
+;; Reverse a proper ilist.
+(iunfold-right null-ilist? icar icdr lis)
+
+;; Read current input port into an ilist of values.
+(iunfold-right eof-object? values (lambda (x) (read)) (read))
+
+;; (iappend-reverse rev-head tail)
+(iunfold-right null-ilist? icar icdr rev-head tail)
+\end{verbatim}
+
+Interested functional programmers may enjoy noting that \texttt{ifold}
+and \texttt{iunfold-right} are in some sense inverses. That is, given
+operations knull?, kar, kdr, kons, and knil satisfying
+
+\texttt{(kons\ (kar\ x)\ (kdr\ x))} = \texttt{x} and
+\texttt{(knull?\ knil)} = \texttt{\#t}
+
+then
+
+\texttt{(ifold\ kons\ knil\ (iunfold-right\ knull?\ kar\ kdr\ x))} = x
+
+and
+
+\texttt{(iunfold-right\ knull?\ kar\ kdr\ (ifold\ kons\ knil\ x))} = x.
+
+This combinator presumably has some pretentious mathematical name;
+interested readers are invited to communicate it to the author.
+\item[ \href{}{} \texttt{imap} proc ilist\textsubscript{1}
+ilist\textsubscript{2} \ldots{} -\textgreater{} ilist ]
+proc is a procedure taking as many arguments as there are ilist
+arguments and returning a single value. \texttt{imap} applies proc
+element-wise to the elements of the ilists and returns an ilist of the
+results, in order. The dynamic order in which proc is applied to the
+elements of the ilists is unspecified.
+
+\begin{verbatim}
+(imap icadr (iq (a b) (d e) (g h))) =>  (b e h)
+
+(imap (lambda (n) (expt n n))
+     (iq 1 2 3 4 5))
+    =>  (1 4 27 256 3125)
+
+(imap + (iq 1 2 3) (iq 4 5 6)) =>  (5 7 9)
+
+(let ((count 0))
+  (imap (lambda (ignored)
+         (set! count (+ count 1))
+         count)
+       (iq a b))) =>  (1 2) or (2 1)
+\end{verbatim}
+\item[ \href{}{} \texttt{ifor-each} proc ilist\textsubscript{1}
+ilist\textsubscript{2} \ldots{} -\textgreater{} unspecified ]
+The arguments to \texttt{ifor-each} are like the arguments to
+\texttt{imap}, but \texttt{ifor-each} calls proc for its side effects
+rather than for its values. Unlike \texttt{imap}, \texttt{ifor-each} is
+guaranteed to call proc on the elements of the ilists in order from the
+first element(s) to the last, and the value returned by
+\texttt{ifor-each} is unspecified.
+
+\begin{verbatim}
+(let ((v (make-vector 5)))
+  (ifor-each (lambda (i)
+              (vector-set! v i (* i i)))
+            (iq 0 1 2 3 4))
+  v)  =>  #(0 1 4 9 16)
+\end{verbatim}
+\item[ \href{}{} \texttt{iappend-map~~}f ilist\textsubscript{1}
+ilist\textsubscript{2} \ldots{} -\textgreater{} value ]
+Equivalent to
+
+\texttt{\ (iapply\ iappend\ \ (imap\ f\ ilist1\ ilist2\ ...))}
+
+and
+
+\texttt{\ (iapply\ iappend\ (imap\ f\ ilist1\ ilist2\ ...))}
+
+Map f over the elements of the ilists, just as in the \texttt{imap}
+function. However, the results of the applications are appended together
+(using \texttt{iappend}) to make the final result.
+
+The dynamic order in which the various applications of f are made is not
+specified.
+
+Example:
+
+\begin{verbatim}
+(iappend-map (lambda (x) (ilist x (- x))) (iq 1 3 8))
+    => (1 -1 3 -3 8 -8)
+\end{verbatim}
+\item[ \href{}{} \texttt{imap-in-order\ }f ilist\textsubscript{1}
+ilist\textsubscript{2} \ldots{} -\textgreater{} ilist ]
+A variant of the \texttt{imap} procedure that guarantees to apply f
+across the elements of the ilist\textsubscript{i} arguments in a
+left-to-right order. This is useful for mapping procedures that both
+have side effects and return useful values.
+\item[ \href{}{} \texttt{ipair-for-each\ }f ilist\textsubscript{1}
+ilist\textsubscript{2} \ldots{} -\textgreater{} unspecific ]
+Like \texttt{ifor-each}, but f is applied to successive sub-ilists of
+the argument ilists. That is, f is applied to the cells of the ilists,
+rather than the ilists' elements. These applications occur in
+left-to-right order.
+
+\begin{verbatim}
+(ipair-for-each (lambda (ipair) (display ipair) (newline)) (iq a b c)) ==>
+    (a b c)
+    (b c)
+    (c)
+\end{verbatim}
+\item[ \href{}{} \texttt{ifilter-map} f ilist\textsubscript{1}
+ilist\textsubscript{2} \ldots{} -\textgreater{} ilist ]
+Like \texttt{imap}, but only true values are saved.
+
+\begin{verbatim}
+(ifilter-map (lambda (x) (and (number? x) (* x x))) (iq a 1 b 3 c 7))
+    => (1 9 49)
+\end{verbatim}
+
+The dynamic order in which the various applications of f are made is not
+specified.
+\end{description}
+
+\subsection{\texorpdfstring{\href{}{Filtering \&
+partitioning}}{Filtering \& partitioning}}\label{filtering-partitioning}
+
+\begin{description}
+\item[ \href{}{} \texttt{ifilter} pred ilist -\textgreater{} ilist ]
+Return all the elements of ilist that satisfy predicate pred. The ilist
+is not disordered --- elements that appear in the result ilist occur in
+the same order as they occur in the argument ilist. The returned ilist
+may share a common tail with the argument ilist. The dynamic order in
+which the various applications of pred are made is not specified.
+
+\begin{verbatim}
+(ifilter even? (iq 0 7 8 8 43 -4)) => (0 8 8 -4)
+\end{verbatim}
+\item[ \href{}{} \texttt{ipartition} pred ilist -\textgreater{} {[}ilist
+ilist{]} ]
+Partitions the elements of ilist with predicate pred, and returns two
+values: the ilist of in-elements and the ilist of out-elements. The
+ilist is not disordered --- elements occur in the result ilists in the
+same order as they occur in the argument ilist. The dynamic order in
+which the various applications of pred are made is not specified. One of
+the returned ilists may share a common tail with the argument ilist.
+
+\begin{verbatim}
+(ipartition symbol? (iq one 2 3 four five 6)) => 
+    (one four five)
+    (2 3 6)
+\end{verbatim}
+\item[ \href{}{} \texttt{iremove} pred ilist -\textgreater{} ilist ]
+Returns ilist without the elements that satisfy predicate pred:
+
+\begin{verbatim}
+(lambda (pred ilist) (ifilter (lambda (x) (not (pred x))) ilist))
+\end{verbatim}
+
+The ilist is not disordered --- elements that appear in the result ilist
+occur in the same order as they occur in the argument ilist. The
+returned ilist may share a common tail with the argument ilist. The
+dynamic order in which the various applications of pred are made is not
+specified.
+
+\begin{verbatim}
+(iremove even? (iq 0 7 8 8 43 -4)) => (7 43)
+\end{verbatim}
+\end{description}
+
+\subsection{\texorpdfstring{\href{}{Searching}}{Searching}}\label{searching}
+
+The following procedures all search ilists for a leftmost element
+satisfying some criteria. This means they do not always examine the
+entire ilist; thus, there is no efficient way for them to reliably
+detect and signal an error when passed a dotted ilist. Here are the
+general rules describing how these procedures work when applied to
+different kinds of ilists:
+
+\begin{description}
+\item[ Proper ilists: ]
+The standard, canonical behavior happens in this case.
+\item[ Dotted ilists: ]
+It is an error to pass these procedures a dotted ilist that does not
+contain an element satisfying the search criteria. That is, it is an
+error if the procedure has to search all the way to the end of the
+dotted ilist. However, this SRFI does \emph{not} specify anything at all
+about the behavior of these procedures when passed a dotted ilist
+containing an element satisfying the search criteria. It may finish
+successfully, signal an error, or perform some third action. Different
+implementations may provide different functionality in this case; code
+which is compliant with this SRFI may not rely on any particular
+behavior. Future SRFIs may refine this SRFI to define specific behavior
+in this case.
+
+In brief, compliant code may not pass a dotted ilist argument to these
+procedures.
+\end{description}
+
+Here are some examples, using the \texttt{ifind} and \texttt{iany}
+procedures as canonical representatives:
+
+\begin{verbatim}
+;; Proper ilist — success
+(ifind even? (iq 1 2 3))    => 2
+(iany  even? (iq 1 2 3))    => #t
+
+;; proper ilist — failure
+(ifind even? (iq 1 7 3))    => #f
+(iany  even? (iq 1 7 3))    => #f
+
+;; Failure is error on a dotted ilist.
+(ifind even? (ipair 1 (ipair 3 'x)))    => error
+(iany  even? (ipair 1 (ipair 3 'x)))    => error
+
+;; The dotted ilist contains an element satisfying the search.
+;; This case is not specified — it could be success, an error, 
+;; or some third possibility.
+(ifind even? (ipair 1 (ipair 2 'x)))    => error/undefined
+(iany  even? (ipair 1 (ipair 2 'x)))    => error/undefined ; success, error or other.
+\end{verbatim}
+
+\begin{description}
+\item[ \href{}{} \texttt{ifind} pred ilist -\textgreater{} value ]
+Return the first element of ilist that satisfies predicate pred; false
+if no element does.
+
+\begin{verbatim}
+(ifind even? (iq 3 1 4 1 5 9)) => 4
+\end{verbatim}
+
+Note that \texttt{ifind} has an ambiguity in its lookup semantics --- if
+\texttt{ifind} returns \texttt{\#f}, you cannot tell (in general) if it
+found a \texttt{\#f} element that satisfied pred, or if it did not find
+any element at all. In many situations, this ambiguity cannot arise ---
+either the ilist being searched is known not to contain any \texttt{\#f}
+elements, or the ilist is guaranteed to have an element satisfying pred.
+However, in cases where this ambiguity can arise, you should use
+\texttt{ifind-tail} instead of \texttt{ifind} --- \texttt{ifind-tail}
+has no such ambiguity:
+
+\begin{verbatim}
+(cond ((ifind-tail pred lis) => (lambda (ipair) ...)) ; Handle (icar ipair)
+      (else ...)) ; Search failed.
+\end{verbatim}
+\item[ \href{}{} \texttt{ifind-tail} pred ilist -\textgreater{} ipair or
+false ]
+Return the first ipair of ilist whose icar satisfies pred. If no ipair
+does, return false.
+
+\texttt{ifind-tail} can be viewed as a general-predicate variant of the
+\texttt{imember} function.
+
+Examples:
+
+\begin{verbatim}
+(ifind-tail even? (iq 3 1 37 -8 -5 0 0)) => (-8 -5 0 0)
+(ifind-tail even? (iq 3 1 37 -5)) => #f
+
+;; IMEMBER X LIS:
+(ifind-tail (lambda (elt) (equal? x elt)) lis)
+\end{verbatim}
+
+\texttt{Ifind-tail} is essentially \texttt{idrop-while}, where the sense
+of the predicate is inverted: \texttt{Ifind-tail} searches until it
+finds an element satisfying the predicate; \texttt{idrop-while} searches
+until it finds an element that \emph{doesn't} satisfy the predicate.
+\item[ \href{}{} \texttt{itake-while~} pred ilist -\textgreater{} ilist
+]
+Returns the longest initial prefix of ilist whose elements all satisfy
+the predicate pred.
+
+\begin{verbatim}
+(itake-while even? (iq 2 18 3 10 22 9)) => (2 18)
+\end{verbatim}
+\item[ \href{}{} \texttt{idrop-while} pred ilist -\textgreater{} ilist ]
+idrops the longest initial prefix of ilist whose elements all satisfy
+the predicate pred, and returns the rest of the ilist.
+
+\begin{verbatim}
+(idrop-while even? (iq 2 18 3 10 22 9)) => (3 10 22 9)
+\end{verbatim}
+\item[ \href{}{} \texttt{ispan~~} pred ilist -\textgreater{} {[}ilist
+ilist{]}\\
+\href{}{} \texttt{ibreak~} pred ilist -\textgreater{} {[}ilist ilist{]}
+]
+\texttt{ispan} splits the ilist into the longest initial prefix whose
+elements all satisfy pred, and the remaining tail. \texttt{ibreak}
+inverts the sense of the predicate: the tail commences with the first
+element of the input ilist that satisfies the predicate.
+
+In other words: \texttt{ispan} finds the initial span of elements
+satisfying pred, and \texttt{ibreak} breaks the ilist at the first
+element satisfying pred.
+
+\texttt{ispan} is equivalent to
+
+\begin{verbatim}
+(values (itake-while pred ilist) 
+        (idrop-while pred ilist))
+\end{verbatim}
+
+\begin{verbatim}
+(ispan even? (iq 2 18 3 10 22 9)) =>
+  (2 18)
+  (3 10 22 9)
+
+(ibreak even? (iq 3 1 4 1 5 9)) =>
+  (3 1)
+  (4 1 5 9)
+\end{verbatim}
+\item[ \href{}{} \texttt{iany} pred ilist\textsubscript{1}
+ilist\textsubscript{2} \ldots{} -\textgreater{} value ]
+Applies the predicate across the ilists, returning true if the predicate
+returns true on any application.
+
+If there are n ilist arguments ilist\textsubscript{1} \ldots{}
+ilist\textsubscript{n}, then pred must be a procedure taking n arguments
+and returning a boolean result.
+
+\texttt{iany} applies pred to the first elements of the
+ilist\textsubscript{i} parameters. If this application returns a true
+value, \texttt{iany} immediately returns that value. Otherwise, it
+iterates, applying pred to the second elements of the
+ilist\textsubscript{i} parameters, then the third, and so forth. The
+iteration stops when a true value is produced or one of the ilists runs
+out of values; in the latter case, \texttt{iany} returns \texttt{\#f}.
+The application of pred to the last element of the ilists is a tail
+call.
+
+Note the difference between \texttt{ifind} and \texttt{iany} ---
+\texttt{ifind} returns the element that satisfied the predicate;
+\texttt{iany} returns the true value that the predicate produced.
+
+Like \texttt{ievery}, \texttt{iany}'s name does not end with a question
+mark --- this is to indicate that it does not return a simple boolean
+(\texttt{\#t} or \texttt{\#f}), but a general value.
+
+\begin{verbatim}
+(iany integer? (iq a 3 b 2.7))   => #t
+(iany integer? (iq a 3.1 b 2.7)) => #f
+(iany < (iq 3 1 4 1 5)
+       (iq 2 7 1 8 2)) => #t
+\end{verbatim}
+\item[ \href{}{} \texttt{ievery} pred ilist\textsubscript{1}
+ilist\textsubscript{2} \ldots{} -\textgreater{} value ]
+Applies the predicate across the ilists, returning true if the predicate
+returns true on every application.
+
+If there are n ilist arguments ilist\textsubscript{1} \ldots{}
+ilist\textsubscript{n}, then pred must be a procedure taking n arguments
+and returning a boolean result.
+
+\texttt{ievery} applies pred to the first elements of the
+ilist\textsubscript{i} parameters. If this application returns false,
+\texttt{ievery} immediately returns false. Otherwise, it iterates,
+applying pred to the second elements of the ilist\textsubscript{i}
+parameters, then the third, and so forth. The iteration stops when a
+false value is produced or one of the ilists runs out of values. In the
+latter case, \texttt{ievery} returns the true value produced by its
+final application of pred. The application of pred to the last element
+of the ilists is a tail call.
+
+If one of the ilist\textsubscript{i} has no elements, \texttt{ievery}
+simply returns \texttt{\#t}.
+
+Like \texttt{iany}, \texttt{ievery}'s name does not end with a question
+mark --- this is to indicate that it does not return a simple boolean
+(\texttt{\#t} or \texttt{\#f}), but a general value.
+\item[ \href{}{} \texttt{ilist-index} pred ilist\textsubscript{1}
+ilist\textsubscript{2} \ldots{} -\textgreater{} integer or false ]
+Return the index of the leftmost element that satisfies pred.
+
+If there are n ilist arguments ilist\textsubscript{1} \ldots{}
+ilist\textsubscript{n}, then pred must be a function taking n arguments
+and returning a boolean result.
+
+\texttt{ilist-index} applies pred to the first elements of the
+ilist\textsubscript{i} parameters. If this application returns true,
+\texttt{ilist-index} immediately returns zero. Otherwise, it iterates,
+applying pred to the second elements of the ilist\textsubscript{i}
+parameters, then the third, and so forth. When it finds a tuple of ilist
+elements that cause pred to return true, it stops and returns the
+zero-based index of that position in the ilists.
+
+The iteration stops when one of the ilists runs out of values; in this
+case, \texttt{ilist-index} returns \texttt{\#f}.
+
+\begin{verbatim}
+(ilist-index even? (iq 3 1 4 1 5 9)) => 2
+(ilist-index < (iq 3 1 4 1 5 9 2 5 6) (iq 2 7 1 8 2)) => 1
+(ilist-index = (iq 3 1 4 1 5 9 2 5 6) (iq 2 7 1 8 2)) => #f
+\end{verbatim}
+\item[ \href{}{} \texttt{imember} x ilist {[}={]} -\textgreater{}
+ilist\\
+\href{}{} \texttt{imemq} x ilist -\textgreater{} ilist\\
+\href{}{} \texttt{imemv} x ilist -\textgreater{} ilist ]
+These procedures return the first sub-ilist of ilist whose icar is x,
+where the sub-ilists of ilist are the non-empty ilists returned by
+\texttt{(idrop\ ilist\ i)} for i less than the length of ilist. If x
+does not occur in ilist, then \texttt{\#f} is returned. \texttt{imemq}
+uses \texttt{eq?} to compare x with the elements of ilist, while
+\texttt{imemv} uses \texttt{eqv?}, and \texttt{imember} uses
+\texttt{equal?}.
+
+\begin{verbatim}
+    (imemq 'a (iq a b c))           =>  (a b c)
+    (imemq 'b (iq a b c))           =>  (b c)
+    (imemq 'a (iq b c d))           =>  #f
+    (imemq (list 'a)
+            (ilist 'b '(a) 'c))     =>  #f
+    (imember (list 'a)
+            (ilist 'b '(a) 'c)))    =>  ((a) c)
+    (imemq 101 (iq 100 101 102))    =>  *unspecified*
+    (imemv 101 (iq 100 101 102))    =>  (101 102)
+\end{verbatim}
+
+The comparison procedure is used to compare the elements
+e\textsubscript{i} of ilist to the key x in this way:
+
+\texttt{\ (=\ x\ ei)\ \ \ \ \ \ \ ;\ ilist\ is\ (E1\ ...\ En)}
+
+That is, the first argument is always x, and the second argument is one
+of the ilist elements. Thus one can reliably find the first element of
+ilist that is greater than five with
+\texttt{(imember\ 5\ ilist\ \textless{})}
+
+Note that fully general ilist searching may be performed with the
+\texttt{ifind-tail} and \texttt{ifind} procedures, \emph{e.g.}
+
+\begin{verbatim}
+(ifind-tail even? ilist) ; Find the first elt with an even key.
+\end{verbatim}
+\end{description}
+
+\subsection{\texorpdfstring{\href{}{Deletion}}{Deletion}}\label{deletion}
+
+\begin{description}
+\item[ \href{}{} \texttt{idelete~~}x ilist {[}={]} -\textgreater{} ilist
+]
+\texttt{idelete} uses the comparison procedure =, which defaults to
+\texttt{equal?}, to find all elements of ilist that are equal to x, and
+deletes them from ilist. The dynamic order in which the various
+applications of = are made is not specified.
+
+The ilist is not disordered --- elements that appear in the result ilist
+occur in the same order as they occur in the argument ilist. The result
+may share a common tail with the argument ilist.
+
+Note that fully general element deletion can be performed with the
+\texttt{iremove} procedures, \emph{e.g.}:
+
+\begin{verbatim}
+;; idelete all the even elements from LIS:
+(iremove even? lis)
+\end{verbatim}
+
+The comparison procedure is used in this way: \texttt{(=\ x\ ei)}. That
+is, x is always the first argument, and an ilist element is always the
+second argument. The comparison procedure will be used to compare each
+element of ilist exactly once; the order in which it is applied to the
+various e\textsubscript{i} is not specified. Thus, one can reliably
+remove all the numbers greater than five from an ilist with
+\texttt{(idelete\ 5\ ilist\ \textless{})}
+\item[ \href{}{} \texttt{idelete-duplicates~~}ilist {[}={]}
+-\textgreater{} ilist ]
+\texttt{idelete-duplicates} removes duplicate elements from the ilist
+argument. If there are multiple equal elements in the argument ilist,
+the result ilist only contains the first or leftmost of these elements
+in the result. The order of these surviving elements is the same as in
+the original ilist --- \texttt{idelete-duplicates} does not disorder the
+ilist (hence it is useful for ``cleaning up'' immutable association
+lists).
+
+The = parameter is used to compare the elements of the ilist; it
+defaults to \texttt{equal?}. If x comes before y in ilist, then the
+comparison is performed \texttt{(=\ x\ y)}. The comparison procedure
+will be used to compare each pair of elements in ilist no more than
+once; the order in which it is applied to the various pairs is not
+specified.
+
+Implementations of \texttt{idelete-duplicates} are allowed to share
+common tails between argument and result ilists --- for example, if the
+ilist argument contains only unique elements, it may simply return
+exactly this ilist.
+
+Be aware that, in general, \texttt{idelete-duplicates} runs in time
+O(n\textsuperscript{2}) for n-element ilists. Uniquifying long ilists
+can be accomplished in O(n lg n) time by sorting the ilist to bring
+equal elements together, then using a linear-time algorithm to remove
+equal elements. Alternatively, one can use algorithms based on
+element-marking, with linear-time results.
+
+\begin{verbatim}
+(idelete-duplicates (iq a b a c a b c z)) => (a b c z)
+
+;; Clean up an ialist:
+(idelete-duplicates (iq (a . 3) (b . 7) (a . 9) (c . 1))
+                   (lambda (x y) (eq? (icar x) (icar y))))
+    => ((a . 3) (b . 7) (c . 1))
+\end{verbatim}
+\end{description}
+
+\subsection{\texorpdfstring{\href{}{Immutable association
+lists}}{Immutable association lists}}\label{immutable-association-lists}
+
+An ``immutable association list'' (or ``ialist'') is an ilist of ipairs.
+The icar of each ipair contains a key value, and the icdr contains the
+associated data value. They can be used to construct simple look-up
+tables in Scheme. Note that ialists are probably inappropriate for
+performance-critical use on large data; in these cases, immutable maps
+or some other alternative should be employed.
+
+\begin{description}
+\item[ \href{}{} \texttt{iassoc} key ialist {[}={]} -\textgreater{}
+ipair or \#f\\
+\href{}{} \texttt{iassq} key ialist -\textgreater{} ipair or \#f\\
+\href{}{} \texttt{iassv} key ialist -\textgreater{} ipair or \#f ]
+ialist must be an immutable association list --- an ilist of ipairs.
+These procedures find the first ipair in ialist whose icar field is key,
+and returns that ipair. If no ipair in ialist has key as its icar, then
+\texttt{\#f} is returned. \texttt{iassq} uses \texttt{eq?} to compare
+key with the icar fields of the ipairs in ialist, while \texttt{iassv}
+uses \texttt{eqv?} and \texttt{iassoc} uses \texttt{equal?}.
+
+\begin{verbatim}
+(define e (iq (a 1) (b 2) (c 3)))
+(iassq 'a e)                               =>  (a 1)
+(iassq 'b e)                               =>  (b 2)
+(iassq 'd e)                               =>  #f
+(iassq (ilist 'a) (iq ((a)) ((b)) ((c))))  =>  #f
+(iassoc '(a) (ilist '((a)) '((b)) '((c)))) =>  ((a))
+(iassq 5 (iq (2 3) (5 7) (11 13)))     =>  *unspecified*
+(iassv 5 (iq (2 3) (5 7) (11 13)))     =>  (5 7)
+\end{verbatim}
+
+The comparison procedure is used to compare the elements
+e\textsubscript{i} of ilist to the key parameter in this way:
+
+\texttt{\ (=\ key\ (icar\ ei))\ \ ;\ ilist\ is\ (E1\ ...\ En)}
+
+That is, the first argument is always key, and the second argument is
+one of the ilist elements. Thus one can reliably find the first entry of
+ialist whose key is greater than five with
+\texttt{(iassoc\ 5\ ialist\ \textless{})}
+
+Note that fully general ialist searching may be performed with the
+\texttt{ifind-tail} and \texttt{ifind} procedures, \emph{e.g.}
+
+\begin{verbatim}
+;; Look up the first association in ialist with an even key:
+(ifind (lambda (a) (even? (icar a))) ialist)
+\end{verbatim}
+\item[ \href{}{} \texttt{ialist-cons} key datum ialist -\textgreater{}
+ialist ]
+\begin{verbatim}
+(lambda (key datum ialist) (ipair (ipair key datum) ialist))
+\end{verbatim}
+
+Construct a new ialist entry mapping key -\textgreater{} datum onto
+ialist.
+\item[ \href{}{} \texttt{ialist-delete~~}key ialist {[}={]}
+-\textgreater{} ialist ]
+\texttt{ialist-delete} deletes all associations from ialist with the
+given key, using key-comparison procedure =, which defaults to
+\texttt{equal?}. The dynamic order in which the various applications of
+= are made is not specified.
+
+Return values may share common tails with the ialist argument. The
+ialist is not disordered --- elements that appear in the result ialist
+occur in the same order as they occur in the argument ialist.
+
+The comparison procedure is used to compare the element keys
+k\textsubscript{i} of ialist's entries to the key parameter in this way:
+\texttt{(=\ key\ ki)}. Thus, one can reliably remove all entries of
+ialist whose key is greater than five with
+\texttt{(ialist-delete\ 5\ ialist\ \textless{})}
+\end{description}
+
+\subsection{\texorpdfstring{\href{}{Replacement}}{Replacement}}\label{replacement}
+
+These two procedures are analogues of the primitive side-effect
+operations on pairs, \texttt{set-car!} and \texttt{set-cdr!}.
+
+\begin{description}
+\tightlist
+\item[ \href{}{} \texttt{replace-icar} ipair object -\textgreater{}
+ipair ]
+This procedure returns an ipair with object in the icar field and the
+icdr of ipair in the icdr field.
+\item[ \href{}{} \texttt{replace-icdr} ipair object -\textgreater{}
+ipair ]
+This procedure returns an ipair with object in the icdr field and the
+icar of ipair in the icar field.
+\end{description}
+
+\subsection{\texorpdfstring{\href{}{Conversion}}{Conversion}}\label{conversion}
+
+These procedures convert between mutable and immutable pair structures.
+
+\begin{description}
+\item[ \href{}{} \texttt{pair-\textgreater{}ipair} pair -\textgreater{}
+ipair\\
+\href{}{} \texttt{ipair-\textgreater{}pair} ipair -\textgreater{} pair ]
+These procedures, which are inverses, return an ipair and a pair
+respectively that have the same (i)car and (i)cdr fields as the
+argument.
+\item[ \href{}{} \texttt{list-\textgreater{}ilist} flist -\textgreater{}
+dilist\\
+\href{}{} \texttt{ilist-\textgreater{}list} dilist -\textgreater{} flist
+]
+These procedures return an ilist and a list respectively that have the
+same elements as the argument. The tails of dotted (i)lists are
+preserved in the result, which makes the procedures not inverses when
+the tail of a dotted ilist is a list or vice versa. The empty list is
+converted to itself.
+
+It is an error to apply \texttt{list-\textgreater{}ilist} to a circular
+list.
+\item[ \href{}{} \texttt{tree-\textgreater{}itree} object
+-\textgreater{} object\\
+\href{}{} \texttt{itree-\textgreater{}tree} object -\textgreater{}
+object ]
+These procedures walk a tree of pairs or ipairs respectively and make a
+deep copy of it, returning an isomorphic tree containing ipairs or pairs
+respectively. The result may share structure with the argument. If the
+argument is not of the expected type, it is returned.
+
+These procedures are not inverses in the general case. For example, a
+pair of ipairs would be converted by \texttt{tree-\textgreater{}itree}
+to an ipair of ipairs, which if converted by
+\texttt{itree-\textgreater{}tree} would produce a pair of pairs.
+\item[ \href{}{} \texttt{gtree-\textgreater{}itree} object
+-\textgreater{} object\\
+\href{}{} \texttt{gtree-\textgreater{}tree} object -\textgreater{}
+object ]
+These procedures walk a generalized tree consisting of pairs, ipairs, or
+a combination of both, and make a deep copy of it, returning an
+isomorphic tree containing only ipairs or pairs respectively. The result
+may share structure with the argument. If the argument is neither a pair
+nor an ipair, it is returned.
+\end{description}
+
+\subsection{\texorpdfstring{\href{}{Procedure
+Application}}{Procedure Application}}\label{procedure-application}
+
+This procedure allows a procedure to be applied to an ilist.
+
+\begin{description}
+\tightlist
+\item[ \href{}{} \texttt{iapply} procedure object \ldots{} ilist
+-\textgreater{} object ]
+The \texttt{iapply} procedure is an analogue of \texttt{apply} whose
+last argument is an ilist rather than a list. It is equivalent to
+\texttt{(apply\ }procedure object \ldots{}
+(\texttt{ilist-\textgreater{}list} ilist\texttt{))}, but may be
+implemented more efficiently.
+\end{description}
+
+\subsection{\texorpdfstring{\href{}{Comparators}}{Comparators}}\label{comparators}
+
+\begin{description}
+\tightlist
+\item[ \href{}{} \texttt{ipair-comparator} ]
+The \texttt{ipair-comparator} object is a SRFI-114 comparator suitable
+for comparing ipairs. Note that it is \emph{not} a procedure. It
+compares pairs using \texttt{default-comparator} on their cars. If the
+cars are not equal, that value is returned. If they are equal,
+\texttt{default-comparator} is used on their cdrs and that value is
+returned.
+\item[ \href{}{} \texttt{ilist-comparator} ]
+The \texttt{ilist-comparator} object is a SRFI-114 comparator suitable
+for comparing ilists. Note that it is \emph{not} a procedure. It
+compares ilists lexicographically, as follows:
+
+\begin{itemize}
+\tightlist
+\item
+  The empty ilist compares equal to itself.
+\item
+  The empty ilist compares less than any non-empty ilist.
+\item
+  Two non-empty ilists are compared by comparing their icars. If the
+  icars are not equal when compared using \texttt{default-comparator},
+  then the result is the result of that comparison. Otherwise, the icdrs
+  are compared using \texttt{ilist-comparator}.
+\end{itemize}
+\item[ \href{}{} \texttt{make-ilist-comparator} comparator
+-\textgreater{} comparator ]
+The \texttt{make-ilist-comparator} procedure returns a comparator
+suitable for comparing ilists using element-comparator to compare the
+elements.
+\item[ \href{}{} \texttt{make-improper-ilist-comparator} comparator
+-\textgreater{} comparator ]
+The \texttt{make-improper-ilist-comparator} procedure returns a
+comparator that compares arbitrary objects as follows: the empty list
+precedes all ipairs, which precede all other objects. Ipairs are
+compared as if with
+\texttt{(make-ipair-comparator\ }\emph{comparator}\texttt{\ }\emph{comparator}\texttt{)}.
+All other objects are compared using \emph{comparator}.
+\item[ \href{}{} \texttt{make-icar-comparator} comparator
+-\textgreater{} comparator ]
+The \texttt{make-icar-comparator} procedure returns a comparator that
+compares ipairs on their icars alone using \emph{comparator}.
+\item[ \href{}{} \texttt{make-icdr-comparator} comparator
+-\textgreater{} comparator ]
+The \texttt{make-icdr-comparator} procedure returns a comparator that
+compares ipairs on their icdrs alone using \emph{comparator}.
+\end{description}
+
+\section{\texorpdfstring{\href{}{Sample
+Implementation}}{Sample Implementation}}\label{sample-implementation}
+
+The sample implementation of this SRFI is derived from the sample
+implementation of SRFI 1. It depends on SRFI 9 (or R7RS) records. The
+five files in the implementation are as follows:
+
+\begin{itemize}
+\tightlist
+\item
+  \texttt{ilists-impl.scm} is a modified version of the SRFI 1
+  implementation.
+\item
+  \texttt{ilists-base.scm} provides the definition of ipair records as
+  well as additional procedures that are required by this SRFI.
+\item
+  \texttt{ilists.sld} is an R7RS library.
+\item
+  \texttt{ilists.scm} is a Chicken library.
+\item
+  \texttt{ilists-test.scm} is a set of tests using the Chicken
+  \texttt{test} egg, which is also available in Chibi as the R7RS
+  library \texttt{(chibi\ test)}.
+\end{itemize}
+
+\section{\texorpdfstring{\href{}{Acknowledgements}}{Acknowledgements}}\label{acknowledgements}
+
+Without the work of Olin Shivers on
+\href{http://srfi.schemers.org/srfi-1/srfi-1.html}{SRFI 1}, this SRFI
+would not exist. Everyone acknowledged there is transitively
+acknowledged here. This is not to imply that either Olin or anyone else
+necessarily endorses the final results, of course.
+
+\section{\texorpdfstring{\href{}{References \&
+links}}{References \& links}}\label{references-links}
+
+\begin{description}
+\tightlist
+\item[This document, in HTML: ]
+\href{./srfi-116_files/srfi-116.html}{http://srfi.schemers.org/srfi-116/srfi-116.html}
+\item[Source code for the reference implementation: ]
+\url{http://srfi.schemers.org/srfi-116/ilists.tar.gz}
+\item[Archive of SRFI-116 discussion-list email: ]
+\url{http://srfi.schemers.org/srfi-116/mail-archive/maillist.html}
+\item[SRFI web site: ]
+\url{http://srfi.schemers.org/}
+\end{description}
+
+\section{\texorpdfstring{\href{}{Copyright}}{Copyright}}\label{copyright}
+
+Copyright (C) John Cowan 2014. All Rights Reserved.
+
+Permission is hereby granted, free of charge, to any person obtaining a
+copy of this software and associated documentation files (the
+``Software''), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be included
+in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED ``AS IS'', WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+\begin{center}\rule{0.5\linewidth}{\linethickness}\end{center}
+
+Editor:
+\href{mailto:srfi-editors\%20at\%20srfi\%20dot\%20schemers\%20dot\%20org}{Mike
+Sperber}

@@ -1,0 +1,80 @@
+\section{list library rationale}
+
+The set of basic list and pair operations provided by
+R4RS/\protect\hyperlink{R5RS}{R5RS} Scheme is far from satisfactory.
+Because this set is so small and basic, most implementations provide
+additional utilities, such as a list-filtering function, or a ``left
+fold'' operator, and so forth. But, of course, this introduces
+incompatibilities -- different Scheme implementations provide different
+sets of procedures.
+
+I have designed a full-featured library of procedures for list
+processing. While putting this library together, I checked as many
+Schemes as I could get my hands on. (I have a fair amount of experience
+with several of these already.) I missed Chez -- no on-line manual that
+I can find -- but I hit most of the other big, full-featured Schemes.
+The complete list of list-processing systems I checked is:
+
+R4RS/\protect\hyperlink{R5RS}{R5RS} Scheme, MIT Scheme, Gambit, RScheme,
+MzScheme, slib, \protect\hyperlink{CommonLisp}{Common Lisp}, Bigloo,
+guile, T, APL and the SML standard basis
+
+As a result, the library I am proposing is fairly rich.
+
+Following this initial design phase, this library went through several
+months of discussion on the SRFI mailing lists, and was altered in light
+of the ideas and suggestions put forth during this discussion.
+
+In parallel with designing this API, I have also written a reference
+implementation. I have placed this source on the Net with an
+unencumbered, ``open'' copyright. A few notes about the reference
+implementation:
+
+\begin{itemize}
+\tightlist
+\item
+  Although I got procedure names and specs from many Schemes, I wrote
+  this code myself. Thus, there are \emph{no} entanglements. Any Scheme
+  implementor can pick this library up with no worries about copyright
+  problems -- both commercial and non-commercial systems.
+\item
+  The code is written for portability and should be trivial to port to
+  any Scheme. It has only four deviations from R4RS, clearly discussed
+  in the comments:
+
+  \begin{itemize}
+  \tightlist
+  \item
+    Use of an \texttt{error} procedure;
+  \item
+    Use of the \protect\hyperlink{R5RS}{R5RS} \texttt{values} and a
+    simple \texttt{receive} macro for producing and consuming multiple
+    return values;
+  \item
+    Use of simple \texttt{:optional} and \texttt{let-optionals} macros
+    for optional argument parsing and defaulting;
+  \item
+    Use of a simple \texttt{check-arg} procedure for argument checking.
+  \end{itemize}
+\item
+  It is written for clarity and well-commented. The current source is
+  768 lines of source code and 826 lines of comments and white space.
+\item
+  It is written for efficiency. Fast paths are provided for common
+  cases. Side-effecting procedures such as \texttt{filter!} avoid
+  unnecessary, redundant \texttt{set-cdr!}s which would thrash a
+  generational GC's write barrier and the store buffers of fast
+  processors. Functions reuse longest common tails from input parameters
+  to construct their results where possible. Constant-space iterations
+  are used in preference to recursions; local recursions are used in
+  preference to consing temporary intermediate data structures.
+
+  This is not to say that the implementation can't be tuned up for a
+  specific Scheme implementation. There are notes in comments addressing
+  ways implementors can tune the reference implementation for
+  performance.
+\end{itemize}
+
+In short, I've written the reference implementation to make it as
+painless as possible for an implementor -- or a regular programmer -- to
+adopt this library and get good results with it.

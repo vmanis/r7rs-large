@@ -1,0 +1,46 @@
+\section{Sets and Bags}
+
+Sets are a standard part of the libraries of many high-level programming
+languages, including Smalltalk,
+\href{http://docs.oracle.com/javase/6/docs/api/java/util/Set.html}{Java},
+and \href{http://www.cplusplus.com/reference/set/set/}{C++}.
+\href{http://docs.racket-lang.org/reference/sets.html}{Racket} provides
+general sets similar to those of this proposal, though with fewer
+procedures, and there is a Chicken egg called \texttt{sets}
+(unfortunately undocumented), which provides a minimal set of
+procedures. \href{http://srfi.schemers.org/srfi-1/srfi-1.html}{SRFI 1}
+also provides a list-based implementation of sets.
+
+Bags are useful for counting anything from a fixed set of possibilities,
+e.g. the number of each type of error in a log file or the number of
+uses of each word in a lexicon drawn from a body of documents. Although
+other data structures can serve the same purpose, using bags clearly
+expresses the programmer's intent and allows for optimization.
+
+Insofar as possible, the names in this SRFI are harmonized with the
+names used for ordered collections (lists, strings, vectors, and
+bytevectors) in Scheme. However, \texttt{size} is used instead of
+\texttt{length} to express the number of elements in a collection,
+because \texttt{length} implies order.
+
+It's possible to use the general sets of this SRFI to contain
+characters, but the use of
+\href{http://srfi.schemers.org/srfi-14/srfi-14.html}{SRFI 14} is
+recommended instead. The names and facilities in this SRFI are
+harmonized with SRFI 14, except that SRFI 14 does not contain analogues
+of the \texttt{set-search!}, \texttt{set\textgreater{}?},
+\texttt{set\textless{}=?}, \texttt{set\textgreater{}=?},
+\texttt{set-remove}, or \texttt{set-partition} procedures.
+
+Sets and bags do not have a lexical syntax representation. It's possible
+to use \href{http://srfi.schemers.org/srfi-108/srfi-108.html}{SRFI 108}
+quasi-literal constructors to create them in code, but this SRFI does
+not standardize how that is done.
+
+The interface to general sets and bags depends on
+\href{http://srfi.schemers.org/srfi-114/srfi-114.html}{SRFI 114}
+comparators, despite that SRFI having a higher number than this one for
+\href{http://www.catb.org/jargon/html/H/hysterical-reasons.html}{hysterical
+raisins}. Comparators conveniently package the equality predicate of the
+set with the hash function or comparison procedure needed to implement
+the set efficiently.

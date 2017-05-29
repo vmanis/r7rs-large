@@ -1,0 +1,630 @@
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
+  <title>SRFI 127: Lazy Sequences</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="/srfi.css" type="text/css" />
+  <style>#content > #right > .dose > .dosesingle,
+#content > #center > .dose > .dosesingle
+{display:none !important;}</style></head>
+
+  <body>
+
+<h1>Title</h1>
+
+Lazy Sequences
+
+<h1>Author</h1>
+
+John Cowan
+
+<h1>Status</h1>
+
+<p>This SRFI is currently in <em>final</em> status. Here is <a href="http://srfi.schemers.org/srfi-process.html">an explanation</a> of each status that a SRFI can hold.  To provide input on this SRFI, please send email to <code><a href="mailto:srfi minus 127 at srfi dotschemers dot org">srfi-127@<span class="antispam">nospam</span>srfi.schemers.org</a></code>.  To subscribe to the list, follow <a href="http://srfi.schemers.org/srfi-list-subscribe.html">these instructions</a>.  You can access previous messages via the mailing list <a href="http://srfi-email.schemers.org/srfi-127">archive</a>.</p>
+<ul>
+<li>Received: 2015/10/20</li>
+<li>60-day deadline: 2015/12/19</li>
+<li>Draft #1 published: 2015/10/20</li>
+<li>Draft #2 published: 2015/10/21</li>
+<li>Draft #3 published: 2015/10/25</li>
+<li>Draft #4 published: 2015/10/29</li>
+<li>Draft #5 published: 2015/12/16</li>
+<li>Finalized: 2016/1/18</li>
+<li>Revised to fix errata: 2016/1/20, 2016/8/8</li>
+</ul>
+
+<h1>Abstract</h1>
+
+<p>
+Lazy sequences (or lseqs, pronounced "ell-seeks") are a generalization of lists.
+In particular, an lseq is either a proper list or a dotted list
+whose last cdr is
+a <a href="http://srfi.schemers.org/srfi-121/srfi-121.html">SRFI 121</a> generator.
+A generator is a procedure that can be invoked with no arguments
+in order to lazily supply additional elements of the lseq.
+When a generator has no more elements to return, it returns an
+end-of-file object.  Consequently, lazy sequences cannot reliably contain
+end-of-file objects.</p>
+<p>This SRFI provides a set of procedures
+suitable for operating on lazy sequences based
+on <a href="http://srfi.schemers.org/srfi-1/srfi-1.html">SRFI 1</a>.</p>
+
+<h1>Issues</h1>
+
+None at present.
+
+<h1><a name="Rationale">Rationale</a></h1>
+<p>Lazy sequences are more heavyweight than generators, on which they
+are based, but they are more lightweight
+than <a href="http://srfi.schemers.org/srfi-41/srfi-41.html">SRFI 41</a> streams.
+However, streams are <i>even</i>, as explained in the SRFI 41 rationale;
+that is, the initial state of a stream does not have any elements that
+have already been realized.  By contrast, lazy sequences are <i>odd</i>,
+meaning that at least one element is realized at all times unless the lseq
+is empty.  Therefore, when constructing an lseq in an iterative lazy algorithm,
+only the cdr side of the lazy pair is lazily evaluated; the car side is evaluated
+immediately, even if it is never used.</p>
+<p>In most cases this doesn't matter,
+because calculating one additional item is a negligible overhead.
+However, when you create a self-referential lazy structure,
+in which the earlier elements of a sequence are used to calculate
+the later elements of itself, a bit of caution is needed;
+code that is valid for circular streams may not terminate
+if it is mechanically converted to use lazy sequences.
+This eagerness is also visible when side effects are involved;
+for example, a lazy character sequence reading from a port
+may read one character ahead.</p>
+<p>This SRFI is less comprehensive than SRFI 1, because it omits
+many procedures that process every element of their list arguments (at least,
+when used in the absence of <code>call/cc</code>).  Lseqs are meant
+to be used with ordinary Scheme functions, which are strict, so
+neither left nor right folds are provided: it is just as time-efficient to
+use <code>lseq-realize</code> and then SRFI 1 <code>fold</code> or
+<code>fold-right</code>, and just as space-efficient to use <code>lseq-&gt;generator</code>
+and SRFI 121's <code>generator-fold</code>.
+Exceptions are <code>lseq-length</code> and <code>lseq-for-each</code>,
+which are very common operations on lists and so are provided.</p>
+
+<p>Lazy alists have been omitted, as the point of an alist is
+to express a function whose results are not algorithmically deducible from
+its arguments.  As a result, there is little point in using a generator
+procedure to produce key-value mappings when an ordinary procedure can
+compute the value from the key directly.
+The linear-update procedures of SRFI 1 are also left out, as lazy sequences
+are not intended to be mutated.</p>
+
+<h2>Table of contents</h2>
+<ul id="toc-table">
+</ul><li><a href="#ProcedureIndex">Procedure index</a>
+</li><li><a href="#Specification">Specification</a>
+  <ul>
+  <li><a href="#Constructors">Constructors</a>
+  </li><li><a href="#Predicates">Predicates</a>
+  </li><li><a href="#Selectors">Selectors</a>
+  </li><li><a href="#Whole">The whole lazy sequence</a>
+  </li><li><a href="#MappingFiltering">Mapping and filtering</a>
+  </li><li><a href="#Searching">Searching</a>
+  </li></ul>
+</li><li><a href="#SampleImplementation">Sample Implementation</a>
+</li><li><a href="#Acknowledgements">Acknowledgements</a>
+</li><li><a href="#ReferencesLinks">References &amp; links</a>
+</li><li><a href="#Copyright">Copyright</a>
+</li>
+<h1><a name="ProcedureIndex">Procedure Index</a></h1>
+<p>
+Here is a short list of the procedures provided by this SRFI.
+</p><div class="indent">
+<dl>
+<dt class="proc-index"> Constructors
+</dt><dd class="proc-index">
+<pre class="proc-index"><a href="#generator->lseq">generator-&gt;lseq</a> 
+</pre>
+</dd><dt class="proc-index"> Predicates
+</dt><dd class="proc-index">
+<pre class="proc-index"><a href="#lseq-p">lseq?</a>         <a href="#lseq-equal-p">lseq=?</a>
+</pre>
+</dd><dt class="proc-index"> Selectors
+</dt><dd class="proc-index">
+<pre class="proc-index"><a href="#lseq-car">lseq-car</a>     <a href="#lseq-cdr">lseq-cdr</a>
+<a href="#lseq-first">lseq-first</a>   <a href="#lseq-rest">lseq-rest</a> <a href="#lseq-ref">lseq-ref</a>
+<a href="#lseq-take">lseq-take</a>    <a href="#lseq-drop">lseq-drop</a>   
+</pre>
+</dd><dt class="proc-index"> The whole lazy sequence
+</dt><dd class="proc-index">
+<pre class="proc-index"><a href="#lseq-realize">lseq-realize</a> <a href="#lseq->generator">lseq-&gt;generator</a>
+<a href="#lseq-length">lseq-length</a>
+<a href="#lseq-append">lseq-append</a>  <a href="#lseq-zip">lseq-zip</a></pre>
+</dd><dt class="proc-index"> Mapping and filtering
+</dt><dd class="proc-index">
+<pre class="proc-index"><a href="#lseq-map">lseq-map</a>        <a href="#lseq-for-each">lseq-for-each</a>
+<a href="#lseq-filter">lseq-filter</a>     <a href="#lseq-remove">lseq-remove</a>
+</pre>
+</dd><dt class="proc-index"> Searching
+</dt><dd class="proc-index"><pre class="proc-index">
+<a href="#lseq-find">lseq-find</a>         <a href="#lseq-find-tail">lseq-find-tail</a> 
+<a href="#lseq-any">lseq-any</a>          <a href="#lseq-every">lseq-every</a>
+<a href="#lseq-index">lseq-index</a>
+<a href="#lseq-take-while">lseq-take-while</a>   <a href="#lseq-drop-while">lseq-drop-while</a>
+<a href="#lseq-member">lseq-member</a>       <a href="#lseq-memq">lseq-memq</a>     <a href="#lseq-memv">lseq-memv</a>
+</pre>
+</dd></dl>
+<h1><a name="Specification">Specification</a></h1>
+<p>
+The templates given below obey the following conventions for procedure formals:
+</p><table>
+<tbody><tr valign="baseline"><th align="left"> <var>lseq</var>
+    </th><td> A lazy sequence
+</td></tr><tr valign="baseline">
+    <th align="left"> <var>x</var>, <var>y</var>, <var>a</var>, <var>b</var>
+    </th><td> Any value
+</td></tr><tr valign="baseline"><th align="left"> <var>object</var>, <var>value</var>
+    </th><td> Any value
+</td></tr><tr valign="baseline"><th align="left"> <var>n</var>, <var>i</var>
+    </th><td> A natural number (an integer &gt;= 0)
+</td></tr><tr valign="baseline"><th align="left"> <var>proc</var>
+    </th><td> A procedure
+</td></tr><tr valign="baseline"><th align="left"> <var>pred</var>
+    </th><td> A procedure whose return value is treated as a boolean
+</td></tr><tr valign="baseline"><th align="left"> <var>generator</var>
+    </th><td> A procedure with no arguments that returns a sequence of values
+</td></tr><tr valign="baseline"><th align="left"> <var>=</var>
+    </th><td> A boolean procedure taking two arguments
+</td></tr></tbody></table>
+<p>To interpret the examples, pretend that they are executed on a Scheme that prints lazy sequences with the syntax of lists,
+truncating them when they get too long.
+</p><h2><a name="Constructors">Constructors</a></h2>
+<p>
+Every list constructor procedure is also an lseq constructor procedure.
+The procedure <code>generator-&gt;lseq</code> constructs an lseq based on the
+values of a generator.  In order to prepend a value to an lseq,
+simply use <code>cons</code>; to prepend more than one value, use SRFI 1's
+<code>cons*</code>.
+</p><dl>
+<a name="generator-&gt;lseq"></a>
+</dl></div><dt class="proc-def"> <code class="proc-def">generator-&gt;lseq</code> <var>generator -&gt; lseq</var>
+</dt><dd class="proc-def">
+    <p>Returns an lseq
+    whose elements are the values generated by <var>generator</var>.  The exact behavior is as follows:</p>
+<ul><li><var>Generator</var> is invoked with no arguments to produce an object <var>obj</var>.</li>
+<li>If <var>obj</var> is an end-of-file object, the empty list is returned.</li>
+<li>Otherwise, a newly allocated pair whose car is <var>obj</var> and whose
+cdr is <var>generator</var> is returned.</li>
+</ul>
+<pre class="code-example">(generator-&gt;lseq (make-iota-generator +inf.0 1)) =&gt; (1 2 3 ...)
+</pre></dd>
+<h2><a name="Predicates">Predicates</a></h2>
+<dl>
+<dt class="proc-def">
+<code class="proc-def">lseq?</code><var> x -&gt; boolean</var>
+<a name="lseq-p"></a>
+</dt><dd class="proc-def">
+    <p>Returns <code>#t</code> if <var>x</var> is an lseq.
+       This procedure may also return <code>#t</code> if <var>x</var> is an improper list
+       whose last cdr is a procedure that requires arguments, since there is no
+       portable way to examine a procedure to determine how many arguments it requires.
+       Otherwise it returns <code>#f</code>.
+    </p>
+</dd><dt class="proc-def">
+<a name="lseq-equal-p"></a>
+<code class="proc-def">lseq=?</code><var> elt=? lseq<sub>1</sub> lseq<sub>2</sub> -&gt; boolean</var>
+</dt><dd class="proc-def">
+    <p>Determines lseq equality, given an element-equality procedure.
+    Two lseqs are equal
+    if they are of the same length,
+    and their corresponding elements are equal,
+    as determined by <var>elt=?</var>.
+    When <var>elt=?</var> is called, its first argument is always
+    from <var>lseq<sub>1</sub></var>
+    and its second argument is from <var>lseq<sub>2</sub></var>.</p>
+<p>
+    The dynamic order in which the <var>elt=?</var> procedure is
+    applied to pairs of elements is not specified.
+</p><p>
+    The <var>elt=?</var> procedure must be consistent with <code>eq?</code>.
+    This implies that two lseqs which are <code>eq?</code>
+    are always <code>lseq=?</code>, as well; implementations may exploit this
+    fact to "short-cut" the element-by-element equality tests.</p>
+</dd></dl>
+<h2><a name="Selectors">Selectors</a></h2>
+<dl>
+<dt class="proc-defi">
+<a name="lseq-car"></a>
+<code class="proc-def">lseq-car   </code><var>lseq -&gt; object </var>
+</dt><dt class="proc-defn">
+<a name="lseq-first"></a>
+<code class="proc-def">lseq-first  </code><var>lseq -&gt; object </var>
+</dt>
+    <p>These procedures are synonymous.
+    They return the first element of <var>lseq</var>.  They
+    are included for completeness, as they are the same as <code>car</code>.
+    It is an error to apply them to an empty lseq.</p>
+<dt class="proc-defi">
+<a name="lseq-cdr"></a>
+<code class="proc-def">lseq-cdr   </code><var>lseq -&gt; lseq</var>
+</dt><dt class="proc-defn">
+<a name="lseq-rest"></a>
+<code class="proc-def">lseq-rest  </code><var>lseq -&gt; lseq</var>
+</dt>
+    <p>These procedures are synonymous.
+       They return an lseq with the contents of <var>lseq</var> except for the
+    first element.  The exact behavior is as follows:</p>
+<ul><li>If <var>lseq</var> is a pair whose cdr is a procedure, then the procedure
+is invoked with no arguments to produce an object <var>obj</var>.</li>
+<ul><li>If <var>obj</var> is an end-of-file object, then the cdr of <var>lseq</var> is
+set to the empty list, which is returned.</li>
+<li>If <var>obj</var> is any other object, then a new pair is allocated whose car
+is <i>obj</i> and whose cdr is the cdr of <var>lseq</var> (i.e. the procedure).
+The cdr of <var>lseq</var> is set to the newly allocated pair, which is returned.</li></ul>
+<li>If <var>lseq</var> is a pair whose cdr is not a procedure, then the cdr is returned.</li>
+<li>If <var>lseq</var> is not a pair, it is an error.</li>
+<ul>
+<p>Implementations that inline <code>cdr</code> are advised to inline <code>lseq-cdr</code> if
+possible.</p>
+<a name="lseq-ref"></a>
+</ul></ul></dl><dt class="proc-def"><code class="proc-def">lseq-ref</code><var> lseq i -&gt; value</var>
+</dt><dd class="proc-def">
+    <p>Returns the <var>i</var>th element of <var>lseq</var>.
+    (This is the same as
+        <code>(lseq-first (lseq-drop <var>lseq</var> <var>i</var>))</code>.)
+    It is an error if <var>i</var> &gt;= <var>n</var>,
+    where <var>n</var> is the length of <var>lseq</var>.</p>
+<pre class="code-example">    
+(lseq-ref '(a b c d) 2) =&gt; c
+</pre>
+</dd><dt class="proc-def1">
+<a name="lseq-take"></a>
+<code class="proc-def">lseq-take</code><var> lseq i -&gt; lseq</var>
+</dt><dt class="proc-defi">
+<a name="lseq-drop"></a>
+<code class="proc-def">lseq-drop</code><var> lseq i -&gt; lseq</var>
+</dt><dt class="proc-def">
+</dt><dd class="proc-def">
+    <p><code>lseq-take</code> lazily returns the first <var>i</var> elements of <var>lseq</var>.
+    <code>lseq-drop</code> returns all but the first <var>i</var> elements of <var>lseq</var>.</p>
+<pre class="code-example">(lseq-take '(a b c d e)  2) =&gt; (a b)
+(lseq-drop '(a b c d e)  2) =&gt; (c d e)
+</pre>
+    <p><code>lseq-drop</code> is exactly equivalent to performing <var>i</var> <code>lseq-rest</code> operations on <var>lseq</var>.
+</p></dd>
+<h2><a name="Whole">The whole lazy sequence</a></h2>
+<dl><dt class="proc-def">
+<a name="lseq-realize"></a>
+<code class="proc-def">lseq-realize</code><var> lseq -&gt; list</var>
+</dt><dd class="proc-def">
+     <p>Repeatedly applies <code>lseq-cdr</code> to <var>lseq</var>
+        until its generator (if there is one) has been exhausted,
+        and returns <var>lseq</var>, which is now
+        guaranteed to be a proper list.  This
+        procedure can be called on an arbitrary lseq before passing
+        it to a procedure which only accepts lists.  However, if the
+        generator never returns an end-of-file
+        object, <code>lseq-realize</code> will never return.</p>
+</dd></dl>
+<dl><dt class="proc-def">
+<a name="lseq-&gt;generator"></a>
+<code class="proc-def">lseq-&gt;generator</code><var> lseq -&gt; generator</var>
+</dt><dd class="proc-def">
+     <p>Returns a generator which when invoked will return all the elements
+        of <var>lseq</var>, including any that have not yet been realized.</p>
+</dd></dl>
+<dt class="proc-def">
+<a name="lseq-length"></a>
+<code class="proc-def">lseq-length  </code><var>lseq -&gt; integer</var>
+</dt><dd class="proc-def">
+    <p>Returns the length of its argument, which is the non-negative integer <var>n</var> such that <code>lseq-rest</code>
+    applied <var>n</var> times to the lseq produces an empty lseq.  <var>lseq</var> must be finite, or this procedure
+    will not return.</p>
+</dd>
+<dl>
+<dt><code>lseq-append</code><i> lseq ...</i></dt>
+<dd><p>Returns an lseq that lazily contains all the elements of all the <var>lseqs</var>
+in order.
+</p>
+</dd></dl>
+<dl>
+<a name="lseq-zip"></a>
+</dl><dt class="proc-def"><code class="proc-def">lseq-zip</code> <var>lseq<sub>1</sub> lseq<sub>2</sub> ... -&gt; lseq</var>
+</dt><dd class="proc-def">
+    <p>If <code>lseq-zip</code> is passed <var>n</var> lseqs, it lazily returns an lseq 
+    each element of which is an <var>n</var>-element list comprised
+    of the corresponding elements from the <var>lseqs</var>.
+    If any of the <var>lseqs</var> are finite in length, the result is as long
+    as the shortest lseq.</p>
+<pre class="code-example">(lseq-zip '(one two three) 
+     (generator-&gt;lseq (make-iota-generator +inf.0 1 1))
+     (generator-&gt;lseq (make-repeating-generator) '(odd even))))
+    =&gt; ((one 1 odd) (two 2 even) (three 3 odd))
+
+(lseq-zip '(1 2 3)) =&gt; ((1) (2) (3))
+</pre></dd>
+<h2><a name="MappingFiltering">Mapping and filtering</a></h2>
+<dl>
+</dl><dt class="proc-def">
+<a name="lseq-map"></a>
+<code class="proc-def">lseq-map</code><var> proc lseq<sub>1</sub> lseq<sub>2</sub> ... -&gt; lseq</var>
+</dt><dd class="proc-def">
+     <p>
+     The <code>lseq-map</code> procedure lazily applies <var>proc</var> element-wise to the
+     corresponding elements of the <var>lseqs</var>,
+     where <var>proc</var> is a procedure taking as many arguments
+     as there are <var>lseqs</var> and returning a single value,
+     and returns an lseq of the results in order.
+     The dynamic order in which <var>proc</var>
+     is applied to the elements of the <var>lseqs</var> is unspecified.</p>
+<pre class="code-example">
+(lseq-map
+  (lambda (x) (lseq-car (lseq-cdr x)))
+  '((a b) (d e) (g h))) =&gt;  (b e h)
+
+(lseq-map (lambda (n) (expt n n))
+     (make-iota-generator +inf.0 1 1)
+    =&gt;  (1 4 27 256 3125 ...)
+
+(lseq-map + '(1 2 3) '(4 5 6)) =&gt;  (5 7 9)
+
+(let ((count 0))
+  (lseq-map (lambda (ignored)
+         (set! count (+ count 1))
+         count)
+       '(a b))) =&gt;  (1 2) <em>or</em> (2 1)
+</pre>
+ <p>
+</p></dd><dt class="proc-def">
+<a name="lseq-for-each"></a>
+<code class="proc-def">lseq-for-each</code><var> proc lseq<sub>1</sub> lseq<sub>2</sub> ... -&gt; unspecified</var>
+</dt><dd class="proc-def">
+     <p>The arguments to <code>lseq-for-each</code> are like the arguments to
+     <code>lseq-map</code>, but
+     <code>lseq-for-each</code> calls <var>proc</var> for its side effects rather
+     than for its values.
+     Unlike <code>lseq-map</code>, <code>lseq-for-each</code> is guaranteed to call
+     <var>proc</var> on the elements of the lseqs in order from the first
+     element(s) to the last,
+     and the value returned by <code>lseq-for-each</code> is unspecified.</p>
+     If none of the <var>lseqs</var> are finite, <code>lseq-for-each</code>
+     never returns.
+<pre class="code-example">
+(let ((v (make-vector 5)))
+  (lseq-for-each (let ((count 0))
+                   (lambda (i)
+                     (vector-set! v count (* i i))
+                     (set! count (+ count 1))))
+                 '(0 1 2 3 4))
+  v)
+  =&gt;  (#0 1 2 3 4)
+</pre>
+ <p>
+</p></dd><dt class="proc-def1">
+<a name="lseq-filter"></a>
+<code class="proc-def">lseq-filter</code><var> pred lseq -&gt; lseq</var>
+</dt><dt class="proc-defn">
+<a name="lseq-remove"></a>
+<code class="proc-def">lseq-remove</code><var> pred lseq -&gt; lseq</var>
+</dt><dd class="proc-def">
+     <p>The procedure <code>lseq-filter</code> lazily returns an lseq that contains
+     only the elements of <var>lseq</var> that satisfy
+     <var>pred</var>.</p>
+     <p>The procedure <code>lseq-remove</code> is the same as
+     <code>lseq-filter</code>, except that it
+     returns elements that do not satisfy <var>pred</var>.
+     These procedures are guaranteed to call
+     <var>pred</var> on the elements of the lseqs in sequence order.</p>
+<pre class="code-example">(lseq-filter odd? (generator-&gt;lseq (make-range-generator 1 5)))
+  =&gt;  (1 3)
+</pre>
+<pre class="code-example">(lseq-remove odd? (generator-&gt;lseq (make-range-generator 1 5)))
+  =&gt;  (2 4)
+</pre>
+ <p>
+</p></dd>
+<h2><a name="Searching">Searching</a></h2>
+<p>
+The following procedures all search lseqs for the leftmost element satisfying
+some criterion.
+</p><dt class="proc-def">
+<a name="lseq-find"></a>
+<code class="proc-def">lseq-find</code><var> pred lseq -&gt; value</var>
+</dt><dd class="proc-def">
+    <p>Return the first element of <var>lseq</var> that satisfies predicate <var>pred</var>, or
+    <code>#f</code> if no element does.  It cannot reliably be applied to lseqs that include
+    <code>#f</code> as an element; use <code>lseq-find-tail</code> instead.
+    The predicate is guaranteed to be evaluated on the elements of <var>lseq</var>
+    in sequence order, and only as often as necessary.</p>
+<pre class="code-example">(lseq-find even? '(3 1 4 1 5 9 2 6)) =&gt; 4
+</pre>
+</dd><dt class="proc-def">
+<a name="lseq-find-tail"></a>
+<code class="proc-def">lseq-find-tail</code><var> pred lseq -&gt; lseq or <code>#f</code></var>
+</dt><dd class="proc-def">
+    <p>Returns the longest tail of <var>lseq</var> whose first element satisfies <var>pred</var>,
+    or <code>#f</code> if no element does.
+    The predicate is guaranteed to be evaluated on the elements of <var>lseq</var>
+    in sequence order, and only as often as necessary.
+</p><p>
+    <code>lseq-find-tail</code> can be viewed as a general-predicate variant of the <code>lseq-member</code>
+    function.
+</p><p>
+    Examples:
+</p><pre class="code-example">(lseq-find-tail even? '(3 1 37 -8 -5 0 0)) =&gt; (-8 -5 0 0)
+(lseq-find-tail even? '(3 1 37 -5)) =&gt; #f
+
+;; equivalent to (lseq-member elt lseq)
+(lseq-find-tail (lambda (elt) (equal? x elt)) lseq)
+</pre>
+</dd><dt class="proc-def">
+<a name="lseq-take-while"></a>
+<code class="proc-def">lseq-take-while </code><var> pred lseq -&gt; lseq</var>
+</dt><dd class="proc-def">
+<p>Lazily returns the longest initial prefix of <var>lseq</var> whose elements all
+satisfy the predicate <var>pred</var>.</p>
+<pre class="code-example">(lseq-take-while even? '(2 18 3 10 22 9)) =&gt; (2 18)
+</pre>
+</dd><dt class="proc-def">
+<a name="lseq-drop-while"></a>
+<code class="proc-def">lseq-drop-while</code><var> pred lseq -&gt; lseq</var>
+</dt><dd class="proc-def">
+<p>Drops the longest initial prefix of <var>lseq</var> whose elements all
+satisfy the predicate <var>pred</var>, and returns the rest of the lseq.</p>
+<pre class="code-example">(lseq-drop-while even? '(2 18 3 10 22 9)) =&gt; (3 10 22 9)
+</pre>
+<p>
+    Note that
+    <code>lseq-drop-while</code> is essentially <code>lseq-find-tail</code>
+    where the sense of the predicate is inverted:
+    <code>lseq-find-tail</code> searches until it finds an element satisfying
+    the predicate; <code>lseq-drop-while</code> searches until it finds an
+    element that <em>doesn't</em> satisfy the predicate.</p>
+</dd><dt class="proc-def">
+<a name="lseq-any"></a>
+<code class="proc-def">lseq-any</code><var> pred lseq<sub>1</sub> lseq<sub>2</sub> ... -&gt; value</var>
+</dt><dd class="proc-def">
+    <p>Applies <var>pred</var> to successive elements of the lseqs, returning true if <var>pred</var>
+    returns true on any application.
+    If an application returns a true value, <code>lseq-any</code> immediately returns
+    that value. Otherwise, it iterates until a true value is produced or one of the lseqs runs
+    out of values; in
+    the latter case, <code>lseq-any</code> returns <code>#f</code>.
+    It is an error if <i>pred</i> does not
+    accept the same number of arguments as there are <i>lseqs</i> and return a boolean result.
+
+</p><p>
+    Note the difference between <code>lseq-find</code> and <code>lseq-any</code> — <code>lseq-find</code> returns the element
+    that satisfied the predicate; <code>lseq-any</code> returns the true value that the
+    predicate produced.
+</p><p>
+    Like <code>lseq-every</code>, <code>lseq-any</code>'s name does not end with a question mark — this is to
+    indicate that it does not return a simple boolean (<code>#t</code> or <code>#f</code>), but a
+    general value.
+</p><pre class="code-example">(lseq-any integer? '(a 3 b 2.7))   =&gt; #t
+(lseq-any integer? '(a 3.1 b 2.7)) =&gt; #f
+(lseq-any &lt; '(3 1 4 1 5)
+       '(2 7 1 8 2)) =&gt; #t
+</pre><pre>(define (factorial n)
+  (cond
+    ((&lt; n 0) #f)
+    ((= n 0) 1)
+    (else (* n (factorial (- n 1))))))
+(lseq-any factorial '(-1 -2 3 4))
+        =&gt; 6
+</pre>
+</dd><dt class="proc-def">
+<a name="lseq-every"></a>
+<code class="proc-def">lseq-every</code><var> pred lseq<sub>1</sub> lseq<sub>2</sub> ... -&gt; value</var>
+</dt><dd class="proc-def">
+    <p>Applies <var>pred</var> to successive elements of the lseqs, returning true if the predicate
+    returns true on every application.
+    If an application returns a false value, <code>lseq-every</code> immediately returns
+    that value. Otherwise, it iterates until a false value is produced or one of the lseqs runs
+    out of values; in
+    the latter case, <code>lseq-every</code> returns the last value returned by <var>pred</var>,
+    or <code>#t</code> if <var>pred</var> was never invoked.
+    It is an error if <i>pred</i> does not
+    accept the same number of arguments as there are <i>lseqs</i> and return a boolean result.
+</p><p>
+    Like <code>lseq-any</code>, <code>lseq-every</code>'s name does not end with a question mark — this is to
+    indicate that it does not return a simple boolean (<code>#t</code> or <code>#f</code>), but a
+    general value.
+</p><pre>(lseq-every factorial '(1 2 3 4))
+        =&gt; 24
+</pre>
+</dd><dt class="proc-def">
+<a name="lseq-index"></a>
+<code class="proc-def">lseq-index</code><var> pred lseq<sub>1</sub> lseq<sub>2</sub> ... -&gt; integer or <code>#f</code></var>
+</dt><dd class="proc-def">
+    <p>Return the index of the leftmost element that satisfies <var>pred</var>.
+</p><p>
+    Applies <var>pred</var> to successive elements of the lseqs, returning
+    an index usable with <code>lseq-ref</code> if the predicate
+    returns true.  Otherwise, it iterates until one of the lseqs runs
+    out of values, in which case <code>#f</code> is returned.</p>
+    It is an error if <i>pred</i> does not
+    accept the same number of arguments as there are <i>lseqs</i> and return a boolean result.
+<p>
+    The iteration stops when one of the lseqs runs out of values; in this
+    case, <code>lseq-index</code> returns <code>#f</code>.
+</p><pre class="code-example">(lseq-index even? '(3 1 4 1 5 9)) =&gt; 2
+(lseq-index &lt; '(3 1 4 1 5 9 2 5 6) '(2 7 1 8 2)) =&gt; 1
+(lseq-index = '(3 1 4 1 5 9 2 5 6) '(2 7 1 8 2)) =&gt; #f
+</pre>
+</dd><dt class="proc-def1">
+<a name="lseq-member"></a>
+<code class="proc-def">lseq-member</code><var> x lseq [ pred ] -&gt; lseq</var>
+</dt><dt class="proc-defi">
+<a name="lseq-memq"></a>
+<code class="proc-def">lseq-memq</code><var> x lseq -&gt; lseq</var>
+</dt><dt class="proc-defn">
+<a name="lseq-memv"></a>
+<code class="proc-def">lseq-memv</code><var> x lseq -&gt; lseq</var>
+</dt><dd class="proc-def">
+    <p>These procedures return the longest tail of <var>lseq</var> whose first element is
+    <var>x</var>, where the tails of <var>lseq</var> are the
+    non-empty lseqs returned by
+        <code>(lseq-drop <var>lseq</var> <var>i</var>)</code>
+    for <var>i</var> less than the length of <var>lseq</var>.
+    If <var>x</var> does
+    not occur in <var>lseq</var>, then <code>#f</code> is returned.
+    <code>lseq-memq</code> uses <code>eq?</code> to compare <var>x</var>
+    with the elements of <var>lseq</var>,
+    while <code>lseq-memv</code> uses <code>eqv?</code>, and
+    <code>lseq-member</code> uses <var>pred</var>, which defaults to <code>equal?</code>.</p>
+<pre class="code-example">    (lseq-memq 'a '(a b c))           =&gt;  (a b c)
+    (lseq-memq 'b '(a b c))           =&gt;  (b c)
+    (lseq-memq 'a '(b c d))           =&gt;  #f
+    (lseq-memq (list 'a) '(b (a) c)) =&gt;  #f
+    (lseq-member (list 'a)
+            '(b (a) c))           =&gt;  ((a) c)
+    (lseq-memq 101 '(100 101 102))    =&gt;  *unspecified*
+    (lseq-memv 101 '(100 101 102))    =&gt;  (101 102)
+</pre>
+<p>
+    The equality procedure is used to compare the elements <var>e<sub>i</sub></var> of <var>lseq</var>
+    to the key <var>x</var> in this way:
+    the first argument is always <var>x</var>, and the second argument is
+    one of the lseq elements. Thus one can reliably find the first element
+    of <var>lseq</var> that is greater than five with
+	<code>(lseq-member 5 <var>lseq</var> &lt;)</code>
+</p><p>
+    Note that fully general lseq searching may be performed with
+    the <code>lseq-find-tail</code> procedure, <em>e.g.</em>
+</p><pre class="code-example">(lseq-find-tail even? lseq) ; Find the first elt with an even key.
+</pre>
+</dd><p></p>
+<h1><a name="SampleImplementation">Sample Implementation</a></h1>
+<p>The files in the implementation are in the SRFI 127 repository, and are as follows:</p>
+<ul>
+<li><code>lseq.sld</code> - an R7RS library</li>
+<li><code>lseq.scm</code> - a Chicken library</li>
+<li><code>lseq-impl.scm</code> - portable implementation code</li>
+<li><code>lseq-test.scm</code> - a Chicken test-egg file</li>
+</ul>
+<h1><a name="Acknowledgements">Acknowledgements</a></h1>
+<p>
+Without the work of Olin Shivers on <a href="http://srfi.schemers.org/srfi-1/srfi-1.html">SRFI 1</a>,
+this SRFI would not exist. Everyone acknowledged there is transitively acknowledged here.
+This is not to imply that either Olin or anyone else necessarily endorses the final
+results, of course.</p>
+<p>Special thanks to Shiro Kawai, whose Gauche implementation of lazy sequences inspired this one,
+and to Kragen Javier Sitaker, who did a thorough review.</p>
+
+
+<h1>Copyright</h1>
+Copyright (C) John Cowan (2015). All Rights Reserved. 
+<p>
+Permission is hereby granted, free of charge, to any person obtaining a
+copy of this software and associated documentation files (the "Software"),
+to deal in the Software without restriction, including without limitation
+the rights to use, copy, modify, merge, publish, distribute, sublicense,
+and/or sell copies of the Software, and to permit persons to whom the
+Software is furnished to do so, subject to the following conditions:
+</p><p>
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+</p><p>
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+    </p><hr/>
+  </body></html>

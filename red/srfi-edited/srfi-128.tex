@@ -1,0 +1,582 @@
+\section{Comparators}
+\redno{19}  What comparator library should R7RS-large provide?
+
+\begin{quote}
+\href{http://srfi.schemers.org/srfi-128/srfi-128.html}{{​}SRFI 128} is a
+comparator library whose interface is used by SRFI 113 and SRFI 125. It
+was not formally balloted but was voted in based on the votes for those
+libraries, as \texttt{(scheme\ comparator)}.
+\end{quote}
+
+\textbf{Post-finalization note}: Because of the extremely high cost of
+conforming to the first and third conditions of \texttt{default-hash},
+implementers may disregard those conditions and examine only a bounded
+portion of the argument.
+
+This SRFI provides \emph{comparators}, which bundle a type test
+predicate, an equality predicate, an ordering predicate, and a hash
+function (the last two are optional) into a single Scheme object. By
+packaging these procedures together, they can be treated as a single
+item for use in the implementation of data structures.
+
+\setlibname{comparator}
+
+\st{The procedures in this SRFI are in the \mbox{\texttt{(srfi\ 128)}}
+  library (or \mbox{\texttt{(srfi\ :128)}} on R6RS), but the sample
+  implementation currently places them in the
+  \mbox{\texttt{(comparators)}} library. This means it can't be used
+  alongside SRFI 114, but there's no reason for anyone to do that.}
+
+\subsection{Definitions}
+
+A \emph{comparator} is an object of a disjoint type. It is a bundle of
+procedures that are useful for comparing two objects in a total order.
+It is an error if any of the procedures have side effects. There are
+four procedures in the bundle:
+
+\begin{itemize}
+\item
+  The \emph{type test predicate} returns \texttt{\#t} if its argument
+  has the correct type to be passed as an argument to the other three
+  procedures, and \texttt{\#f} otherwise.
+\item
+  The \emph{equality predicate} returns \texttt{\#t} if the two objects
+  are the same in the sense of the comparator, and \texttt{\#f}
+  otherwise. It is the programmer's responsibility to ensure that it is
+  reflexive, symmetric, transitive, and can handle any arguments that
+  satisfy the type test predicate.
+\item
+  The \emph{ordering predicate} returns \texttt{\#t} if the first object
+  precedes the second in a total order, and \texttt{\#f} otherwise. Note
+  that if it is true, the equality predicate must be false. It is the
+  programmer's responsibility to ensure that it is irreflexive,
+  antisymmetric, transitive, and can handle any arguments that satisfy
+  the type test predicate.
+\item
+  The \emph{hash function} takes an object and returns an exact
+  non-negative integer. It is the programmer's responsibility to ensure
+  that it can handle any argument that satisfies the type test
+  predicate, and that it returns the same value on two objects if the
+  equality predicate says they are the same (but not necessarily the
+  converse).
+\end{itemize}
+
+It is also the programmer's responsibility to ensure that all four
+procedures provide the same result whenever they are applied to the same
+object(s) (in the sense of \texttt{eqv?}), unless the object(s) have
+been mutated since the last invocation. In particular, they must not
+depend in any way on memory addresses in implementations where the
+garbage collector can move objects in memory.
+
+\subsection{Limitations}
+
+The comparator objects defined in this SRFI are not applicable to
+circular structure or to NaNs, or to objects containing any of these.
+Attempts to pass any such objects to any procedure defined here, or to
+any procedure that is part of a comparator defined here, is an error
+except as otherwise noted.
+
+\subsection{Index}
+
+\begin{itemize}
+\item
+  \protect\hyperlink{Predicates}{Predicates}:\\
+  \texttt{comparator ?comparator-ordered? comparator-hashable?}
+\item
+  \protect\hyperlink{Constructors}{Constructors}:\\
+  \texttt{make-comparator make-pair-comparator make-list-comparator}\\
+  \texttt{make-vector-comparator make-eq-comparator make-eqv-comparator}\\ 
+  \texttt{make-equal-comparator}
+\item
+  \protect\hyperlink{Hashfunctions}{Standard hash functions}:\\
+  \texttt{boolean-hash char-hash char-ci-hash string-hash}\\ 
+  \texttt{string-ci-hash symbol-hash number-hash}
+\item
+  \protect\hyperlink{Boundsandsalt}{Bounds and salt}:\\
+  \texttt{hash-bound hash-salt}
+\item
+  \protect\hyperlink{Defaultcomparators}{Default comparators}:\\
+  \texttt{make-default-comparator default-hash comparator-register-default!}
+\item
+  \protect\hyperlink{Accessorsandinvokers}{Accessors and invokers}:\\
+  \texttt{comparator-type-test-predicate
+    comparator-equality-predicate}\\ 
+  \texttt{comparator-ordering-predicate comparator-hash-function}\\
+  \texttt{comparator-test-type comparator-check-type comparator-hash}
+\item
+  \protect\hyperlink{Comparisonpredicates}{Comparison predicates}:\\
+  \texttt{=?\ <?\ >?\ <=?\ >=?}
+\item
+  \protect\hyperlink{Syntax}{Syntax}:
+  \texttt{comparator-if<=>}
+\end{itemize}
+
+\subsubsection{Predicates}
+
+\begin{entry}{%
+  \Proto{comparator?}{ obj}{procedure}{boolean}}
+
+  Returns \texttt{\#t} if \emph{obj} is a comparator, and \texttt{\#f}
+  otherwise.
+\end{entry}
+
+\begin{entry}{%
+  \Proto{comparator-ordered?}{ comparator}{procedure}{boolean}}
+
+  Returns \texttt{\#t} if \emph{comparator} has a supplied ordering
+  predicate, and \texttt{\#f} otherwise.
+\end{entry}
+
+\begin{entry}{%
+  \Proto{comparator-hashable?}{ comparator}{procedure}{boolean}}
+
+  Returns \texttt{\#t} if \emph{comparator} has a supplied hash
+  function, and \texttt{\#f} otherwise.
+\end{entry}
+
+\hypertarget{Constructors}{\subsubsection{Constructors}}
+
+The following comparator constructors all supply appropriate type test
+predicates, equality predicates, ordering predicates, and hash functions
+based on the supplied arguments. They are allowed to cache their
+results: they need not return a newly allocated object, since
+comparators are pure and functional. In addition, the procedures in a
+comparator are likewise pure and functional.
+
+\begin{entry}{%
+  \Proto{make-comparator}{ type-test equality ordering hash}{procedure}{comparator}}
+
+  Returns a comparator which bundles the \emph{type-test, equality,
+    ordering}, and \emph{hash} procedures provided. However, if
+  \emph{ordering} or \emph{hash} is \texttt{\#f}, a procedure is
+  provided that signals an error on application. The predicates
+  \texttt{comparator-ordered?} and/or \texttt{comparator-hashable?},
+  respectively, will return \texttt{\#f} in these cases.
+
+  Here are calls on \texttt{make-comparator} that will return useful
+  comparators for standard Scheme types:
+
+  \begin{itemize}
+  \item \texttt{(make-comparator boolean?\ boolean=?\ (lambda\ (x\
+      y)\ (and\ (not\ x)\ y))\ boolean-hash)} will return a comparator
+    for booleans, expressing the ordering \texttt{\#f} < \texttt{\#t}
+    and the standard hash function for booleans.
+  \item \texttt{(make-comparator\ real?\ =\ <\ (lambda\ (x)\ (exact\
+      (abs\ x))))} will return a comparator expressing the natural
+    ordering of real numbers and a plausible (but not optimal) hash
+    function.
+  \item \texttt{(make-comparator\ string?\ string=?\ string<?\
+      string-hash)} will return a comparator expressing the
+    implementation's ordering of strings and the standard hash
+    function.
+  \item \texttt{(make-comparator\ string?\ string-ci=?\ string-ci<?\
+      string-ci-hash} will return a comparator expressing the
+    implementation's case-insensitive ordering of strings and the
+    standard case-insensitive hash function.
+  \end{itemize}
+\end{entry}
+
+\begin{entry}{%
+  \Proto{make-pair-comparator}{ car-comparator cdr-comparator}{procedure}{comparator}}
+
+  This procedure returns comparators whose functions behave as
+  follows. \TODO{why plural?}
+
+  \begin{itemize}
+  \item The type test returns \texttt{\#t} if its argument is a pair,
+    if the car satisfies the type test predicate of car-comparator,
+    and the cdr satisfies the type test predicate of cdr-comparator.
+  \item The equality function returns \texttt{\#t} if the cars are
+    equal according to car-comparator and the cdrs are equal according
+    to cdr-comparator, and \texttt{\#f} otherwise.
+  \item The ordering function first compares the cars of its pairs
+    using the equality predicate of car-comparator. If they are equal,
+    then the ordering predicate of car-comparator is applied to the
+    cars and its value is returned. Otherwise, the predicate compares
+    the cdrs using the equality predicate of cdr-comparator. If they
+    are not equal, then the ordering predicate of cdr-comparator is
+    applied to the cdrs and its value is returned.
+  \item The hash function computes the hash values of the car and the
+    cdr using the hash functions of car-comparator and cdr-comparator
+    respectively and then hashes them together in an
+    implementation-defined way.
+  \end{itemize}
+\end{entry}
+
+\begin{entry}{%
+  \Proto{make-list-comparator}{ element-comparator type-test empty? head tail}{procedure}{comparator}}
+
+  This procedure returns comparators whose functions behave as
+  follows: \TODO{plural?}
+
+  \begin{itemize}
+  \item The type test returns \texttt{\#t} if its argument satisfies
+    type-test and the elements satisfy the type test predicate of
+    element-comparator.
+  \item The total order defined by the equality and ordering functions
+    is as follows (known as lexicographic order):
+
+  \begin{itemize}
+    \tightlist
+  \item The empty sequence, as determined by calling empty?, compares
+    equal to itself.
+  \item The empty sequence compares less than any non-empty sequence.
+  \item Two non-empty sequences are compared by calling the head
+    procedure on each. If the heads are not equal when compared using
+    element-comparator, the result is the result of that comparison.
+    Otherwise, the results of calling the tail procedure are compared
+    recursively.
+  \end{itemize}
+\item The hash function computes the hash values of the elements using
+  the hash function of element-comparator and then hashes them
+  together in an implementation-defined way.
+\end{itemize}
+\end{entry}
+
+\begin{entry}{%
+  \Proto{make-vector-comparator}{ element-comparator type-test length ref}{procedure}{comparator}}
+
+  This procedure returns comparators whose functions behave as
+  follows: \TODO{plural?}
+
+  \begin{itemize}
+  \item The type test returns \texttt{\#t} if its argument satisfies
+    type-test and the elements satisfy the type test predicate of
+    element-comparator.
+  \item The equality predicate returns \texttt{\#t} if both of the
+    following tests are satisfied in order: the lengths of the vectors
+    are the same in the sense of =, and the elements of the vectors
+    are the same in the sense of the equality predicate of
+    element-comparator.
+  \item The ordering predicate returns \texttt{\#t} if the results of
+    applying length to the first vector is less than the result of
+    applying length to the second vector. If the lengths are equal,
+    then the elements are examined pairwise using the ordering
+    predicate of element-comparator.  If any pair of elements returns
+    \texttt{\#t}, then that is the result of the list comparator's
+    ordering predicate; otherwise the result is \texttt{\#f}
+  \item The hash function computes the hash values of the elements
+    using the hash function of element-comparator and then hashes them
+    together in an implementation-defined way.
+  \end{itemize}
+
+  Here is an example, which returns a comparator for byte vectors:
+
+\begin{verbatim}
+(make-vector-comparator
+  (make-comparator exact-integer? = < number-hash)
+  bytevector?
+  bytevector-length
+  bytevector-u8-ref)
+\end{verbatim}
+\end{entry}
+
+\begin{entry}{%
+  \Proto{make-eq-comparator}{}{procedure}{comparator}
+  \Proto{make-eqv-comparator}{}{procedure}{comparator}
+  \Proto{make-equal-comparator}{}{procedure}{comparator}}
+
+  These procedures return comparators whose functions behave as
+  follows:
+
+  \begin{itemize}
+  \item The type test returns \texttt{\#t} in all cases.
+  \item The equality functions are \texttt{eq?}, \texttt{eqv?}, and
+    \texttt{equal?} respectively.
+  \item The ordering function is implementation-defined, except that
+    it must conform to the rules for ordering functions. It may signal
+    an error instead.
+  \item The hash function is \texttt{default-hash}.
+  \end{itemize}
+
+  These comparators accept circular structure (in the case of
+  \texttt{equal-comparator}, provided the implementation's
+  \texttt{equal?}  predicate does so) and NaNs.
+\end{entry}
+
+\hypertarget{Hashfunctions}{\subsubsection{Standard hash
+functions}}
+
+These are hash functions for some standard Scheme types, suitable for
+passing to \texttt{make-comparator}. Users may write their own hash
+functions with the same signature. However, if programmers wish their
+hash functions to be backward compatible with the reference
+implementation of
+\href{http://srfi.schemers.org/srfi-69/srfi-69.html}{SRFI 69}, they are
+advised to write their hash functions to accept a second argument and
+ignore it.
+
+\begin{entry}{%
+  \Proto{boolean-hash}{obj}{procedure}{integer}
+  \Proto{char-hash}{obj}{procedure}{integer}
+  \Proto{char-ci-hash}{obj}{procedure}{integer}
+  \Proto{string-hash}{obj}{procedure}{integer}
+  \Proto{string-ci-hash}{obj}{procedure}{integer}
+  \Proto{symbol-hash}{obj}{procedure}{integer}
+  \Proto{number-hash}{obj}{procedure}{integer}}
+
+  These are suitable hash functions for the specified types. The hash
+  functions \texttt{char-ci-hash} and \texttt{string-ci-hash} treat
+  their argument case-insensitively. Note that while
+  \texttt{symbol-hash} may return the hashed value of applying
+  \texttt{symbol->string} and then \texttt{string-hash} to the symbol,
+  this is not a requirement.
+\end{entry}
+
+\hypertarget{Boundsandsalt}{\subsubsection{Bounds and
+salt}}
+
+The following macros allow the callers of hash functions to affect their
+behavior without interfering with the calling signature of a hash
+function, which accepts a single argument (the object to be hashed) and
+returns its hash value. They are provided as macros so that they may be
+implemented in different ways: as a global variable, a SRFI 39 or R7RS
+parameter, or an ordinary procedure, whatever is most efficient in a
+particular implementation.
+
+\begin{entry}{%
+  \Proto{hash-bound}{}{syntax}{integer}}
+
+  Hash functions should be written so as to return a number between 0
+  and the largest reasonable number of elements (such as hash buckets)
+  a data structure in the implementation might have. What that value
+  is depends on the implementation. This value provides the current
+  bound as a positive exact integer, typically for use by user-written
+  hash functions. However, they are not required to bound their
+  results in this way.
+\end{entry}
+
+\begin{entry}{%
+  \Proto{hash-salt}{}{syntax}{integer}}
+
+  A salt is random data in the form of a non-negative exact integer
+  used as an additional input to a hash function in order to defend
+  against dictionary attacks, or (when used in hash tables) against
+  denial-of-service attacks that overcrowd certain hash buckets,
+  increasing the amortized O(1) lookup time to O(n). Salt can also be
+  used to specify which of a family of hash functions should be used
+  for purposes such as cuckoo hashing. This macro provides the current
+  value of the salt, typically for use by user-written hash
+  functions. However, they are not required to make use of the current
+  salt.
+
+  The initial value is implementation-dependent, but must be less than
+  the value of \texttt{(hash-bound)}, and should be distinct for
+  distinct runs of a program unless otherwise specified by the
+  implementation.  Implementations may provide a means to specify the
+  salt value to be used by a particular invocation of a hash function.
+\end{entry}
+
+\hypertarget{Defaultcomparators}{\subsubsection{Default
+comparators}}
+
+\begin{entry}{%
+  \Proto{make-default-comparator}{}{procedure}{integer}}
+
+  Returns a comparator known as a default comparator that accepts
+  Scheme values and orders them in some implementation-defined way,
+  subject to the following conditions:
+
+  \begin{itemize}
+  \item Given disjoint types \emph{a} and \emph{b}, one of three
+    conditions must hold:
+
+  \begin{itemize}
+    \tightlist
+  \item All objects of type \emph{a} compare less than all objects of
+    type \emph{b}.
+  \item All objects of type \emph{a} compare greater than all objects
+    of type \emph{b}.
+  \item All objects of both type \emph{a} and type \emph{b} compare
+    equal to each other. This is not permitted for any of the Scheme
+    types mentioned below.
+  \end{itemize}
+\item The empty list must be ordered before all pairs.
+\item When comparing booleans, it must use the total order
+  \texttt{\#f} < \texttt{\#t}.
+\item When comparing characters, it must use \texttt{char=?} and
+  \texttt{char<?}.
+
+  Note: In R5RS, this is an implementation-dependent order that is
+  typically the same as Unicode codepoint order; in R6RS and R7RS, it
+  is Unicode codepoint order.
+\item When comparing pairs, it must behave the same as a comparator
+  returned by \texttt{make-pair-comparator} with default comparators
+  as arguments.
+\item When comparing symbols, it must use an implementation-dependent
+  total order. One possibility is to use the order obtained by
+  applying \texttt{symbol->string} to the symbols and comparing them
+  using the total order implied by \texttt{string<?}.
+\item When comparing bytevectors, it must behave the same as a
+  comparator created by the expression
+  \texttt{(make-vector-comparator\ (make-comparator\ <\ =\
+    number-hash)\ bytevector?\ bytevector-length\ bytevector-u8-ref)}.
+\item When comparing numbers where either number is complex, since
+  non-real numbers cannot be compared with \texttt{<}, the following
+  least-surprising ordering is defined: If the real parts are < or >,
+  so are the numbers; otherwise, the numbers are ordered by their
+  imaginary parts. This can still produce somewhat surprising results
+  if one real part is exact and the other is inexact.
+\item When comparing real numbers, it must use \texttt{=} and
+  \texttt{<}.
+\item When comparing strings, it must use \texttt{string=?} and
+  \texttt{string<?}.
+
+  Note: In R5RS, this is lexicographic order on the
+  implementation-dependent order defined by \texttt{char<?}; in R6RS
+  it is lexicographic order on Unicode codepoint order; in R7RS it is
+  an implementation-defined order.
+\item When comparing vectors, it must behave the same as a comparator
+  returned by \texttt{(make-vector-comparator\
+    (make-default-comparator)\ vector?\ vector-length\ vector-ref)}.
+\item When comparing members of types registered with
+  \texttt{comparator-register-default!}, it must behave in the same
+  way as the comparator registered using that function.
+\end{itemize}
+
+Default comparators use \texttt{default-hash} as their hash function.
+\end{entry}
+
+\begin{entry}{%
+  \Proto{default-hash}{ obj}{procedure}{value}}
+
+  This is the hash function used by default comparators, which accepts
+  a Scheme value and hashes it in some implementation-defined way,
+  subject to the following conditions:
+
+\begin{itemize}
+  \tightlist
+\item When applied to a pair, it must return the result of hashing
+  together the values returned by \texttt{default-hash} when applied
+  to the car and the cdr.
+\item When applied to a boolean, character, string, symbol, or number,
+  it must return the same result as \texttt{boolean-hash},
+  \texttt{char-hash}, \texttt{string-hash}, \texttt{symbol-hash}, or
+  \texttt{number-hash} respectively.
+\item When applied to a list or vector, it must return the result of
+  hashing together the values returned by \texttt{default-hash} when
+  applied to each of the elements.
+\end{itemize}
+\end{entry}
+
+\begin{entry}{%
+  \texttt{comparator-register-default!}{ comparator}{procedure}{unspecified}}
+
+  Registers comparator for use by default comparators, such that if
+  the objects being compared both satisfy the type test predicate of
+  comparator, it will be employed by default comparators to compare
+  them.  Returns an unspecified value. It is an error if any value
+  satisfies both the type test predicate of comparator and any of the
+  following type test predicates: \texttt{boolean?}, \texttt{char?},
+  \texttt{null?}, \texttt{pair?}, \texttt{symbol?},
+  \texttt{bytevector?}, \texttt{number?}, \texttt{string?},
+  \texttt{vector?}, or the type test predicate of a comparator that
+  has already been registered.
+
+  This procedure is intended only to extend default comparators into
+  territory that would otherwise be undefined, not to override their
+  existing behavior. In general, the ordering of calls to
+  \texttt{comparator-register-default!} should be irrelevant. However,
+  implementations that support inheritance of record types may wish to
+  ensure that default comparators always check subtypes before
+  supertypes.
+\end{entry}
+
+\hypertarget{Accessorsandinvokers}{\subsubsection{Accessors and
+Invokers}}
+
+\begin{entry}{%
+  \Proto{comparator-type-test-predicate}{ comparator}{procedure}{procedure}
+  \Proto{comparator-equality-predicate}{ comparator}{procedure}{procedure}
+  \Proto{comparator-ordering-predicate}{ comparator}{procedure}{procedure}
+  \Proto{comparator-hash-function}{ comparator}{procedure}{procedure}}
+
+  Return the four procedures of \emph{comparator}.
+\end{entry}
+
+\begin{entry}{%
+  \Proto{comparator-test-type}{ comparator obj}{procedure}{boolean}}
+
+  Invokes the type test predicate of \emph{comparator} on \emph{obj}
+  and returns what it returns. More convenient than
+  \texttt{comparator_type_test_predicate}, but less efficient when the
+  predicate is called repeatedly.
+\end{entry}
+
+\begin{entry}{%
+  \Proto{comparator-check-type}{ comparator obj}{procedure}{boolean}}
+
+  Invokes the type test predicate of \emph{comparator} on \emph{obj}
+  and returns true if it returns true, but signals an error
+  otherwise. More convenient than
+  \texttt{comparator_type_test_predicate}, but less efficient when the
+  predicate is called repeatedly.
+
+  \TODO{the return type here is misleading; if it's a boolean, then
+    it's true. We don't have a standard way, in a prototype of saying
+    “may signal an error”. I'm not sure what to do here; my instinct
+    is just to leave it as is.}
+\end{entry}
+
+\begin{entry}{%
+  \Proto{comparator-hash}{ comparator obj}{procedure}{integer}}
+
+  Invokes the hash function of \emph{comparator} on obj and returns
+  what it returns. More convenient than
+  \texttt{comparator_hash_function}, but less efficient when the
+  function is called repeatedly.
+
+  Note: No invokers are required for the equality and ordering
+  predicates, because \texttt{=?} and \texttt{<?} serve this function.
+\end{entry}
+
+\hypertarget{Comparisonpredicates}{\subsubsection{Comparison
+predicates}}
+
+
+\begin{entry}{%
+  \Proto{=?}{ comparator object$_1$ object$_2$ object$_3$ \ldots{}}{procedure}{boolean}
+  \Proto{<?}{ comparator object$_1$ object$_2$ object$_3$ \ldots{}}{procedure}{boolean}
+  \Proto{>?}{ comparator object$_1$ object$_2$ object$_3$ \ldots{}}{procedure}{boolean}
+  \Proto{<=?}{ comparator object$_1$ object$_2$ object$_3$ \ldots{}}{procedure}{boolean}
+  \Proto{>=?}{ comparator object$_1$ object$_2$ object$_3$ \ldots{}}{procedure}{boolean}}
+
+  These procedures are analogous to the number, character, and string
+  comparison predicates of Scheme. They allow the convenient use of
+  comparators to handle variable data types.
+
+  These procedures apply the equality and ordering predicates of
+  \emph{comparator} to the \emph{objects} as follows. If the specified
+  relation returns \texttt{\#t} for all \emph{object\textsubscript{i}}
+  and \emph{object\textsubscript{j}} where \emph{n} is the number of
+  objects and 1 <= \emph{i < j <= n}, then the procedures return
+  \texttt{\#t}, but otherwise \texttt{\#f}. Because the relations are
+  transitive, it suffices to compare each object with its
+  successor. The order in which the values are compared is
+  unspecified.
+\end{entry}
+
+\hypertarget{Syntax}{\subsubsection{Syntax}}
+
+\begin{entry}{%
+  \Proto{comparator-if<=>}{ <comparator> <object$_1$> <object$_2$>
+    <less-than> <equal-to> <greater-than>}{syntax}{value}
+  \Proto{comparator-if<=>}{ <object$_1$> <object$_2$> <less-than> <equal-to> <greater-than>}{syntax}{value}}
+
+  It is an error unless <comparator> evaluates to a comparator and
+  <object$_1$> and <object$_2$> evaluate to objects that the
+  comparator can handle. If the ordering predicate returns true when
+  applied to the values of <object$_1$> and <object$_2$> in that
+  order, then <less-than> is evaluated and its value returned.  If the
+  equality predicate returns true when applied in the same way, then
+  <equal-to> is evaluated and its value returned. If neither returns
+  true, <greater-than> is evaluated and its value returned.
+
+  If <comparator> is omitted, a default comparator is used.
+
+  \TODO{remove angle brackets, use std param notation}
+
+\end{entry}
+
+Editor: \href{mailto:srfi-editors+at+srfi+dot+schemers+dot+org}{Arthur
+A. Gleckler}

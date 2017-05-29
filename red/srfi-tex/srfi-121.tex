@@ -1,0 +1,829 @@
+\section{Title}\label{title}
+
+Generators
+
+\section{Author}\label{author}
+
+Shiro Kawai, John Cowan, Thomas Gilray
+
+This SRFI is currently in ``final'' status. To see an explanation of
+each status that a SRFI can hold, see
+\href{http://srfi.schemers.org/srfi-process.html}{here}. To provide
+input on this SRFI, please
+\href{mailto:srfi\%20minus\%20121\%20at\%20srfi\%20dot\%20schemers\%20dot\%20org}{mail
+to
+\texttt{\textless{}srfi\ minus\ 121\ at\ srfi\ dot\ schemers\ dot\ org\textgreater{}}}.
+See
+\href{http://srfi.schemers.org/srfi-list-subscribe.html}{instructions
+here} to subscribe to the list. You can access previous messages via
+\href{http://srfi.schemers.org/srfi-121/mail-archive/maillist.html}{the
+archive of the mailing list}.
+
+\begin{itemize}
+\tightlist
+\item
+  Received:
+  \href{http://srfi.schemers.org/srfi-121/srfi-121-1.1.html}{2015/01/27}
+\item
+  Draft \#2 published:
+  \href{http://srfi.schemers.org/srfi-121/srfi-121-1.2.html}{2015/06/10}
+\item
+  Draft \#3 published: 2015/09/03
+\item
+  Draft \#4 published: 2015/10/14
+\item
+  Draft \#5 published: 2015/10/19
+\item
+  Draft \#6 published: 2015/10/25
+\item
+  Draft \#7 published: 2015/11/2
+\item
+  Draft \#8 published: 2015/11/8
+\item
+  Draft \#9 published: 2015/12/25
+\item
+  Draft \#10 published: 2016/1/4
+\item
+  Draft \#11 published: 2016/1/18
+\item
+  Finalized: 2016/1/18
+\item
+  Revised to fix errata: 2016/1/20
+\end{itemize}
+
+\section{Abstract}\label{abstract}
+
+This SRFI defines utility procedures that create, transform, and consume
+generators. A generator is simply a procedure with no arguments that
+works as a source of a series of values. Every time it is called, it
+yields a value. Generators may be finite or infinite; a finite generator
+returns an end-of-file object to indicate that it is exhausted. For
+example, \texttt{read-char}, \texttt{read-line}, and \texttt{read} are
+generators that generate characters, lines, and objects from the current
+input port. Generators provide lightweight laziness.
+
+\section{Issues}\label{issues}
+
+None at present.
+
+\section{Rationale}\label{rationale}
+
+The main purpose of generators is high performance. Although
+\href{http://srfi.schemers.org/srfi-41/srfi-41.html}{SRFI 41} streams
+can do everything generators can do and more, SRFI 41 uses lazy pairs
+that require making a thunk for every item. Generators can generate
+items without consing, so they are very lightweight and are useful for
+implementing simple on-demand calculations.
+
+Existing examples of generators are readers from the current input port
+and \href{http://srfi.schemers.org/srfi-27/srfi-27.html}{SRFI 27} random
+numbers. If Scheme had streams as one of its built-in abstractions,
+these would have been naturally represented by lazy streams. But Scheme
+usually does not expose this kind of API using lazy streams.
+Generator-like interfaces are common, so it seems worthwhile to have
+some common idioms extracted into a library.
+
+Calling a generator is a side-effecting construct; you can't safely
+backtrack, for example, as you can with streams. Persistent lazy
+sequences based on generators and ordinary Scheme pairs (which are
+heavier weight than generators, but lighter weight than lazy pairs) is
+the subject of SRFI 127. Of course the efficiency of streams depends on
+the implementation. Some implementations may have have super-light thunk
+creation. But in most, thunk creation is probably slower than simple
+consing.
+
+The generators of this SRFI don't belong to a disjoint type. They are
+just procedures that conform to a calling convention, so you can
+construct a generator with \texttt{lambda}. The constructors of this
+SRFI are provided for convenience. Any procedure that can be called with
+no arguments can serve as a generator.
+
+Using an end-of-file object to indicate that there is no more input
+makes it impossible to include such an object in the stream of generated
+values. However, it is compatible with the existing design of input
+ports, and it makes for more compact code than returning a
+user-specified termination object (as in Common Lisp) or returning
+multiple values. (Note that some generators are infinite in length, and
+never return an end-of-file object.)
+
+The combination of \texttt{make-for-each-generator} and
+\texttt{generator-unfold} makes it possible to convert any collection
+that has a for-each procedure into any collection that has an unfold
+constructor. This generalizes such conversion procedures as
+\texttt{\&list-\textgreater{}vector} and
+\texttt{string-\textgreater{}list}.
+
+These procedures are drawn from the Gauche core and the Gauche module
+\texttt{gauche.generator}, with some renaming to make them more
+systematic, and with a few additions from the Python library
+\href{https://docs.python.org/3/library/itertools.html}{\texttt{itertools}}.
+Consequently, Shiro Kawai, the author of Gauche and its specifications,
+is listed as first author of this SRFI. John Cowan served as editor and
+shepherd. Thomas Gilray provided the sample implementation and a
+valuable critique of the SRFI. Special acknowledgements to Kragen Javier
+Sitaker for his extensive review.
+
+\section{Specification}\label{specification}
+
+Generators can be divided into two classes, finite and infinite. Both
+kinds of generators can be invoked an indefinite number of times. After
+a finite generator has generated all its values, it will return an
+end-of-file object for all subsequent calls. A generator is said to be
+\emph{exhausted} if calling it will return an end-of-file object. By
+definition, infinite generators can never be exhausted.
+
+A generator is said to be in an \emph{undefined state} if it cannot be
+determined exactly how many values it has generated. This arises because
+it is impossible to tell by inspecting a generator whether it is
+exhausted or not. For example,
+\texttt{(generator-fold\ +\ 0\ (generator\ 1\ 2\ 3)\ (generator\ 1\ 2))}
+will compute 0 + 1 + 1 + 2 + 2 = 6, at which time the second generator
+will be exhausted. If the first generator is invoked, however, it may
+return either 3 or an end-of-file object, depending on whether the
+implementation of \texttt{generator-fold} has invoked it or not.
+Therefore, the first generator is said to be in an undefined state.
+
+\subsection{Generator constructors}\label{generator-constructors}
+
+The result of a generator constructor is just a procedure, so printing
+it doesn't show much. In the examples in this section we use
+\texttt{generator-\textgreater{}list} to convert the generator to a
+list.
+
+These procedures have names ending with \texttt{generator}.
+
+\begin{description}
+\item[\texttt{generator} \emph{arg \ldots{}}]
+The simplest finite generator. Generates each of its arguments in turn.
+When no arguments are provided, it returns an empty generator that
+generates no values.
+\end{description}
+
+\begin{description}
+\item[\texttt{make-iota-generator} \emph{count {[} start {[} step {]}
+{]}}]
+Creates a finite generator of a sequence of count numbers. The sequence
+begins with start (which defaults to 0) and increases by step (which
+defaults to 1). If both start and step are exact, it generates exact
+numbers; otherwise it generates inexact numbers. The exactness of count
+doesn't affect the exactness of the results.
+
+\begin{longtable}[]{@{}ll@{}}
+\toprule
+\begin{minipage}[t]{0.47\columnwidth}\raggedright\strut
+~\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright\strut
+\begin{verbatim}
+(generator->list (make-iota-generator 3 8))
+  ⇒ (8 9 10)
+\end{verbatim}
+\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright\strut
+~\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright\strut
+\begin{verbatim}
+(generator->list (make-iota-generator 3 8 2))
+  ⇒ (8 10 12)
+\end{verbatim}
+\strut
+\end{minipage}\tabularnewline
+\bottomrule
+\end{longtable}
+\end{description}
+
+\begin{description}
+\item[\texttt{make-range-generator} \emph{start {[} end {[} step {]}
+{]}}]
+Creates a generator of a sequence of numbers. The sequence begins with
+start, increases by step (default 1), and continues while the number is
+less than end, or forever if end is omitted. If both start and step are
+exact, it generates exact numbers; otherwise it generates inexact
+numbers. The exactness of end doesn't affect the exactness of the
+results.
+
+\begin{longtable}[]{@{}ll@{}}
+\toprule
+\begin{minipage}[t]{0.47\columnwidth}\raggedright\strut
+~\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright\strut
+\begin{verbatim}
+(generator->list (make-range-generator 3) 4)
+  ⇒ (3 4 5 6)
+\end{verbatim}
+\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright\strut
+~\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright\strut
+\begin{verbatim}
+(generator->list (make-range-generator 3 8))
+  ⇒ (3 4 5 6 7)
+\end{verbatim}
+\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright\strut
+~\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright\strut
+\begin{verbatim}
+(generator->list (make-range-generator 3 8 2))
+  ⇒ (3 5 7)
+\end{verbatim}
+\strut
+\end{minipage}\tabularnewline
+\bottomrule
+\end{longtable}
+\end{description}
+
+\begin{description}
+\item[\texttt{make-coroutine-generator} \emph{proc}]
+Creates a generator from a coroutine.
+
+The proc argument is a procedure that takes one argument, yield. When
+called, \texttt{make-coroutine-generator} immediately returns a
+generator g. When g is called, proc runs until it calls yield. Calling
+yield causes the execution of proc to be suspended, and g returns the
+value passed to yield.
+
+Whether this generator is finite or infinite depends on the behavior of
+proc. If proc returns, it is the end of the sequence --- g returns an
+end-of-file object from then on. The return value of proc is ignored.
+
+The following code creates a generator that produces a series 0, 1, and
+2 (effectively the same as \texttt{(make-range-generator\ 0\ 3)} and
+binds it to \texttt{g}.
+
+\begin{longtable}[]{@{}ll@{}}
+\toprule
+\begin{minipage}[t]{0.47\columnwidth}\raggedright\strut
+~\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright\strut
+\begin{verbatim}
+(define g
+  (make-coroutine-generator
+   (lambda (yield) (let loop ((i 0))
+               (when (< i 3) (yield i) (loop (+ i 1)))))))
+
+(generator->list g) ⇒ (0 1 2)
+\end{verbatim}
+\strut
+\end{minipage}\tabularnewline
+\bottomrule
+\end{longtable}
+\end{description}
+
+\begin{description}
+\item[\texttt{list-\textgreater{}generator} \emph{lis}\\
+\texttt{vector-\textgreater{}generator} \emph{vec {[} start {[} end {]}
+{]}}\\
+\texttt{reverse-vector-\textgreater{}generator} \emph{vec {[} start {[}
+end {]} {]}}\\
+\texttt{string-\textgreater{}generator} \emph{str {[} start {[} end {]}
+{]}}\\
+\texttt{bytevector-\textgreater{}generator} \emph{bytevector {[} start
+{[} end {]} {]}}]
+These procedures return generators that yield each element of the given
+argument. Mutating the underlying object will affect the results of the
+generator.
+
+\begin{longtable}[]{@{}ll@{}}
+\toprule
+\begin{minipage}[t]{0.47\columnwidth}\raggedright\strut
+~\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright\strut
+\begin{verbatim}
+(generator->list (list->generator '(1 2 3 4 5)))
+  ⇒ (1 2 3 4 5)
+(generator->list (vector->generator '#(1 2 3 4 5)))
+  ⇒ (1 2 3 4 5)
+(generator->list (reverse-vector->generator '#(1 2 3 4 5)))
+  ⇒ (5 4 3 2 1)
+(generator->list (string->generator "abcde"))
+  ⇒ (#\a #\b #\c #\d #\e)
+\end{verbatim}
+\strut
+\end{minipage}\tabularnewline
+\bottomrule
+\end{longtable}
+
+The generators returned by the constructors are exhausted once all
+elements are retrieved; the optional start-th and end-th arguments can
+limit the range the generator walks across.
+
+For \texttt{reverse-vector-\textgreater{}generator}, the first value is
+the element right before the end-th element, and the last value is the
+start-th element. For all the other constructors, the first value the
+generator yields is the start-th element, and it ends right before the
+end-th element.
+
+\begin{longtable}[]{@{}ll@{}}
+\toprule
+\begin{minipage}[t]{0.47\columnwidth}\raggedright\strut
+~\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright\strut
+\begin{verbatim}
+(generator->list (vector->generator '#(a b c d e) 2))
+  ⇒ (c d e)
+(generator->list (vector->generator '#(a b c d e) 2 4))
+  ⇒ (c d)
+(generator->list (reverse-vector->generator '#(a b c d e) 2))
+  ⇒ (e d c)
+(generator->list (reverse-vector->generator '#(a b c d e) 2 4))
+  ⇒ (d c)
+(generator->list (reverse-vector->generator '#(a b c d e) 0 2))
+  ⇒ (b a)
+\end{verbatim}
+\strut
+\end{minipage}\tabularnewline
+\bottomrule
+\end{longtable}
+\end{description}
+
+\begin{description}
+\item[\texttt{make-for-each-generator} \emph{for-each obj}]
+A generator constructor that converts any collection obj to a generator
+that returns its elements using a for-each procedure appropriate for
+obj. This must be a procedure that when called as (for-each proc obj)
+calls proc on each element of obj. Examples of such procedures are
+\texttt{for-each}, \texttt{string-for-each}, and
+\texttt{vector-for-each} from R7RS. The value returned by for-each is
+ignored. The generator is finite if the collection is finite, which
+would typically be the case.
+
+The collections need not be conventional ones (lists, strings, etc.) as
+long as \emph{for-each} can invoke a procedure on everything that counts
+as a member. For example, the following procedure allows
+\texttt{for-each-generator} to generate the digits of an integer from
+least to most significant:
+
+\begin{longtable}[]{@{}ll@{}}
+\toprule
+\begin{minipage}[t]{0.47\columnwidth}\raggedright\strut
+~\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright\strut
+\begin{verbatim}
+(define (for-each-digit proc n)
+  (when (> n 0)
+    (let-values (((div rem) (truncate/ n 10)))
+      (proc rem)
+      (for-each-digit proc div))))
+\end{verbatim}
+\strut
+\end{minipage}\tabularnewline
+\bottomrule
+\end{longtable}
+\end{description}
+
+\begin{description}
+\item[\texttt{make-unfold-generator} \emph{stop? mapper successor seed}]
+A generator constructor similar to
+\href{http://srfi.schemers.org/srfi-1/srfi-1.html}{SRFI 1's}
+\texttt{unfold}.
+
+The stop? predicate takes a seed value and determines whether to stop.
+The mapper procedure calculates a value to be returned by the generator
+from a seed value. The successor procedure calculates the next seed
+value from the current seed value.
+
+For each call of the resulting generator, stop? is called with the
+current seed value. If it returns true, then the generator returns an
+end-of-file object. Otherwise, it applies mapper to the current seed
+value to get the value to return, and uses successor to update the seed
+value.
+
+This generator is finite unless stop? never returns true.
+
+\begin{longtable}[]{@{}ll@{}}
+\toprule
+\begin{minipage}[t]{0.47\columnwidth}\raggedright\strut
+~\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright\strut
+\begin{verbatim}
+(generator->list (make-unfold-generator
+                      (lambda (s) (> s 5))
+                      (lambda (s) (* s 2))
+                      (lambda (s) (+ s 1))
+                      0))
+  ⇒ (0 2 4 6 8 10)
+\end{verbatim}
+\strut
+\end{minipage}\tabularnewline
+\bottomrule
+\end{longtable}
+\end{description}
+
+\subsection{Generator operations}\label{generator-operations}
+
+The following procedures accept one or more generators and return a new
+generator without consuming any elements from the source generator(s).
+In general, the result will be a finite generator if the arguments are.
+
+The names of these procedures are prefixed with \texttt{g}.
+
+\begin{description}
+\item[\texttt{gcons*} \emph{item \ldots{} gen}]
+Returns a generator that adds items in front of gen. Once the items have
+been consumed, the generator is guaranteed to tail-call gen.
+
+\begin{longtable}[]{@{}ll@{}}
+\toprule
+\begin{minipage}[t]{0.47\columnwidth}\raggedright\strut
+~\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright\strut
+\begin{verbatim}
+(generator->list (gcons* 'a 'b (make-range-generator 0 2)))
+ ⇒ (a b 0 1)
+\end{verbatim}
+\strut
+\end{minipage}\tabularnewline
+\bottomrule
+\end{longtable}
+\end{description}
+
+\begin{description}
+\item[\texttt{gappend} \emph{gen \ldots{}}]
+Returns a generator that yields the items from the first given
+generator, and once it is exhausted, from the second generator, and so
+on.
+
+\begin{longtable}[]{@{}ll@{}}
+\toprule
+\begin{minipage}[t]{0.47\columnwidth}\raggedright\strut
+~\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright\strut
+\begin{verbatim}
+(generator->list (gappend (make-range-generator 0 3) (make-range-generator 0 2)))
+ ⇒ (0 1 2 0 1)
+
+(generator->list (gappend))
+ ⇒ ()
+\end{verbatim}
+\strut
+\end{minipage}\tabularnewline
+\bottomrule
+\end{longtable}
+\end{description}
+
+\begin{description}
+\item[\texttt{gcombine} \emph{proc seed gen gen\textsubscript{2}
+\ldots{}}]
+A generator for mapping with state. It yields a sequence of sub-folds
+over proc.
+
+The proc argument is a procedure that takes as many arguments as the
+input generators plus one. It is called as \texttt{(}proc
+v\textsubscript{1} v\textsubscript{2} \ldots{} seed), where
+v\textsubscript{1}, v\textsubscript{2}, \ldots{} are the values yielded
+from the input generators, and seed is the current seed value. It must
+return two values, the yielding value and the next seed. The result
+generator is exhausted when any of the \emph{gen\textsubscript{n}}
+generators is exhausted, at which time all the others are in an
+undefined state.
+\end{description}
+
+\begin{description}
+\item[\texttt{gfilter} \emph{pred gen}\\
+\texttt{gremove} \emph{pred gen}]
+Return generators that yield the items from the source generator, except
+those on which pred answers false or true respectively.
+\end{description}
+
+\begin{description}
+\item[\texttt{gtake} \emph{gen k {[} padding {]}}\\
+\texttt{gdrop} \emph{gen k}]
+These are generator analogues of SRFI 1 \texttt{take} and \texttt{drop}.
+\texttt{Gtake} returns a generator that yields (at most) the first k
+items of the source generator, while \texttt{gdrop} returns a generator
+that skips the first k items of the source generator.
+
+These won't complain if the source generator is exhausted before
+generating k items. By default, the generator returned by \texttt{gtake}
+terminates when the source generator does, but if you provide the
+padding argument, then the returned generator will yield exactly k
+items, using the padding value as needed to provide sufficient
+additional values.
+\end{description}
+
+\begin{description}
+\item[\texttt{gtake-while} \emph{pred gen}\\
+\texttt{gdrop-while} \emph{pred gen}]
+The generator analogues of SRFI-1 \texttt{take-while} and
+\texttt{drop-while}. The generator returned from \texttt{gtake-while}
+yields items from the source generator as long as pred returns true for
+each. The generator returned from \texttt{gdrop-while} first reads and
+discards values from the source generator while pred returns true for
+them, then starts yielding items returned by the source.
+\end{description}
+
+\begin{description}
+\item[\texttt{gdelete} \emph{item gen {[} = {]}}]
+Creates a generator that returns whatever gen returns, except for any
+items that are the same as item in the sense of =, which defaults to
+\texttt{equal?}. The = predicate is passed exactly two arguments, of
+which the first was generated by gen before the second.
+
+\begin{longtable}[]{@{}ll@{}}
+\toprule
+\begin{minipage}[t]{0.47\columnwidth}\raggedright\strut
+~\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright\strut
+\begin{verbatim}
+(generator->list (gdelete 3 (generator 1 2 3 4 5 3 6 7)))
+  ⇒ (1 2 4 5 6 7)
+\end{verbatim}
+\strut
+\end{minipage}\tabularnewline
+\bottomrule
+\end{longtable}
+\end{description}
+
+\begin{description}
+\item[\texttt{gdelete-neighbor-dups} \emph{gen {[} = {]}}]
+Creates a generator that returns whatever gen returns, except for any
+items that are equal to the preceding item in the sense of =, which
+defaults to \texttt{equal?}. The = predicate is passed exactly two
+arguments, of which the first was generated by gen before the second.
+
+\begin{longtable}[]{@{}ll@{}}
+\toprule
+\begin{minipage}[t]{0.47\columnwidth}\raggedright\strut
+~\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright\strut
+\begin{verbatim}
+(generator->list (gdelete-neighbor-dups (list->generator '(a a b c a a a d c))))
+  ⇒ (a b c a d c)
+\end{verbatim}
+\strut
+\end{minipage}\tabularnewline
+\bottomrule
+\end{longtable}
+\end{description}
+
+\begin{description}
+\item[\texttt{gindex} \emph{value-gen index-gen}]
+Creates a generator that returns elements of value-gen specified by the
+indices (non-negative exact integers) generated by index-gen. It is an
+error if the indices are not strictly increasing, or if any index
+exceeds the number of elements generated by value-gen. The result
+generator is exhausted when either generator is exhausted, at which time
+the other is in an undefined state.
+
+\begin{longtable}[]{@{}ll@{}}
+\toprule
+\begin{minipage}[t]{0.47\columnwidth}\raggedright\strut
+~\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright\strut
+\begin{verbatim}
+(generator->list (gindex (list->generator '(a b c d e f))
+                         (list->generator '(0 2 4))))
+  ⇒ (a c e)
+\end{verbatim}
+\strut
+\end{minipage}\tabularnewline
+\bottomrule
+\end{longtable}
+\end{description}
+
+\begin{description}
+\item[\texttt{gselect} \emph{value-gen truth-gen}]
+Creates a generator that returns elements of value-gen that correspond
+to the values generated by truth-gen. If the current value of truth-gen
+is true, the current value of value-gen is generated, but otherwise not.
+The result generator is exhausted when either generator is exhausted, at
+which time the other is in an undefined state.
+
+\begin{longtable}[]{@{}ll@{}}
+\toprule
+\begin{minipage}[t]{0.47\columnwidth}\raggedright\strut
+~\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright\strut
+\begin{verbatim}
+(generator->list (gselect (list->generator '(a b c d e f))
+                          (list->generator '(#t #f #f #t #t #f))))
+  ⇒ (a d e)
+\end{verbatim}
+\strut
+\end{minipage}\tabularnewline
+\bottomrule
+\end{longtable}
+\end{description}
+
+\subsection{Consuming generated
+values}\label{consuming-generated-values}
+
+Unless otherwise noted, these procedures consume all the values
+available from the generator that is passed to them, and therefore will
+not return if one or more generator arguments are infinite. They have
+names prefixed with \texttt{generator}.
+
+\begin{description}
+\item[\texttt{generator-\textgreater{}list} \emph{generator {[} k {]}}]
+Reads items from generator and returns a newly allocated list of them.
+By default, it reads until the generator is exhausted.
+
+If an optional argument k is given, it must be a non-negative integer,
+and the list ends when either k items are consumed, or \emph{generator}
+is exhausted; therefore \emph{generator} can be infinite in this case.
+\end{description}
+
+\begin{description}
+\item[\texttt{generator-\textgreater{}reverse-list} \emph{generator {[}
+k {]}}]
+Reads items from generator and returns a newly allocated list of them in
+reverse order. By default, this reads until the generator is exhausted.
+
+If an optional argument k is given, it must be a non-negative integer,
+and the list ends when either k items are read, or \emph{generator} is
+exhausted; therefore \emph{generator} can be infinite in this case.
+\end{description}
+
+\begin{description}
+\item[\texttt{generator-\textgreater{}vector} \emph{generator {[} k
+{]}}]
+Reads items from generator and returns a newly allocated vector of them.
+By default, it reads until the generator is exhausted.
+
+If an optional argument k is given, it must be a non-negative integer,
+and the list ends when either k items are consumed, or \emph{generator}
+is exhausted; therefore \emph{generator} can be infinite in this case.
+\end{description}
+
+\begin{description}
+\item[\texttt{generator-\textgreater{}vector!} \emph{vector at
+generator}]
+Reads items from generator and puts them into vector starting at index
+at, until vector is full or generator is exhausted. \emph{Generator} can
+be infinite. The number of elements generated is returned.
+\end{description}
+
+\begin{description}
+\item[\texttt{generator-\textgreater{}string} \emph{generator {[} k
+{]}}]
+Reads items from generator and returns a newly allocated string of them.
+It is an error if the items are not characters. By default, it reads
+until the generator is exhausted.
+
+If an optional argument k is given, it must be a non-negative integer,
+and the string ends when either k items are consumed, or
+\emph{generator} is exhausted; therefore \emph{generator} can be
+infinite in this case.
+\end{description}
+
+\begin{description}
+\item[\texttt{generator-fold} \emph{proc seed gen\textsubscript{1}
+gen\textsubscript{2} \ldots{}}]
+Works like SRFI 1 \texttt{fold} on the values generated by the generator
+arguments.
+
+When one generator is given, for each value v generated by gen, proc is
+called as \texttt{(proc\ v\ r)}, where r is the current accumulated
+result; the initial value of the accumulated result is seed, and the
+return value from proc becomes the next accumulated result. When gen is
+exhausted, the accumulated result at that time is returned from
+\texttt{generator-fold}.
+
+When more than one generator is given, proc is invoked on the values
+returned by all the generator arguments followed by the current
+accumulated result. The procedure terminates when any of the
+\emph{gen\textsubscript{n}} generators is exhausted, at which time all
+the others are in an undefined state.
+
+\begin{longtable}[]{@{}ll@{}}
+\toprule
+\begin{minipage}[t]{0.47\columnwidth}\raggedright\strut
+~\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright\strut
+\begin{verbatim}
+(with-input-from-string "a b c d e"
+  (lambda () (generator-fold cons 'z read)))
+  ⇒ (e d c b a . z)
+\end{verbatim}
+\strut
+\end{minipage}\tabularnewline
+\bottomrule
+\end{longtable}
+\end{description}
+
+\begin{description}
+\item[\texttt{generator-for-each} \emph{proc gen gen\textsubscript{2}
+\ldots{}}]
+A generator analogue of \texttt{for-each} that consumes generated values
+using side effects. Repeatedly applies proc on the values yielded by
+gen, gen\textsubscript{2} \ldots{} until any one of the generators is
+exhausted. The values returned from proc are discarded. The procedure
+terminates when any of the \emph{gen\textsubscript{n}} generators is
+exhausted, at which time all the others are in an undefined state.
+Returns an unspecified value.
+\end{description}
+
+\begin{description}
+\item[\texttt{generator-find} \emph{pred gen}]
+Returns the first item from the generator gen that satisfies the
+predicate pred, or \texttt{\#f} if no such item is found before gen is
+exhausted. If gen is infinite, \texttt{generator-find} will not return
+if it cannot find an appropriate item.
+\end{description}
+
+\begin{description}
+\item[\texttt{generator-count} \emph{pred gen}]
+Returns the number of items available from the generator gen that
+satisfy the predicate pred.
+\end{description}
+
+\begin{description}
+\item[\texttt{generator-any} \emph{pred gen}]
+Applies \emph{pred} to each item from \emph{gen}. As soon as it yields a
+true value, the value is returned without consuming the rest of
+\emph{gen}. If \emph{gen} is exhausted, returns \texttt{\#f}.
+\end{description}
+
+\begin{description}
+\item[\texttt{generator-every} \emph{pred gen}]
+Applies \emph{pred} to each item from \emph{gen}. As soon as it yields a
+false value, the value is returned without consuming the rest of
+\emph{gen}. If \emph{gen} is exhausted, returns the last value returned
+by \emph{pred}, or \texttt{\#t} if \emph{pred} was never called.
+\end{description}
+
+\begin{description}
+\item[\texttt{generator-unfold} \emph{gen unfold arg \ldots{}}]
+Equivalent to \texttt{(}unfold
+\texttt{eof-object?\ (lambda\ (x)\ x)\ (lambda\ (x)\ (}gen\texttt{))\ (}gen\texttt{)}
+arg \ldots{}\texttt{)}. The values of gen are unfolded into the
+collection that unfold creates.
+
+The signature of the unfold procedure is \texttt{(}unfold stop? mapper
+successor seed args \ldots{}\texttt{)}. Note that the
+\texttt{vector-unfold} and \texttt{vector-unfold-right} of
+\href{http://srfi.schemers.org/srfi-43/srfi-43.html}{SRFI 43} and
+\href{http://srfi.schemers.org/srfi-133/srfi-133.html}{SRFI 133} do not
+have this signature and cannot be used with this procedure. To unfold
+into a vector, use SRFI 1's \texttt{unfold} and then apply
+\texttt{list-\textgreater{}vector} to the result.
+
+\begin{longtable}[]{@{}ll@{}}
+\toprule
+\begin{minipage}[t]{0.47\columnwidth}\raggedright\strut
+~\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright\strut
+\begin{verbatim}
+;; Iterates over string and unfolds into a list using SRFI 1 unfold
+(generator-unfold (make-for-each-generator string-for-each "abc") unfold)
+  ⇒ (#\a #\b #\c)
+\end{verbatim}
+\strut
+\end{minipage}\tabularnewline
+\bottomrule
+\end{longtable}
+\end{description}
+
+\section{Implementation}\label{implementation}
+
+The sample implementation is in the SRFI 121 repository. It contains the
+following files:
+
+\begin{itemize}
+\tightlist
+\item
+  \texttt{generators-impl.scm} - implementation of generators
+\item
+  \texttt{r7rs-shim.scm} - supplementary code for non-R7RS systems
+\item
+  \texttt{generators.sld} - R7RS library
+\item
+  \texttt{generators.scm} - Chicken library
+\item
+  \texttt{generators-test.scm} - Chicken test-egg test file
+\end{itemize}
+
+\section{Copyright}\label{copyright}
+
+Copyright (C) Shiro Kawai, John Cowan, Thomas Gilray (2015). All Rights
+Reserved.
+
+Permission is hereby granted, free of charge, to any person obtaining a
+copy of this software and associated documentation files (the
+``Software''), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be included
+in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED ``AS IS'', WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+\begin{center}\rule{0.5\linewidth}{\linethickness}\end{center}
+
+Editor:
+\href{mailto:srfi-editors\%20at\%20srfi\%20dot\%20schemers\%20\%20\%20\%20dot\%20org}{Arthur
+Gleckler}
+
+Last modified: Wed Jun 10 08:57:14 MST 2015

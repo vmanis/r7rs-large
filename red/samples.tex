@@ -1,0 +1,1230 @@
+This file is not intended to be formatted or anything. It contains
+the bits of sample implementations that appear in the respective
+SRFIs. Presumably this will be useful to those preparing the final
+repositories of SRFI code.
+
+\section{SRFI 1}
+
+T.B.D.
+
+\section{SRFI 133}
+
+
+
+The sample implementation is in the repository of this SRFI. It has only
+one non-R5RS dependency: \protect\hyperlink{SRFI-23}{SRFI 23}'s
+\texttt{error} procedure, which is also provided by R7RS-small. It is in
+the public domain, or alternatively under the same copyright as this
+SRFI. The following files are provided:
+
+\begin{itemize}
+\tightlist
+\item
+  \texttt{vectors-impl.scm} - a modified version of the implementation
+  of SRFI 43
+\item
+  \texttt{vectors.scm} - a Chicken library showing what to export for an
+  R5RS implementation
+\item
+  \texttt{vectors.sld} - an R7RS library that excludes what R7RS-small
+  already provides
+\item
+  \texttt{vectors-test.scm} - tests using the Chicken test egg (also
+  available on Chibi)
+\end{itemize}
+
+\section{SRFI 132}
+\section{Implementation}\label{implementation}
+
+The sample implementation is a modified version of the Scheme 48
+implementation of the \texttt{sorting} structure, and is found in the
+repository of this SRFI. It will use the R6RS sorting library if it is
+available, but does not depend on it. This is close to the original SRFI
+32 reference implementation, but includes some bug fixes and switches
+the \textless{} and = arguments to the initial position. It also adds
+implementations for the median and selection procedures. The code is
+very portable and freely reusable. It is tightly bummed, as far as could
+be done in portable Scheme, and is commented in Olin's usual voluminous
+style, including notes on porting and implementation-specific
+optimizations. The median and selection code is specific to this SRFI.
+
+The only non-R4RS features in the code are the use of R5RS/R6RS/R7RS
+multiple-value return, with \texttt{values} and
+\texttt{call-with-values} procedures, and the use of R7RS-style
+\texttt{error} to report an assertion violation.
+
+You could speed up the vector code a lot by error-checking the procedure
+parameters and then shifting over to fixnum-specific arithmetic and
+dangerous vector-indexing and vector-setting primitives. The comments in
+the code indicate where the initial error checks would have to be added.
+There are several \texttt{(quotient\ }\emph{n}\texttt{\ 2)} calls that
+could be changed to a fixnum right-shift, as well, in both the list and
+vector code. The code is designed to enable this --- each file usually
+exports one or two ``safe'' procedures that end up calling an internal
+``dangerous'' primitive. The little exported cover procedures are where
+you move the error checks.
+
+This should provide \emph{big} speedups. In fact, all the code bumming
+in the source pretty much disappears in the noise unless you have a good
+compiler and also can dump the vector-index checks and generic
+arithmetic --- so it's really set up for optimization rather than fully
+optimized.
+
+The optional-arg parsing, defaulting, and error checking is done with a
+portable \texttt{syntax-rules} macro. But if the target Scheme has a
+faster mechanism (e.g., Chez), it's definitely better to switch to using
+it. Note that argument defaulting and error-checking are interleaved ---
+there's no need to error-check defaulted \emph{start} and \emph{end}
+args to see if they are fixnums that are legal vector indices for the
+corresponding vector, etc.
+
+\subsection{Files}\label{Files}
+
+\texttt{delndups.scm} - the \texttt{delete-neighbor-dups} procedures\\
+\texttt{lmsort.scm} - list merge sort\\
+\texttt{median.scm} - the \texttt{find-median} procedures\\
+\texttt{selection.scm} - the \texttt{selection} procedure\\
+\texttt{sort.scm} - generic sort and merge procedures\\
+\texttt{sorting-test.scm} - test file\\
+\texttt{sortp.scm} - sort predicates\\
+\texttt{srfi-132.scm} - a Chicken library providing this SRFI\\
+\texttt{srfi-132.sld} - an R7RS counterpart of \texttt{srfi-132.scm}\\
+\texttt{vector-util.scm} - vector utilities\\
+\texttt{vhsort.scm} - vector heap sort\\
+\texttt{visort.scm} - vector insert sort\\
+\texttt{vmsort.scm} - vector merge sort\\
+\texttt{vqsort2.scm} - vector quick sort\\
+
+
+\subsection{Sample implementation
+copyright}\label{Sampleimplementationcopyright}
+
+Short summary: no restrictions.
+
+While Olin wrote all of this code himself, he read a lot of code before
+he began writing. However, all such code is, itself, either open source
+or public domain, rendering irrelevant any issue of ``copyright taint.''
+
+Hence the sample implementation is Copyright © 1998 by Olin Shivers and
+made available under the same copyright as the SRFI text (see above).
+
+\section{Sets and Bags}
+\section{Implementation}\label{implementation}
+
+The implementation places the identifiers defined above into the
+\texttt{sets} library.
+
+Sets and bags are implemented as a thin veneer over hashtables.
+
+The implementation registers \texttt{set-comparator} and
+\texttt{bag-comparator} with SRFI 114's default comparator, assuming the
+sample implementation of SRFI 114 is being used. Scheme implementers who
+provide their own implementations of SRFI 114 must change this part of
+the code.
+
+The \href{http://srfi.schemers.org/srfi-113/sets.tar.gz}{sample
+implementation} contains the following files:
+
+\begin{itemize}
+\tightlist
+\item
+  \texttt{sets-impl.scm} -- implementation of general sets and bags
+\item
+  \texttt{sets.sld} -- an R7RS library named \texttt{(sets)}
+\item
+  \texttt{sets.scm} -- a Chicken library
+\item
+  \texttt{sets-test.scm} -- test suite
+\end{itemize}
+
+The test suite will work with the Chicken \texttt{test} egg, which is
+provided on Chibi as the \texttt{(chibi\ test)} library.
+\begin{center}\rule{0.5\linewidth}{\linethickness}\end{center}
+
+\section{Character sets}
+
+This SRFI comes with a reference implementation. It resides at:
+
+\url{http://srfi.schemers.org/srfi-14/srfi-14.scm}
+
+I have placed this source on the Net with an unencumbered, ``open''
+copyright. Some of the code in the reference implementation bears a
+distant family relation to the MIT Scheme implementation, and being
+derived from that code, is covered by the MIT Scheme copyright (which is
+a generic BSD-style open-source copyright -- see the source file for
+details). The remainder of the code was written by myself for scsh or
+for this SRFI; I have placed this code under the scsh copyright, which
+is also a generic BSD-style open-source copyright.
+
+The code is written for portability and should be simple to port to any
+Scheme. It has only the following deviations from R4RS, clearly
+discussed in the comments:
+
+\begin{itemize}
+\tightlist
+\item
+  an \texttt{error} procedure;
+\item
+  the R5RS \texttt{values} procedure for producing multiple return
+  values;
+\item
+  a simple \texttt{check-arg} procedure for argument checking;
+\item
+  \texttt{let-optionals*} and \texttt{:optional} macros for for parsing,
+  checking and defaulting optional arguments from rest lists;
+\item
+  The SRFI-19 \texttt{define-record-type} form;
+\item
+  \texttt{bitwise-and} for the hash function;
+\item
+  \texttt{\%latin1}{???}{char} and
+  \texttt{\%char}{???}{latin1}.
+\end{itemize}
+
+The library is written for clarity and well-commented; the current
+source is about 375 lines of source code and 375 lines of comments and
+white space. It is also written for efficiency. Fast paths are provided
+for common cases.
+
+This is not to say that the implementation can't be tuned up for a
+specific Scheme implementation. There are notes in comments addressing
+ways implementors can tune the reference implementation for performance.
+
+In short, I've written the reference implementation to make it as
+painless as possible for an implementor -- or a regular programmer -- to
+adopt this library and get good results with it.
+
+The code uses a rather simple-minded, inefficient representation for
+ASCII/Latin-1 char-sets -- a 256-character string. The character whose
+code is i is in the set if s{[}i{]} = ASCII 1 (soh, or \^{}a); not in
+the set if s{[}i{]} = ASCII 0 (nul). A much faster and denser
+representation would be 16 or 32 bytes worth of bit string. A portable
+implementation using bit sets awaits standards for bitwise logical-ops
+and byte vectors.
+
+``Large'' character types, such as Unicode, should use a sparse
+representation, taking care that the Latin-1 subset continues to be
+represented with a dense 32-byte bit set.
+
+\section{Hash tables}
+
+\section{Implementation}\label{implementation}
+
+The current sample implementation is in the code repository of this
+SRFI. It relies upon
+\href{http://srfi.schemers.org/srfi-126/srfi-126.html}{SRFI 126} and
+\href{http://srfi.schemers.org/srfi-128/srfi-128.html}{SRFI 128}, but
+the sample implementation for SRFI 126 is easily layered over any hash
+table implementation that supports either SRFI 69 or R6RS.
+
+The sample implementation of this SRFI never calls any hash function
+with two arguments.
+
+The original intention was to make it possible to implement this SRFI on
+top of all the native hash table systems mentioned in
+\href{http://srfi.schemers.org/srfi-125/srfi-125.html\#Sources}{Sources}
+above as well. However, this turned out not to be practical for the
+following reasons:
+
+\begin{itemize}
+\tightlist
+\item
+  Gauche does not support arbitrary equality predicates, only
+  \texttt{eq?}, \texttt{eqv?}, \texttt{equal?}, and \texttt{string=?}.
+\end{itemize}
+
+\begin{itemize}
+\tightlist
+\item
+  S7 does not support arbitrary equality predicates: the implementation
+  chooses a predicate based on the nature of the keys.
+\end{itemize}
+
+\begin{itemize}
+\tightlist
+\item
+  SISC, Scheme48/scsh, RScheme, Scheme 9, and Rep do not document any
+  way of inspecting a hash table to determine its equality predicates
+  and hash functions so that it can be re-created.
+\end{itemize}
+
+\begin{itemize}
+\tightlist
+\item
+  SLIB hash tables are vectors, not disjoint objects.
+\end{itemize}
+
+\begin{itemize}
+\tightlist
+\item
+  FemtoLisp supports only \texttt{equal?} as the equality predicate.
+\end{itemize}
+
+Native Guile hash tables are a special case. The equivalents of
+\texttt{hash-table-ref/default}, \texttt{hash-table-set!}, and
+\texttt{hash-table-delete} require the equality predicate and hash
+function to be passed to them explicitly (although there are utility
+functions for \texttt{eq?}, \texttt{eqv?}, and \texttt{equal?} hash
+tables). Consequently, hash tables corresponding to this SRFI would have
+to be records containing a Guile hash table, an equality predicate, and
+a hash function, which means they could not interoperate directly with
+native Guile hash tables.
+
+\section{SRFI 116}
+
+The sample implementation of this SRFI is derived from the sample
+implementation of SRFI 1. It depends on SRFI 9 (or R7RS) records. The
+five files in the implementation are as follows:
+
+\begin{itemize}
+\tightlist
+\item
+  \texttt{ilists-impl.scm} is a modified version of the SRFI 1
+  implementation.
+\item
+  \texttt{ilists-base.scm} provides the definition of ipair records as
+  well as additional procedures that are required by this SRFI.
+\item
+  \texttt{ilists.sld} is an R7RS library.
+\item
+  \texttt{ilists.scm} is a Chicken library.
+\item
+  \texttt{ilists-test.scm} is a set of tests using the Chicken
+  \texttt{test} egg, which is also available in Chibi as the R7RS
+  library \texttt{(chibi\ test)}.
+\end{itemize}
+
+\section{SRFI 101}
+
+A portable R6RS library \href{srfi-101.sls}{reference implementation}
+and \href{srfi-101-tests.sls}{test suite} are provided. The library has
+been tested successfully using Ikarus (0.0.3), Larceny (0.97), and PLT
+Scheme (4.2.1.7).
+
+A PLT Scheme specific library that implements purely functional
+random-access lists, but with an API designed to be consistent with
+PLT's list libraries rather than R6RS, is available as the RaList
+package on Planet {[}\protect\hyperlink{note-5}{5}{]}.
+ 
+\section{SRFI 134}
+
+The sample implementation is in the in the \texttt{ideque-2list}
+subdirectory of the repository for this SRFI. It is an implementation
+based on two Scheme lists, one for the front and another (in reverse
+element order) for the back. The cost of \texttt{ideque-front},
+\texttt{ideque-back}, \texttt{ideque-remove-front}, and
+\texttt{ideque-remove-back} are amortized O(1). An implementation based
+on finger trees may be added later.
+
+\section{SRFI 135}
+
+This SRFI comes with sample implementations organized as a
+representation-independent library that imports one of three kernel
+libraries:
+
+\begin{itemize}
+\tightlist
+\item
+  \texttt{kernel16} uses an internal representation based on UTF-16,
+  which performs well when strings can represent any Unicode text and
+  non-ASCII characters are common.
+\item
+  \texttt{kernel8} uses an internal representation based on UTF-8, which
+  performs well when strings can represent any Unicode text but most
+  texts consist of ASCII characters.
+\item
+  \texttt{kernel0} uses an internal representation based on Scheme
+  strings, which performs well if strings are acceptably space-efficient
+  and the \texttt{string-ref} procedure runs in constant time. It also
+  performs well in interpreted systems even when \texttt{string-ref}
+  takes linear time, because the built-in \texttt{string-ref} is likely
+  to run faster on short strings than any UTF-8 or UTF-16 scanner that
+  could be written in Scheme.
+\end{itemize}
+
+All three kernels implement a \texttt{text-ref} procedure that runs in
+O(1) time. All three kernels use shared substructures to improve both
+space efficiency and running time.
+
+The sample implementations come with a black-box test program derived
+from a black-box test program written for SRFI 130.
+
+There is also a program that compares the performance of strings and
+texts on a number of micro-benchmarks. These benchmarks are hardly
+typical, but they provide a rational basis for discussing performance
+tradeoffs between immutable texts, mutable strings with SRFI 130 cursors
+and operations, and the standard R7RS operations on strings.
+
+\section{SRFI 121}
+
+\section{Implementation}\label{implementation}
+
+The sample implementation is in the SRFI 121 repository. It contains the
+following files:
+
+\begin{itemize}
+\tightlist
+\item
+  \texttt{generators-impl.scm} - implementation of generators
+\item
+  \texttt{r7rs-shim.scm} - supplementary code for non-R7RS systems
+\item
+  \texttt{generators.sld} - R7RS library
+\item
+  \texttt{generators.scm} - Chicken library
+\item
+  \texttt{generators-test.scm} - Chicken test-egg test file
+\end{itemize}
+
+\section{SRFI 127}
+
+\section{{Sample Implementation}}\label{sample-implementation}
+
+The files in the implementation are in the SRFI 127 repository, and are
+as follows:
+
+\begin{itemize}
+\tightlist
+\item
+  \texttt{lseq.sld} - an R7RS library
+\item
+  \texttt{lseq.scm} - a Chicken library
+\item
+  \texttt{lseq-impl.scm} - portable implementation code
+\item
+  \texttt{lseq-test.scm} - a Chicken test-egg file
+\end{itemize}
+
+\section{SRFI 41}
+Bird and Wadler describe streams as either null or a pair with a stream
+in the tail:
+
+α list :: null \textbar{} α * α list
+
+That works in a purely functional language such as Miranda or Haskell
+because the entire language is lazy. In an eager language like ML or
+Scheme, of course, it's just a normal, eager list.
+
+Using ML, Wadler, Taha and MacQueen give the type of even streams as:
+
+\begin{verbatim}
+datatype 'a stream_
+  = Nil_
+  | Cons_ of 'a * 'a stream
+withtype 'a stream
+  = 'a stream_ susp;
+\end{verbatim}
+
+Their susp type is similar to Scheme's promise type. Since Scheme
+conflates the notions of record and type (the only way to create a new
+type disjoint from all other types is to create a record), it is
+necessary to distribute the suspension through the two constructors of
+the stream data type:
+
+\begin{verbatim}
+α stream
+  :: (promise stream-null)
+  |  (promise (α stream-pair))
+\end{verbatim}
+
+\begin{verbatim}
+α stream-pair
+  :: α × (α stream)
+\end{verbatim}
+
+That type captures the systematic suspension of recursive promises that
+is the essence of ``streamness.'' But it doesn't quite work, because
+Scheme is eager rather than lazy, and both the car and the cdr of the
+stream are evaluated too early. So the final type of streams delays both
+the car and the cdr of the stream-pair:
+
+\begin{verbatim}
+α stream
+  :: (promise stream-null)
+  |  (promise (α stream-pair))
+\end{verbatim}
+
+\begin{verbatim}
+α stream-pair
+  :: (promise α) × (promise (α stream))
+\end{verbatim}
+
+The two outer promises, in the stream type, provide streams without
+memoization. The two inner promises, in the stream-pair type, add the
+memoization that is characteristic of streams in modern functional
+languages.
+
+Lists provide seven primitive operations: the two constructors '() and
+cons, the type predicates list?, null? and pair?, and the accessors car
+and cdr for pairs. All other list operations can be derived from those
+primitives.
+
+It would seem that the same set of primitives could apply to streams,
+but in fact one additional primitive is required. André van Tonder
+describes the reason in his discussion of the promise data type. The
+promises of R6RS are inadequate to support iterative algorithms because
+each time a promise is called iteratively it binds the old promise in
+the closure that defines the new promise (so the old promise can be
+forced later, if requested). However, in the case of iteration, the old
+promise becomes unreachable, so instead of creating a new promise that
+binds the old promise within, it is better to mutate the promise; that
+way, no space is wasted by the old promise.
+
+Van Tonder describes this new promise type, and provides a recipe for
+its use: all constructors are wrapped with delay, all accessors are
+wrapped with force, and all function bodies are wrapped with lazy. Given
+the seven primitives above, the first two parts of van Tonder's recipe
+are simple: the two constructors stream-null and stream-pair hide delay,
+and the two accessors stream-car and stream-cdr hide force (stream-null?
+and stream-pair? also hide force, so they can distinguish the two
+constructors of the stream type).
+
+Although the new promise type prevents a space leak, it creates a new
+problem: there is no place to hide the lazy that is the third part of
+van Tonder's recipe. SRFI-40 solved this problem by exposing it
+(actually, it exposed delay, which was incorrect). But that violates
+good software engineering by preventing the stream data type from being
+fully abstract. The solution of SRFI-41 is to create a new primitive,
+stream-lambda, that returns a function that hides lazy.
+
+Besides hiding lazy and making the types work out correctly,
+stream-lambda is obvious and easy-to-use for competent Scheme
+programmers, especially when augmented with the syntactic sugar of
+define-stream and named stream-let. The alternative of exposing
+stream-lazy would be less clear and harder to use.
+
+One of the hardest tasks when writing any program library is to decide
+what to include and, more importantly, what to exclude. One important
+guideline is minimalism, since once an operator enters a library it must
+remain forever: \emph{Il semble que la perfection soit atteinte non
+quand il n'y a plus rien à ajouter, mais quand il n'y a plus rien à
+retrancher}.
+
+Since streams are substantially slower than lists (the stream primitives
+require numerous type conversions, and list operations in most Scheme
+implementations are heavily optimized), most programmers will use
+streams only when the sequence of elements is truly infinite (such as
+mathematical series) or when there is some clear advantage of laziness
+(such as reducing the number of passes though a large data set). Thus,
+the library is biased toward functions that work with infinite streams
+left-to-right. In particular, there is no right-fold; if you need to
+materialize an entire stream, it's best to use a list.
+
+\subsection{Implementation of (streams
+primitive)}\label{implementation-of-streams-primitive}
+
+(library (streams primitive)
+
+\begin{verbatim}
+  (export stream-null stream-cons stream? stream-null? stream-pair?
+          stream-car stream-cdr stream-lambda)
+\end{verbatim}
+
+\begin{verbatim}
+  (import (rnrs) (rnrs mutable-pairs))
+\end{verbatim}
+
+\begin{verbatim}
+  (define-record-type (stream-type make-stream stream?)
+    (fields (mutable box stream-promise stream-promise!)))
+\end{verbatim}
+
+\begin{verbatim}
+  (define-syntax stream-lazy
+    (syntax-rules ()
+      ((stream-lazy expr)
+        (make-stream
+          (cons 'lazy (lambda () expr))))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define (stream-eager expr)
+    (make-stream
+      (cons 'eager expr)))
+\end{verbatim}
+
+\begin{verbatim}
+  (define-syntax stream-delay
+    (syntax-rules ()
+      ((stream-delay expr)
+        (stream-lazy (stream-eager expr)))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define (stream-force promise)
+    (let ((content (stream-promise promise)))
+      (case (car content)
+        ((eager) (cdr content))
+        ((lazy)  (let* ((promise* ((cdr content)))
+                        (content  (stream-promise promise)))
+                   (if (not (eqv? (car content) 'eager))
+                       (begin (set-car! content (car (stream-promise promise*)))
+                              (set-cdr! content (cdr (stream-promise promise*)))
+                              (stream-promise! promise* content)))
+                   (stream-force promise))))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define stream-null (stream-delay (cons 'stream 'null)))
+\end{verbatim}
+
+\begin{verbatim}
+  (define-record-type (stream-pare-type make-stream-pare stream-pare?)
+    (fields (immutable kar stream-kar) (immutable kdr stream-kdr)))
+\end{verbatim}
+
+\begin{verbatim}
+  (define (stream-pair? obj)
+    (and (stream? obj) (stream-pare? (stream-force obj))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define (stream-null? obj)
+    (and (stream? obj)
+         (eqv? (stream-force obj)
+               (stream-force stream-null))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define-syntax stream-cons
+    (syntax-rules ()
+      ((stream-cons obj strm)
+        (stream-eager (make-stream-pare (stream-delay obj) (stream-lazy strm))))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define (stream-car strm)
+    (cond ((not (stream? strm)) (error 'stream-car "non-stream"))
+          ((stream-null? strm) (error 'stream-car "null stream"))
+          (else (stream-force (stream-kar (stream-force strm))))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define (stream-cdr strm)
+    (cond ((not (stream? strm)) (error 'stream-cdr "non-stream"))
+          ((stream-null? strm) (error 'stream-cdr "null stream"))
+          (else (stream-kdr (stream-force strm)))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define-syntax stream-lambda
+    (syntax-rules ()
+      ((stream-lambda formals body0 body1 ...)
+        (lambda formals (stream-lazy (let () body0 body1 ...)))))))
+\end{verbatim}
+
+\subsection{Implementation of (streams
+derived)}\label{implementation-of-streams-derived}
+
+(library (streams derived)
+
+\begin{verbatim}
+  (export stream-null stream-cons stream? stream-null? stream-pair? stream-car
+          stream-cdr stream-lambda define-stream list->stream port->stream stream
+          stream->list stream-append stream-concat stream-constant stream-drop
+          stream-drop-while stream-filter stream-fold stream-for-each stream-from
+          stream-iterate stream-length stream-let stream-map stream-match _
+          stream-of stream-range stream-ref stream-reverse stream-scan stream-take
+          stream-take-while stream-unfold stream-unfolds stream-zip)
+\end{verbatim}
+
+\begin{verbatim}
+  (import (rnrs) (streams primitive))
+\end{verbatim}
+
+\begin{verbatim}
+  (define-syntax define-stream
+    (syntax-rules ()
+      ((define-stream (name . formal) body0 body1 ...)
+        (define name (stream-lambda formal body0 body1 ...)))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define (list->stream objs)
+    (define list->stream
+      (stream-lambda (objs)
+        (if (null? objs)
+            stream-null
+            (stream-cons (car objs) (list->stream (cdr objs))))))
+    (if (not (list? objs))
+        (error 'list->stream "non-list argument")
+        (list->stream objs)))
+\end{verbatim}
+
+\begin{verbatim}
+  (define (port->stream . port)
+    (define port->stream
+      (stream-lambda (p)
+        (let ((c (read-char p)))
+          (if (eof-object? c)
+              stream-null
+              (stream-cons c (port->stream p))))))
+    (let ((p (if (null? port) (current-input-port) (car port))))
+      (if (not (input-port? p))
+          (error 'port->stream "non-input-port argument")
+          (port->stream p))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define-syntax stream
+    (syntax-rules ()
+      ((stream) stream-null)
+      ((stream x y ...) (stream-cons x (stream y ...)))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define (stream->list . args)
+    (let ((n (if (= 1 (length args)) #f (car args)))
+          (strm (if (= 1 (length args)) (car args) (cadr args))))
+      (cond ((not (stream? strm)) (error 'stream->list "non-stream argument"))
+            ((and n (not (integer? n))) (error 'stream->list "non-integer count"))
+            ((and n (negative? n)) (error 'stream->list "negative count"))
+            (else (let loop ((n (if n n -1)) (strm strm))
+                    (if (or (zero? n) (stream-null? strm))
+                        '()
+                        (cons (stream-car strm) (loop (- n 1) (stream-cdr strm)))))))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define (stream-append . strms)
+    (define stream-append
+      (stream-lambda (strms)
+        (cond ((null? (cdr strms)) (car strms))
+              ((stream-null? (car strms)) (stream-append (cdr strms)))
+              (else (stream-cons (stream-car (car strms))
+                                 (stream-append (cons (stream-cdr (car strms)) (cdr strms))))))))
+    (cond ((null? strms) stream-null)
+          ((exists (lambda (x) (not (stream? x))) strms)
+            (error 'stream-append "non-stream argument"))
+          (else (stream-append strms))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define (stream-concat strms)
+    (define stream-concat
+      (stream-lambda (strms)
+        (cond ((stream-null? strms) stream-null)
+              ((not (stream? (stream-car strms)))
+                (error 'stream-concat "non-stream object in input stream"))
+              ((stream-null? (stream-car strms))
+                (stream-concat (stream-cdr strms)))
+              (else (stream-cons
+                      (stream-car (stream-car strms))
+                      (stream-concat
+                        (stream-cons (stream-cdr (stream-car strms)) (stream-cdr strms))))))))
+    (if (not (stream? strms))
+        (error 'stream-concat "non-stream argument")
+        (stream-concat strms)))
+\end{verbatim}
+
+\begin{verbatim}
+  (define stream-constant
+    (stream-lambda objs
+      (cond ((null? objs) stream-null)
+            ((null? (cdr objs)) (stream-cons (car objs) (stream-constant (car objs))))
+            (else (stream-cons (car objs)
+                               (apply stream-constant (append (cdr objs) (list (car objs)))))))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define (stream-drop n strm)
+    (define stream-drop
+      (stream-lambda (n strm)
+        (if (or (zero? n) (stream-null? strm))
+            strm
+            (stream-drop (- n 1) (stream-cdr strm)))))
+    (cond ((not (integer? n)) (error 'stream-drop "non-integer argument"))
+          ((negative? n) (error 'stream-drop "negative argument"))
+          ((not (stream? strm)) (error 'stream-drop "non-stream argument"))
+          (else (stream-drop n strm))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define (stream-drop-while pred? strm)
+    (define stream-drop-while
+      (stream-lambda (strm)
+        (if (and (stream-pair? strm) (pred? (stream-car strm)))
+            (stream-drop-while (stream-cdr strm))
+            strm)))
+    (cond ((not (procedure? pred?)) (error 'stream-drop-while "non-procedural argument"))
+          ((not (stream? strm)) (error 'stream-drop-while "non-stream argument"))
+          (else (stream-drop-while strm))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define (stream-filter pred? strm)
+    (define stream-filter
+      (stream-lambda (strm)
+        (cond ((stream-null? strm) stream-null)
+              ((pred? (stream-car strm))
+                (stream-cons (stream-car strm) (stream-filter (stream-cdr strm))))
+              (else (stream-filter (stream-cdr strm))))))
+    (cond ((not (procedure? pred?)) (error 'stream-filter "non-procedural argument"))
+          ((not (stream? strm)) (error 'stream-filter "non-stream argument"))
+          (else (stream-filter strm))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define (stream-fold proc base strm)
+    (cond ((not (procedure? proc)) (error 'stream-fold "non-procedural argument"))
+          ((not (stream? strm)) (error 'stream-fold "non-stream argument"))
+          (else (let loop ((base base) (strm strm))
+                  (if (stream-null? strm)
+                      base
+                      (loop (proc base (stream-car strm)) (stream-cdr strm)))))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define (stream-for-each proc . strms)
+    (define (stream-for-each strms)
+      (if (not (exists stream-null? strms))
+          (begin (apply proc (map stream-car strms))
+                 (stream-for-each (map stream-cdr strms)))))
+    (cond ((not (procedure? proc)) (error 'stream-for-each "non-procedural argument"))
+          ((null? strms) (error 'stream-for-each "no stream arguments"))
+          ((exists (lambda (x) (not (stream? x))) strms)
+            (error 'stream-for-each "non-stream argument"))
+          (else (stream-for-each strms))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define (stream-from first . step)
+    (define stream-from
+      (stream-lambda (first delta)
+        (stream-cons first (stream-from (+ first delta) delta))))
+    (let ((delta (if (null? step) 1 (car step))))
+      (cond ((not (number? first)) (error 'stream-from "non-numeric starting number"))
+            ((not (number? delta)) (error 'stream-from "non-numeric step size"))
+            (else (stream-from first delta)))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define (stream-iterate proc base)
+    (define stream-iterate
+      (stream-lambda (base)
+        (stream-cons base (stream-iterate (proc base)))))
+    (if (not (procedure? proc))
+        (error 'stream-iterate "non-procedural argument")
+        (stream-iterate base)))
+\end{verbatim}
+
+\begin{verbatim}
+  (define (stream-length strm)
+    (if (not (stream? strm))
+        (error 'stream-length "non-stream argument")
+        (let loop ((len 0) (strm strm))
+          (if (stream-null? strm)
+              len
+              (loop (+ len 1) (stream-cdr strm))))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define-syntax stream-let
+    (syntax-rules ()
+      ((stream-let tag ((name val) ...) body1 body2 ...)
+       ((letrec ((tag (stream-lambda (name ...) body1 body2 ...))) tag) val ...))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define (stream-map proc . strms)
+    (define stream-map
+      (stream-lambda (strms)
+        (if (exists stream-null? strms)
+            stream-null
+            (stream-cons (apply proc (map stream-car strms))
+                         (stream-map (map stream-cdr strms))))))
+    (cond ((not (procedure? proc)) (error 'stream-map "non-procedural argument"))
+          ((null? strms) (error 'stream-map "no stream arguments"))
+          ((exists (lambda (x) (not (stream? x))) strms)
+            (error 'stream-map "non-stream argument"))
+          (else (stream-map strms))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define-syntax stream-match
+    (syntax-rules ()
+      ((stream-match strm-expr clause ...)
+        (let ((strm strm-expr))
+          (cond
+            ((not (stream? strm)) (error 'stream-match "non-stream argument"))
+            ((stream-match-test strm clause) => car) ...
+            (else (error 'stream-match "pattern failure")))))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define-syntax stream-match-test
+    (syntax-rules ()
+      ((stream-match-test strm (pattern fender expr))
+        (stream-match-pattern strm pattern () (and fender (list expr))))
+      ((stream-match-test strm (pattern expr))
+        (stream-match-pattern strm pattern () (list expr)))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define-syntax stream-match-pattern 
+    (lambda (x)
+      (define (wildcard? x)
+        (and (identifier? x)
+             (free-identifier=? x (syntax _))))
+      (syntax-case x () 
+        ((stream-match-pattern strm () (binding ...) body)
+          (syntax (and (stream-null? strm) (let (binding ...) body))))
+        ((stream-match-pattern strm (w? . rest) (binding ...) body)
+          (wildcard? #'w?) 
+          (syntax (and (stream-pair? strm)
+                       (let ((strm (stream-cdr strm)))
+                         (stream-match-pattern strm rest (binding ...) body)))))
+        ((stream-match-pattern strm (var . rest) (binding ...) body)
+          (syntax (and (stream-pair? strm)
+                       (let ((temp (stream-car strm)) (strm (stream-cdr strm))) 
+                         (stream-match-pattern strm rest ((var temp) binding ...) body)))))
+        ((stream-match-pattern strm w? (binding ...) body)
+          (wildcard? #'w?)
+          (syntax (let (binding ...) body)))
+        ((stream-match-pattern strm var (binding ...) body) 
+          (syntax (let ((var strm) binding ...) body))))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define-syntax stream-of
+    (syntax-rules ()
+      ((_ expr rest ...)
+        (stream-of-aux expr stream-null rest ...))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define-syntax stream-of-aux
+    (syntax-rules (in is)
+      ((stream-of-aux expr base)
+        (stream-cons expr base))
+      ((stream-of-aux expr base (var in stream) rest ...)
+        (stream-let loop ((strm stream))
+          (if (stream-null? strm)
+              base
+              (let ((var (stream-car strm)))
+                (stream-of-aux expr (loop (stream-cdr strm)) rest ...)))))
+      ((stream-of-aux expr base (var is exp) rest ...)
+        (let ((var exp)) (stream-of-aux expr base rest ...)))
+      ((stream-of-aux expr base pred? rest ...)
+        (if pred? (stream-of-aux expr base rest ...) base))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define (stream-range first past . step)
+    (define stream-range
+      (stream-lambda (first past delta lt?)
+        (if (lt? first past)
+            (stream-cons first (stream-range (+ first delta) past delta lt?))
+            stream-null)))
+    (cond ((not (number? first)) (error 'stream-range "non-numeric starting number"))
+          ((not (number? past)) (error 'stream-range "non-numeric ending number"))
+          (else (let ((delta (cond ((pair? step) (car step)) ((< first past) 1) (else -1))))
+                  (if (not (number? delta))
+                      (error 'stream-range "non-numeric step size")
+                      (let ((lt? (if (< 0 delta) < >)))
+                        (stream-range first past delta lt?)))))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define (stream-ref strm n)
+    (cond ((not (stream? strm)) (error 'stream-ref "non-stream argument"))
+          ((not (integer? n)) (error 'stream-ref "non-integer argument"))
+          ((negative? n) (error 'stream-ref "negative argument"))
+          (else (let loop ((strm strm) (n n))
+                  (cond ((stream-null? strm) (error 'stream-ref "beyond end of stream"))
+                        ((zero? n) (stream-car strm))
+                        (else (loop (stream-cdr strm) (- n 1))))))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define (stream-reverse strm)
+    (define stream-reverse
+      (stream-lambda (strm rev)
+        (if (stream-null? strm)
+            rev
+            (stream-reverse (stream-cdr strm) (stream-cons (stream-car strm) rev)))))
+    (if (not (stream? strm))
+        (error 'stream-reverse "non-stream argument")
+        (stream-reverse strm stream-null)))
+\end{verbatim}
+
+\begin{verbatim}
+  (define (stream-scan proc base strm)
+    (define stream-scan
+      (stream-lambda (base strm)
+        (if (stream-null? strm)
+            (stream base)
+            (stream-cons base (stream-scan (proc base (stream-car strm)) (stream-cdr strm))))))
+    (cond ((not (procedure? proc)) (error 'stream-scan "non-procedural argument"))
+          ((not (stream? strm)) (error 'stream-scan "non-stream argument"))
+          (else (stream-scan base strm))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define (stream-take n strm)
+    (define stream-take
+      (stream-lambda (n strm)
+        (if (or (stream-null? strm) (zero? n))
+            stream-null
+            (stream-cons (stream-car strm) (stream-take (- n 1) (stream-cdr strm))))))
+    (cond ((not (stream? strm)) (error 'stream-take "non-stream argument"))
+          ((not (integer? n)) (error 'stream-take "non-integer argument"))
+          ((negative? n) (error 'stream-take "negative argument"))
+          (else (stream-take n strm))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define (stream-take-while pred? strm)
+    (define stream-take-while
+      (stream-lambda (strm)
+        (cond ((stream-null? strm) stream-null)
+              ((pred? (stream-car strm))
+                (stream-cons (stream-car strm) (stream-take-while (stream-cdr strm))))
+              (else stream-null))))
+    (cond ((not (stream? strm)) (error 'stream-take-while "non-stream argument"))
+          ((not (procedure? pred?)) (error 'stream-take-while "non-procedural argument"))
+          (else (stream-take-while strm))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define (stream-unfold mapper pred? generator base)
+    (define stream-unfold
+      (stream-lambda (base)
+        (if (pred? base)
+            (stream-cons (mapper base) (stream-unfold (generator base)))
+            stream-null)))
+    (cond ((not (procedure? mapper)) (error 'stream-unfold "non-procedural mapper"))
+          ((not (procedure? pred?)) (error 'stream-unfold "non-procedural pred?"))
+          ((not (procedure? generator)) (error 'stream-unfold "non-procedural generator"))
+          (else (stream-unfold base))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define (stream-unfolds gen seed)
+    (define (len-values gen seed)
+      (call-with-values
+        (lambda () (gen seed))
+        (lambda vs (- (length vs) 1))))
+    (define unfold-result-stream
+      (stream-lambda (gen seed)
+        (call-with-values
+          (lambda () (gen seed))
+          (lambda (next . results)
+            (stream-cons results (unfold-result-stream gen next))))))
+    (define result-stream->output-stream
+      (stream-lambda (result-stream i)
+        (let ((result (list-ref (stream-car result-stream) (- i 1))))
+          (cond ((pair? result)
+                  (stream-cons
+                    (car result)
+                    (result-stream->output-stream (stream-cdr result-stream) i)))
+                ((not result)
+                  (result-stream->output-stream (stream-cdr result-stream) i))
+                ((null? result) stream-null)
+                (else (error 'stream-unfolds "can't happen"))))))
+    (define (result-stream->output-streams result-stream)
+      (let loop ((i (len-values gen seed)) (outputs '()))
+        (if (zero? i)
+            (apply values outputs)
+            (loop (- i 1) (cons (result-stream->output-stream result-stream i) outputs)))))
+    (if (not (procedure? gen))
+        (error 'stream-unfolds "non-procedural argument")
+        (result-stream->output-streams (unfold-result-stream gen seed))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define (stream-zip . strms)
+    (define stream-zip
+      (stream-lambda (strms)
+        (if (exists stream-null? strms)
+            stream-null
+            (stream-cons (map stream-car strms) (stream-zip (map stream-cdr strms))))))
+    (cond ((null? strms) (error 'stream-zip "no stream arguments"))
+          ((exists (lambda (x) (not (stream? x))) strms)
+            (error 'stream-zip "non-stream argument"))
+          (else (stream-zip strms)))))
+\end{verbatim}
+
+\subsection{Implementation of
+(streams)}\label{implementation-of-streams}
+
+(library (streams)
+
+\begin{verbatim}
+  (export stream-null stream-cons stream? stream-null? stream-pair? stream-car
+          stream-cdr stream-lambda define-stream list->stream port->stream stream
+          stream->list stream-append stream-concat stream-constant stream-drop
+          stream-drop-while stream-filter stream-fold stream-for-each stream-from
+          stream-iterate stream-length stream-let stream-map stream-match _
+          stream-of stream-range stream-ref stream-reverse stream-scan stream-take
+          stream-take-while stream-unfold stream-unfolds stream-zip)
+\end{verbatim}
+
+\begin{verbatim}
+  (import (streams primitive) (streams derived)))
+\end{verbatim}
+
+\section{SRFI 111: boxes}
+
+Here is a definition as an R7RS library:
+
+\begin{verbatim}
+(define-library (srfi 111)
+  (import (scheme base))
+  (export box box? unbox set-box!)
+  
+  (begin
+    (define-record-type box-type
+      (box value)
+      box?
+      (value unbox set-box!))))
+\end{verbatim}
+
+The \texttt{define-record-type} macro will also work on R5RS Schemes
+that provide SRFI 9.
+
+Here is a translation into R6RS Scheme:
+
+\begin{verbatim}
+(library (srfi :111)
+  (export box box? unbox set-box!)
+  (import (rnrs base) (rnrs records syntactic))
+  
+  (define-record-type
+    (box-type box box?)
+    (fields
+      (mutable value unbox set-box!))))
+\end{verbatim}
+
+Finally, here is an implementation in pure R5RS (plus \texttt{error})
+that depends on redefining \texttt{pair?}.
+
+\begin{verbatim}
+;; Prepare to redefine pair?.
+(define %true-pair? pair?)
+
+;; Unique object in the cdr of a pair flags it as a box.
+(define %box-flag (string-copy "box flag"))
+
+;; Predicate
+(define (box? x) (and (%true-pair? x) (eq? (cdr x) %box-flag)))
+
+;; Constructor
+(define (box x) (cons x %box-flag))
+
+;; Accessor
+(define (unbox x)
+  (if (box? x)
+    (car x)
+    (error "Attempt to unbox non-box")))
+    
+;; Mutator
+(define (set-box! x y)
+  (if (box? x)
+    (set-car! x y)
+    (error "Attempt to mutate non-box")))
+
+;; Override pair?.
+(set! pair?
+  (lambda (x)
+    (and (%true-pair? x) (not (box? x)))))
+\end{verbatim}
+
+Note that these implementations do not support the lexical syntax.
+
+\section{SRFI 117: List queues}
+
+The sample implementation places the identifiers defined above into the
+\texttt{list-queue} library.
+
+The \href{http://srfi.schemers.org/srfi-117/list-queues.tar.gz}{sample
+implementation} contains the following files:
+
+\begin{itemize}
+\tightlist
+\item
+  \texttt{list-queues-impl.scm} -- implementation of queues
+\item
+  \texttt{list-queues.sld} -- an R7RS library named
+  \texttt{(list-queue)}
+\item
+  \texttt{list-queues.scm} -- a Chicken library
+\item
+  \texttt{list-queues-test.scm} -- tests using the Chicken test egg
+\end{itemize}
+
+\section{SRFI 124: Ephemerons}
+
+Ephemerons are currently available in
+\href{http://www.gnu.org/software/mit-scheme/documentation/mit-scheme-ref/Ephemerons.html}{MIT
+Scheme}, in
+\href{http://docs.racket-lang.org/reference/ephemerons.html}{Racket},
+and in Chibi, though current versions of Chibi have a bug; the Chibi GC
+will not break an ephemeron properly if its datum refers to its key. The
+MIT version allows ephemeron keys and datums to be mutated using
+\texttt{set-ephemeron-key!} and \texttt{set-ephemeron-datum!}, but this
+SRFI does not require this capacity, as it is tricky to implement on
+systems where the GC runs in a separate thread. The effect of mutable
+ephemerons can be achieved using immutable ephemerons that hold
+\href{http://srfi.schemers.org/srfi-111/srfi-111.html}{SRFI 111} mutable
+boxes, provided care is taken to always point to the box and not to its
+contents.
+
+The implementation in \texttt{ephemerons-trivial.scm} does not have any
+hooks to the GC, but it is still a correct implementation, because there
+are no guarantees that the GC will ever break any ephemerons, or run at
+all, or even exist. (Thanks to Will Clinger for this insight.) It is
+portable to any R7RS-small or R5RS + SRFI 9 system.
+
+The implementation in \texttt{ephemerons-racket.scm} layers this SRFI's
+semantics on top of Racket's native ephemerons. The idea here is that
+the native-level ephemeron value is a pair containing the key and the
+datum, so that the key can be reliably retrieved and a broken ephemeron
+can be distinguished from one whose key or value is \texttt{\#f}.
+Reference barriers are not supported.
+
+The files \texttt{ephemeron-hash.scm} and \texttt{ephemeron-tree.scm}
+are by Taylor Campbell, and constitute a demonstration written in
+pseudo-Scheme of how ephemerons can be implemented in full. He has
+offered to provide assistance in transforming them into Pre-Scheme for
+Scheme48.
+
+Ephemerons with built-in finalizers are also available in GHC's
+implementation of Haskell under the name of
+\href{https://hackage.haskell.org/package/base-4.8.1.0/docs/System-Mem-Weak.html}{weak
+pointers}.
+
+\section{SRFI 128: Comparators}
+The \href{comparators.tar.gz}{sample implementation} is found in the
+repository of this SRFI. It contains the following files.
+
+\begin{itemize}
+\tightlist
+\item
+  \texttt{comparators-impl.scm} - the record type definition and most of
+  the procedures
+\item
+  \texttt{default.scm} - a simple implementation of the default
+  constructor, which should be improved by implementers to handle
+  records and implementation-specific types
+\item
+  \texttt{r7rs-shim.scm} - procedures for R7RS compatibility, including
+  a trivial implementation of bytevectors on top of
+  \href{http://srfi.schemers.org/srfi-4/srfi-4.html}{SRFI 4} u8vectors
+\item
+  \texttt{complex-shim.scm} - a trivial implementation of
+  \texttt{real-part} and \texttt{imag-part} for Schemes that don't have
+  complex numbers
+\item
+  \texttt{comparators.meta} - Chicken-specific metadata
+\item
+  \texttt{comparators.setup} - Chicken-specific executable setup
+\item
+  \texttt{comparators.sld} - an R7RS library
+\item
+  \texttt{comparators.scm} - a Chicken library
+\item
+  \texttt{comparators-test.scm} - a test file using the Chicken
+  \texttt{test} egg
+\end{itemize}
+

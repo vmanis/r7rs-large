@@ -1,0 +1,10 @@
+#!/bin/sh
+
+# html2tex
+#
+# Convert every document in the srfi directory to a corresponding HTML document.
+
+for a in srfi/*.html; do
+  echo converting $a
+  pandoc -o srfi-tex/$(basename $a .html).tex $a
+done

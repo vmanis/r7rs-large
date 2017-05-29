@@ -1,0 +1,66 @@
+\section{{Issues}}\label{issues}
+
+\begin{itemize}
+\tightlist
+\item
+  Procedure names have been chosen to be consistent with R6RS, even
+  though in some cases such as \texttt{list-ref} and \texttt{list-tail}
+  the choice seems poor since they include the prefix \texttt{list-}
+  even though they do not operate on lists, but chains of pairs, i.e.
+  lists and improper lists, and arbitrary objects, respectively.
+  Although the names have remained the same, the descriptions have been
+  corrected (e.g. using \emph{pair} or \emph{obj} instead of \emph{list}
+  for parameter names). Should the names be changed as well?
+\item
+  To what extent should standard Scheme procedures and syntax that
+  consume or construct lists be included in this proposal? For example,
+  should all of the \texttt{(rnrs\ base)} library that deals with lists
+  be included? By my count this would mean adding: \texttt{lambda},
+  \texttt{apply}, \texttt{vector-\textgreater{}list},
+  \texttt{list-\textgreater{}vector},
+  \texttt{string-\textgreater{}list}, and
+  \texttt{list-\textgreater{}string}. I am inclined to add these. Should
+  all of the \texttt{(rnrs\ \ \ \ \ lists)} library be included? These
+  procedures are easily defined in terms of what's given here, and no
+  perfomance advantage is gained by implementig them ``under the hood''
+  using the data structures in the reference implementation. I am
+  inclined \emph{not} to include them.
+\item
+  Should a \texttt{car+cdr} procedure be added?
+\item
+  Should the current \texttt{syntax} and \texttt{procedures}
+  sub-libraries be included?
+\end{itemize}
+
+\section{{Rationale}}\label{rationale}
+
+Functional programming and list hacking go together like peanut butter
+and jelly, eval and apply, syntax and semantics, or cursing and
+recursing. But the traditional approach to implementing pairs and lists
+results in index-based access (\texttt{list-ref}) requiring time
+proportional the index being accessed. Moreover, indexed-based
+functional update (\texttt{list-set}) becomes so inefficient as to be
+nearly unspeakable. Instead, programmers revert the imperatives of the
+state; they use a stateful data structure and imperative algorithms.
+
+This SRFI intends to improve the situation by offering an alternative
+implementation strategy based on Okasaki's purely functional
+random-access lists {[}\protect\hyperlink{note-1}{1}{]}. Random-access
+pairs and lists can be used as a replacement for traditional,
+linear-access pairs and lists with no asymptotic loss of efficiency. In
+other words, the typical list and pair operations such as \texttt{cons},
+\texttt{car}, and \texttt{cdr}, all operate in \emph{O(1)} time as
+usual. However, random-access lists additionally support index-based
+access and functional update operations that are asymptotically cheaper;
+\emph{O(log(n))} for random-access lists versus \emph{O(n)} for
+linear-access lists, where \emph{n} is the length of the list being
+access or updated. As such, many purely functional index-based list
+algorithms become feasible by using a random-access list representation
+for pairs and lists.
+
+The requirements of this SRFI have been designed in such a way as to
+admit portable library implementations of this feature, such as the
+reference implementation, while at the same time admit more radical
+implementations that embrace random-access pairs as the fundamental pair
+representation.
+

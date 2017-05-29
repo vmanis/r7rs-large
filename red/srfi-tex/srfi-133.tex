@@ -1,0 +1,883 @@
+\section{Title}\label{title}
+
+Vector Library (R7RS-compatible)
+
+\section{Author}\label{author}
+
+John Cowan (based on SRFI 43 by Taylor Campbell)
+
+\section{Issues}\label{issues}
+
+None at this time.
+
+\section{Table of Contents}\label{table-of-contents}
+
+\begin{itemize}
+\tightlist
+\item
+  1. \protect\hyperlink{Status}{Status}
+\item
+  2. \protect\hyperlink{Abstract}{Abstract}
+\item
+  3. \protect\hyperlink{Rationale}{Rationale}
+\item
+  4. \protect\hyperlink{ProcIndex}{Procedure Index}
+\item
+  5. \protect\hyperlink{Procs}{Procedures}
+
+  \begin{itemize}
+  \tightlist
+  \item
+    5.1. \protect\hyperlink{Constructors}{Constructors}
+  \item
+    5.2. \protect\hyperlink{Predicates}{Predicates}
+  \item
+    5.3. \protect\hyperlink{Selectors}{Selectors}
+  \item
+    5.4. \protect\hyperlink{Iteration}{Iteration}
+  \item
+    5.5. \protect\hyperlink{Searching}{Searching}
+  \item
+    5.6. \protect\hyperlink{Mutators}{Mutators}
+  \item
+    5.7. \protect\hyperlink{Conversion}{Conversion}
+  \end{itemize}
+\item
+  6. \protect\hyperlink{SampImpl}{Sample Implementation}
+\item
+  7. \protect\hyperlink{Acknowledgements}{Acknowledgements}
+\item
+  8. \protect\hyperlink{References}{References}
+\item
+  9. \protect\hyperlink{Copyright}{Copyright}
+\end{itemize}
+
+\section{\texorpdfstring{\href{}{1. Status}}{1. Status}}\label{status}
+
+This SRFI is currently in \emph{final} status. Here is
+\href{http://srfi.schemers.org/srfi-process.html}{an explanation} of
+each status that a SRFI can hold. To provide input on this SRFI, please
+send email to \texttt{srfi-133@nospamsrfi.schemers.org}. To subscribe to
+the list, follow
+\href{http://srfi.schemers.org/srfi-list-subscribe.html}{these
+instructions}. You can access previous messages via the mailing list
+\href{http://srfi-email.schemers.org/srfi-133}{archive}.
+
+\begin{itemize}
+\tightlist
+\item
+  Received: 2015/12/15
+\item
+  60-day deadline: 2016/2/14
+\item
+  Draft \#1 published: 2015/12/16
+\item
+  Draft \#2 published: 2016/1/24
+\item
+  Draft \#3 published: 2016/1/31
+\item
+  Draft \#4 published: 2016/3/12
+\item
+  Finalized: 2016/3/20
+\item
+  Revised to fix errata:
+
+  \begin{itemize}
+  \tightlist
+  \item
+    2016/4/1 (Fixed description of \texttt{vector-unfold!})
+  \item
+    2016/8/10 (Fixed typos.)
+  \item
+    2016/9/2 (Changed order of arguments to \texttt{vector-cumulate}
+    from \texttt{(vector-cumulate\ f\ vec\ knil)} to
+    \texttt{(vector-cumulate\ f\ knil\ vec)} to match the argument order
+    of vector-fold.)
+  \end{itemize}
+\end{itemize}
+
+\section{\texorpdfstring{\href{}{2.
+Abstract}}{2. Abstract}}\label{abstract}
+
+This \protect\hyperlink{SRFI}{SRFI} proposes a comprehensive library of
+vector operations accompanied by a freely available and complete
+reference implementation. The reference implementation is unencumbered
+by copyright, and useable with no modifications on any Scheme system
+that is \protect\hyperlink{R5RS}{R5RS}-compliant. It also provides
+several hooks for implementation-specific optimization as well.
+
+\section{\texorpdfstring{\href{}{3.
+Rationale}}{3. Rationale}}\label{rationale}
+
+\protect\hyperlink{R5RS}{R5RS} provides very few list-processing
+procedures, for which reason \protect\hyperlink{SRFI-1}{SRFI 1} exists.
+However, \protect\hyperlink{R5RS}{R5RS} provides even fewer vector
+operations --- while it provides mapping, appending, et cetera
+operations for lists, it specifies only nine vector manipulation
+operations:
+
+\begin{itemize}
+\tightlist
+\item
+  \texttt{vector?}
+\item
+  \texttt{make-vector}
+\item
+  \texttt{vector}
+\item
+  \texttt{vector-length}
+\item
+  \texttt{vector-ref}
+\item
+  \texttt{vector-set!}
+\item
+  \texttt{vector-\textgreater{}list}
+\item
+  \texttt{list-\textgreater{}vector}
+\item
+  \texttt{vector-fill!}
+\end{itemize}
+
+\protect\hyperlink{R7RS-small}{R7RS-small} added support for
+\emph{start} and \emph{end} arguments to
+\texttt{vector-\textgreater{}list}, \texttt{list-\textgreater{}vector}
+and \texttt{vector-fill!}. It also provided seven additional vector
+procedures, bringing vectors and lists to approximate parity:
+
+\begin{itemize}
+\tightlist
+\item
+  \texttt{vector-copy}
+\item
+  \texttt{vector-copy!}
+\item
+  \texttt{vector-append}
+\item
+  \texttt{vector-map}
+\item
+  \texttt{vector-for-each}
+\item
+  \texttt{vector-\textgreater{}string}
+\item
+  \texttt{string-\textgreater{}vector}
+\end{itemize}
+
+\protect\hyperlink{SRFI-43}{SRFI 43} standardized more vector
+procedures, all of which are included in this SRFI. Unfortunately,
+R7RS-small and SRFI 43 placed irreconcileable requirements on the
+procedures invoked by \texttt{vector-map} and \texttt{vector-for-each}.
+This SRFI resolves that issue by changing these SRFI 43 procedures as
+well as \texttt{vector-map!}, \texttt{vector-fold},
+\texttt{vector-fold-right}, and \texttt{vector-count} to leave out the
+index argument that is passed under SRFI 43's definition.
+
+In addition, the version of \texttt{vector-copy} in this SRFI does not
+require support for a fill argument, which makes it equivalent to the
+R7RS-small definition.
+
+This SRFI also provides the following new procedures (some from Python,
+some from other sources):
+
+\begin{itemize}
+\tightlist
+\item
+  \texttt{vector-unfold!}
+\item
+  \texttt{vector-unfold-right!}
+\item
+  \texttt{vector-append-subvectors}
+\item
+  \texttt{vector-cumulate}
+\item
+  \texttt{vector-partition}
+\end{itemize}
+
+It should be noted that no vector sorting procedures are provided by
+this SRFI, because there already are several SRFIs for that purpose.
+
+\section{\texorpdfstring{\href{}{4. Procedure
+Index}}{4. Procedure Index}}\label{procedure-index}
+
+Here is an index of the procedures provided by this package. Those
+marked by \emph{italics} are also provided in
+\protect\hyperlink{R7RS-small}{R7RS-small}.
+
+\begin{description}
+\tightlist
+\item[{
+·~\protect\hyperlink{Constructors}{Constructors}\\[2\baselineskip]}]
+\texttt{\ \ \ \ \ \ \ \ \ \ \ make-vector\ \ \ \ \ \ \ \ \ \ \ vector\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ vector-unfold\ \ \ \ \ \ \ \ \ \ \ vector-unfold-right\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ vector-copy\ \ \ \ \ \ \ \ \ \ \ vector-reverse-copy\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ vector-append\ \ \ \ \ \ \ \ \ \ \ vector-concatenate\ \ \ \ \ \ \ \ \ \ \ vector-append-subvectors\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ }
+\item[{ ·~\protect\hyperlink{Predicates}{Predicates}\\[2\baselineskip]}]
+\texttt{\ \ \ \ \ \ \ \ \ \ \ vector?\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ vector-empty?\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ vector=\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ }
+\item[{ ·~\protect\hyperlink{Selectors}{Selectors}\\[2\baselineskip]}]
+\texttt{\ \ \ \ \ \ \ \ \ \ \ vector-ref\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ vector-length\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ }
+\item[{ ·~\protect\hyperlink{Iteration}{Iteration}\\[2\baselineskip]}]
+\texttt{\ \ \ \ \ \ \ \ \ \ \ vector-fold\ \ \ \ \ \ \ \ \ \ \ vector-fold-right\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ vector-map\ \ \ \ \ \ \ \ \ \ \ vector-map!\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ vector-for-each\ \ \ \ \ \ \ \ \ \ \ vector-count\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ vector-cumulate\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ }
+\item[{ ·~\protect\hyperlink{Searching}{Searching}\\[2\baselineskip]}]
+\texttt{\ \ \ \ \ \ \ \ \ \ \ vector-index\ \ \ \ \ \ \ \ \ \ \ vector-index-right\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ vector-skip\ \ \ \ \ \ \ \ \ \ \ vector-skip-right\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ vector-binary-search\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ vector-any\ \ \ \ \ \ \ \ \ \ \ vector-every\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ vector-partition\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ }
+\item[{ ·~\protect\hyperlink{Mutators}{Mutators}\\[2\baselineskip]}]
+\texttt{\ \ \ \ \ \ \ \ \ \ \ vector-set!\ \ \ \ \ \ \ \ \ \ \ vector-swap!\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ vector-fill!\ \ \ \ \ \ \ \ \ \ \ vector-reverse!\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ vector-copy!\ \ \ \ \ \ \ \ \ \ \ vector-reverse-copy!\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ vector-unfold!\ \ \ \ \ \ \ \ \ \ \ vector-unfold-right!\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ }
+\item[{ ·~\protect\hyperlink{Conversion}{Conversion}\\[2\baselineskip]}]
+\texttt{\ \ \ \ \ \ \ \ \ \ \ vector-\textgreater{}list\ \ \ \ \ \ \ \ \ \ \ reverse-vector-\textgreater{}list\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ list-\textgreater{}vector\ \ \ \ \ \ \ \ \ \ \ reverse-list-\textgreater{}vector\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ vector-\textgreater{}string\ \ \ \ \ \ \ \ \ \ \ string-\textgreater{}vector\ \ \ \ \ \ \ \ \ }
+\end{description}
+
+\section{\texorpdfstring{\href{}{5.
+Procedures}}{5. Procedures}}\label{procedures}
+
+In this section containing specifications of procedures, the following
+notation is used to specify parameters and return values:
+
+\begin{description}
+\tightlist
+\item[ (f arg\textsubscript{1} arg\textsubscript{2} \ldots{})
+-\textgreater{} something]
+Indicates a function \texttt{f} takes the parameters
+\texttt{arg1\ arg2\ \ \ \ \ \ \ \ \ ...} and returns a value of the type
+\texttt{something}. If \texttt{something} is \texttt{unspecified}, then
+\texttt{f} returns a single implementation-dependent value; this SRFI
+does not specify what it returns, and in order to write portable code,
+the return value should be ignored.\\[2\baselineskip]
+\item[vec]
+The argument in this place must be a vector, i.e. it must satisfy the
+predicate \texttt{vector?}.\\[2\baselineskip]
+\item[i, j, start, size]
+The argument in this place must be a exact nonnegative integer, i.e. it
+must satisfy the predicates \texttt{exact?}, \texttt{integer?} and
+either \texttt{zero?} or \texttt{positive?}. The third case of it
+indicates the index at which traversal begins; the fourth case of it
+indicates the size of a vector.\\[2\baselineskip]
+\item[end]
+The argument in this place must be a exact positive integer, i.e. it
+must satisfy the predicates \texttt{exact?}, \texttt{integer?} and
+\texttt{positive?}. This indicates the index directly before which
+traversal will stop --- processing will occur until the the index of the
+vector is \texttt{end}. It is the closed right side of a
+range.\\[2\baselineskip]
+\item[f]
+The argument in this place must be a function of one or more arguments,
+which returns (except as noted otherwise) exactly one
+value.\\[2\baselineskip]
+\item[pred?]
+The argument in this place must be a function of one or more arguments
+that returns one value, which is treated as a boolean.\\[2\baselineskip]
+\item[ x, y, z, seed, knil, fill, key, value ]
+The argument in this place may be any Scheme value.\\[2\baselineskip]
+\item[{[}something{]}]
+Indicates that \texttt{something} is an optional argument; it needn't
+necessarily be applied. \texttt{Something} needn't necessarily be one
+thing; for example, this usage of it is perfectly
+valid:\\[2\baselineskip]\texttt{\ \ \ \ \ \ \ \ \ \ \ ~~~{[}start\ {[}end{]}{]}\ \ \ \ \ \ \ \ \ }\\[2\baselineskip]and
+is indeed used quite often.\\[2\baselineskip]
+\item[something \ldots{}]
+Indicates that zero or more \texttt{something}s are allowed to be
+arguments.\\[2\baselineskip]
+\item[ something\textsubscript{1} something\textsubscript{2} \ldots{} ]
+Indicates that at least one \texttt{something} must be
+arguments.\\[2\baselineskip]
+\item[ something\textsubscript{1} something\textsubscript{2} \ldots{}
+something\textsubscript{n} ]
+Exactly equivalent to the previous argument notation, but this also
+indicates that \texttt{n} will be used later in the procedure
+description.\\[2\baselineskip]
+\end{description}
+
+It should be noted that all of the procedures that iterate across
+multiple vectors in parallel stop iterating and produce the final result
+when the end of the shortest vector is reached. The sole exception is
+\texttt{vector=}, which automatically returns \texttt{\#f} if the
+vectors' lengths vary.
+
+\subsection{\texorpdfstring{\href{}{5.1.
+Constructors}}{5.1. Constructors}}\label{constructors}
+
+\begin{description}
+\tightlist
+\item[ \href{}{(make-vector \emph{size} {[}\emph{fill}{]})
+-\textgreater{} vector} ]
+{[}\protect\hyperlink{R7RS-small}{\emph{R7RS-small}}{]} Creates and
+returns a vector of size \texttt{size}. If \emph{fill} is specified, all
+the elements of the vector are initialized to \emph{fill}. Otherwise,
+their contents are
+indeterminate.\\[2\baselineskip]Example:\\[2\baselineskip]\texttt{\ \ \ \ \ \ \ \ \ \ \ (make-vector\ 5\ 3)\ \ \ \ \ \ \ \ \ }\\
+\texttt{\ \ \ \ \ \ \ \ \ \ \ \#(3\ 3\ 3\ 3\ 3)\ \ \ \ \ \ \ \ \ }\\[2\baselineskip]
+\item[ \href{}{(vector \emph{x \ldots{}}) -\textgreater{} vector} ]
+{[}\protect\hyperlink{R7RS-small}{\emph{R7RS-small}}{]} Creates and
+returns a vector whose elements are
+\texttt{x\ ...}.\\[2\baselineskip]Example:\\[2\baselineskip]\texttt{\ \ \ \ \ \ \ \ \ \ \ (vector\ 0\ 1\ 2\ 3\ 4)\ \ \ \ \ \ \ \ \ }\\
+\texttt{\ \ \ \ \ \ \ \ \ \ \ \#(0\ 1\ 2\ 3\ 4)\ \ \ \ \ \ \ \ \ }\\[2\baselineskip]
+\item[ \href{}{(vector-unfold \emph{f length initial-seed \ldots{}})
+-\textgreater{} vector} ]
+The fundamental vector constructor. Creates a vector whose length is
+\texttt{length} and iterates across each index \texttt{k} between
+\texttt{0} and \texttt{length}, applying \texttt{f} at each iteration to
+the current index and current seeds, in that order, to receive
+\texttt{n\ +\ 1} values: first, the element to put in the \texttt{k}th
+slot of the new vector and \texttt{n} new seeds for the next iteration.
+It is an error for the number of seeds to vary between iterations. Note
+that the termination condition is different from the \texttt{unfold}
+procedure of \protect\hyperlink{SRFIux5cux25201}{SRFI
+1}.\\[2\baselineskip]Examples:\\[2\baselineskip]\texttt{\ \ \ \ \ \ \ \ \ \ \ (vector-unfold\ (λ\ (i\ x)\ (values\ x\ (-\ x\ 1)))\ \ \ \ \ \ \ \ \ \ \ ~~~~~~~~~~\ \ \ \ \ \ \ \ \ \ \ ~~~~~\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ 10\ 0)\ \ \ \ \ \ \ \ \ }\\
+\texttt{\ \ \ \ \ \ \ \ \ \ \ \#(0\ -1\ -2\ -3\ -4\ -5\ -6\ -7\ -8\ -9)\ \ \ \ \ \ \ \ \ }\\[2\baselineskip]Construct
+a vector of the sequence of integers in the range {[}0,\texttt{n}).\\
+\texttt{\ \ \ \ \ \ \ \ \ \ \ (vector-unfold\ values\ n)\ \ \ \ \ \ \ \ \ }\\
+\texttt{\ \ \ \ \ \ \ \ \ \ \ \#(0\ 1\ 2\ ...\ n-2\ n-1)\ \ \ \ \ \ \ \ \ }\\[2\baselineskip]Copy
+\texttt{vector}.\\[2\baselineskip]\texttt{\ \ \ \ \ \ \ \ \ \ \ (vector-unfold\ (λ\ (i)\ (vector-ref\ vector\ i))\ \ \ \ \ \ \ \ \ \ \ ~~~~~~~~~~\ \ \ \ \ \ \ \ \ \ \ ~~~~~\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ (vector-length\ vector))\ \ \ \ \ \ \ \ \ }\\[2\baselineskip]
+\item[ \href{}{(vector-unfold-right \emph{f length initial-seed
+\ldots{}}) -\textgreater{} vector} ]
+Like \texttt{vector-unfold}, but it uses \texttt{f} to generate elements
+from right-to-left, rather than left-to-right. The first index used is
+\emph{length} - 1. Note that the termination condition is different from
+the \texttt{unfold-right} procedure of
+\protect\hyperlink{SRFIux5cux25201}{SRFI
+1}.\\[2\baselineskip]Examples:\\[2\baselineskip]Construct a vector of
+pairs of non-negative integers whose values sum to
+4.\\[2\baselineskip]\texttt{\ \ \ \ \ \ \ \ \ \ \ (vector-unfold-right\ (λ\ (i\ x)\ (values\ (cons\ i\ x)\ (+\ x\ 1)))\ 5\ 0)\ \ \ \ \ \ \ \ \ }\\
+\texttt{\ \ \ \ \ \ \ \ \ \ \ \#((0\ .\ 4)\ (1\ .\ 3)\ (2\ .\ 2)\ (3\ .\ 1)\ (4\ .\ 0))\ \ \ \ \ \ \ \ \ }\\[2\baselineskip]Reverse
+\texttt{vector}.\\[2\baselineskip]\texttt{\ \ \ \ \ \ \ \ \ \ \ (vector-unfold-right\ (λ\ (i\ x)\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ (values\ (vector-ref\ vector\ x)\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ (+\ x\ 1)))\ \ \ \ \ \ \ \ \ \ \ ~~~~~~~~~~\ \ \ \ \ \ \ \ \ \ \ ~~~~~~~~~~~\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ (vector-length\ vector)\ \ \ \ \ \ \ \ \ \ \ ~~~~~~~~~~\ \ \ \ \ \ \ \ \ \ \ ~~~~~~~~~~~\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ 0)\ \ \ \ \ \ \ \ \ }\\[2\baselineskip]
+\item[ \href{}{(vector-copy \emph{vec} {[}\emph{start}
+{[}\emph{end}{]}{]}) -\textgreater{} vector} ]
+{[}\protect\hyperlink{R7RS-small}{\emph{R7RS-small}}{]} Allocates a new
+vector whose length is \texttt{end\ -\ \ \ \ \ \ \ \ \ start} and fills
+it with elements from \texttt{vec}, taking elements from \texttt{vec}
+starting at index \texttt{start} and stopping at index \texttt{end}.
+\texttt{start} defaults to \texttt{0} and \texttt{end} defaults to the
+value of \texttt{(vector-length\ \ \ \ \ \ \ \ \ vec)}. SRFI 43 provides
+an optional fill argument to supply values if end is greater than the
+length of vec. Neither R7RS-small nor this SRFI requires support for
+this
+argument.\\[2\baselineskip]Examples:\\[2\baselineskip]\texttt{\ \ \ \ \ \ \ \ \ \ \ (vector-copy\ \textquotesingle{}\#(a\ b\ c\ d\ e\ f\ g\ h\ i))\ \ \ \ \ \ \ \ \ }\\
+\texttt{\ \ \ \ \ \ \ \ \ \ \ \#(a\ b\ c\ d\ e\ f\ g\ h\ i)\ \ \ \ \ \ \ \ \ }\\[2\baselineskip]\texttt{\ \ \ \ \ \ \ \ \ \ \ (vector-copy\ \textquotesingle{}\#(a\ b\ c\ d\ e\ f\ g\ h\ i)\ 6)\ \ \ \ \ \ \ \ \ }\\
+\texttt{\ \ \ \ \ \ \ \ \ \ \ \#(g\ h\ i)\ \ \ \ \ \ \ \ \ }\\[2\baselineskip]\texttt{\ \ \ \ \ \ \ \ \ \ \ (vector-copy\ \textquotesingle{}\#(a\ b\ c\ d\ e\ f\ g\ h\ i)\ 3\ 6)\ \ \ \ \ \ \ \ \ }\\
+\texttt{\ \ \ \ \ \ \ \ \ \ \ \#(d\ e\ f)\ \ \ \ \ \ \ \ \ }\\[2\baselineskip]
+\item[ \href{}{(vector-reverse-copy \emph{vec} {[}\emph{start}
+{[}\emph{end}{]}{]}) -\textgreater{} vector} ]
+Like \texttt{vector-copy}, but it copies the elements in the reverse
+order from
+\texttt{vec}.\\[2\baselineskip]Example:\\[2\baselineskip]\texttt{\ \ \ \ \ \ \ \ \ \ \ (vector-reverse-copy\ \textquotesingle{}\#(5\ 4\ 3\ 2\ 1\ 0)\ 1\ 5)\ \ \ \ \ \ \ \ \ }\\
+\texttt{\ \ \ \ \ \ \ \ \ \ \ \#(1\ 2\ 3\ 4)\ \ \ \ \ \ \ \ \ }\\[2\baselineskip]
+\item[ \href{}{(vector-append \emph{vec \ldots{}}) -\textgreater{}
+vector} ]
+{[}\protect\hyperlink{R7RS-small}{\emph{R7RS-small}}{]} Returns a newly
+allocated vector that contains all elements in order from the subsequent
+locations in
+\texttt{vec\ \ \ \ \ \ \ \ \ ...}.\\[2\baselineskip]Examples:\\[2\baselineskip]\texttt{\ \ \ \ \ \ \ \ \ \ \ (vector-append\ \textquotesingle{}\#(x)\ \textquotesingle{}\#(y))\ \ \ \ \ \ \ \ \ }\\
+\texttt{\ \ \ \ \ \ \ \ \ \ \ \#(x\ y)\ \ \ \ \ \ \ \ \ }\\[2\baselineskip]\texttt{\ \ \ \ \ \ \ \ \ \ \ (vector-append\ \textquotesingle{}\#(a)\ \textquotesingle{}\#(b\ c\ d))\ \ \ \ \ \ \ \ \ }\\
+\texttt{\ \ \ \ \ \ \ \ \ \ \ \#(a\ b\ c\ d)\ \ \ \ \ \ \ \ \ }\\[2\baselineskip]\texttt{\ \ \ \ \ \ \ \ \ \ \ (vector-append\ \textquotesingle{}\#(a\ \#(b))\ \textquotesingle{}\#(\#(c)))\ \ \ \ \ \ \ \ \ }\\
+\texttt{\ \ \ \ \ \ \ \ \ \ \ \#(a\ \#(b)\ \#(c))\ \ \ \ \ \ \ \ \ }\\[2\baselineskip]
+\item[ \href{}{(vector-concatenate \emph{list-of-vectors})
+-\textgreater{} vector} ]
+Appends each vector in \texttt{list-of-vectors}. This is equivalent
+to:\\[2\baselineskip]\texttt{\ \ \ \ \ \ \ \ \ \ \ (apply\ vector-append\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ list-of-vectors)\ \ \ \ \ \ \ \ \ }\\[2\baselineskip]However,
+it may be implemented
+better.\\[2\baselineskip]Example:\\[2\baselineskip]\texttt{\ \ \ \ \ \ \ \ \ \ \ (vector-concatenate\ \textquotesingle{}(\#(a\ b)\ \#(c\ d)))\ \ \ \ \ \ \ \ \ }\\
+\texttt{\ \ \ \ \ \ \ \ \ \ \ \#(a\ b\ c\ d)\ \ \ \ \ \ \ \ \ }\\[2\baselineskip]
+\end{description}
+
+\href{}{(vector-append-subvectors {[}\emph{vec start end{]} \ldots{}})
+-\textgreater{} vector}
+
+Returns a vector that contains every element of each \emph{vec} from
+\emph{start} to \emph{end} in the specified order. This procedure is a
+generalization of
+\texttt{vector-append}.\\[2\baselineskip]Example:\\[2\baselineskip]\texttt{\ \ \ \ \ \ \ \ \ \ \ (vector-append-subvectors\ \textquotesingle{}\#(a\ b\ c\ d\ e)\ 0\ 2\ \textquotesingle{}\#(f\ g\ h\ i\ j)\ 2\ 4)\ \ \ \ \ \ \ \ \ }\\
+\texttt{\ \ \ \ \ \ \ \ \ \ \ \#(a\ b\ h\ i)\ \ \ \ \ \ \ \ \ }\\[2\baselineskip]
+
+\subsection{\texorpdfstring{\href{}{5.2.
+Predicates}}{5.2. Predicates}}\label{predicates}
+
+\begin{description}
+\tightlist
+\item[ \href{}{(vector? \emph{x}) -\textgreater{} boolean} ]
+{[}\protect\hyperlink{R7RS-small}{\emph{R7RS-small}}{]} Disjoint type
+predicate for vectors: this returns \texttt{\#t} if \texttt{x} is a
+vector, and \texttt{\#f} if
+otherwise.\\[2\baselineskip]Examples:\\[2\baselineskip]\texttt{\ \ \ \ \ \ \ \ \ \ \ (vector?\ \textquotesingle{}\#(a\ b\ c))\ \ \ \ \ \ \ \ \ }\\
+\texttt{\ \ \ \ \ \ \ \ \ \ \ \#t\ \ \ \ \ \ \ \ \ }\\[2\baselineskip]\texttt{\ \ \ \ \ \ \ \ \ \ \ (vector?\ \textquotesingle{}(a\ b\ c))\ \ \ \ \ \ \ \ \ }\\
+\texttt{\ \ \ \ \ \ \ \ \ \ \ \#f\ \ \ \ \ \ \ \ \ }\\[2\baselineskip]\texttt{\ \ \ \ \ \ \ \ \ \ \ (vector?\ \#t)\ \ \ \ \ \ \ \ \ }\\
+\texttt{\ \ \ \ \ \ \ \ \ \ \ \#f\ \ \ \ \ \ \ \ \ }\\[2\baselineskip]\texttt{\ \ \ \ \ \ \ \ \ \ \ (vector?\ \textquotesingle{}\#())\ \ \ \ \ \ \ \ \ }\\
+\texttt{\ \ \ \ \ \ \ \ \ \ \ \#t\ \ \ \ \ \ \ \ \ }\\[2\baselineskip]\texttt{\ \ \ \ \ \ \ \ \ \ \ (vector?\ \textquotesingle{}())\ \ \ \ \ \ \ \ \ }\\
+\texttt{\ \ \ \ \ \ \ \ \ \ \ \#f\ \ \ \ \ \ \ \ \ }\\[2\baselineskip]
+\item[ \href{}{(vector-empty? \emph{vec}) -\textgreater{} boolean} ]
+Returns \texttt{\#t} if \texttt{vec} is empty, i.e. its length is
+\texttt{0}, and \texttt{\#f} if
+not.\\[2\baselineskip]Examples:\\[2\baselineskip]\texttt{\ \ \ \ \ \ \ \ \ \ \ (vector-empty?\ \textquotesingle{}\#(a))\ \ \ \ \ \ \ \ \ }\\
+\texttt{\ \ \ \ \ \ \ \ \ \ \ \#f\ \ \ \ \ \ \ \ \ }\\[2\baselineskip]\texttt{\ \ \ \ \ \ \ \ \ \ \ (vector-empty?\ \textquotesingle{}\#(()))\ \ \ \ \ \ \ \ \ }\\
+\texttt{\ \ \ \ \ \ \ \ \ \ \ \#f\ \ \ \ \ \ \ \ \ }\\[2\baselineskip]\texttt{\ \ \ \ \ \ \ \ \ \ \ (vector-empty?\ \textquotesingle{}\#(\#()))\ \ \ \ \ \ \ \ \ }\\
+\texttt{\ \ \ \ \ \ \ \ \ \ \ \#f\ \ \ \ \ \ \ \ \ }\\[2\baselineskip]\texttt{\ \ \ \ \ \ \ \ \ \ \ (vector-empty?\ \textquotesingle{}\#())\ \ \ \ \ \ \ \ \ }\\
+\texttt{\ \ \ \ \ \ \ \ \ \ \ \#t\ \ \ \ \ \ \ \ \ }\\[2\baselineskip]
+\item[ \href{}{(vector= \emph{elt=? vec \ldots{}}) -\textgreater{}
+boolean} ]
+Vector structure comparator, generalized across user-specified element
+comparators. Vectors \texttt{a} and \texttt{b} are considered equal by
+\texttt{vector=} iff their lengths are the same, and for each respective
+element \texttt{Ea} and \texttt{Eb},
+\texttt{(elt=?\ Ea\ \ \ \ \ \ \ \ \ Eb)} returns a true value.
+\texttt{Elt=?} is always applied to two arguments. Element comparison
+must be consistent with \texttt{eq}; that is, if \texttt{(eq?\ Ea\ Eb)}
+results in a true value, then \texttt{(elt=?\ Ea\ \ \ \ \ \ \ \ \ Eb)}
+must also result in a true value. This may be exploited to avoid
+unnecessary element comparisons. (The reference implementation does, but
+it does not consider the situation where \texttt{elt=?} is in fact
+itself \texttt{eq?} to avoid yet more unnecessary
+comparisons.)\\[2\baselineskip]If there are only zero or one vector
+arguments, \texttt{\#t} is automatically returned. The dynamic order in
+which comparisons of elements and of vectors are performed is left
+completely unspecified; do not rely on a particular
+order.\\[2\baselineskip]Examples:\\[2\baselineskip]\texttt{\ \ \ \ \ \ \ \ \ \ \ (vector=\ eq?\ \textquotesingle{}\#(a\ b\ c\ d)\ \textquotesingle{}\#(a\ b\ c\ d))\ \ \ \ \ \ \ \ \ }\\
+\texttt{\ \ \ \ \ \ \ \ \ \ \ \#t\ \ \ \ \ \ \ \ \ }\\[2\baselineskip]\texttt{\ \ \ \ \ \ \ \ \ \ \ (vector=\ eq?\ \textquotesingle{}\#(a\ b\ c\ d)\ \textquotesingle{}\#(a\ b\ d\ c))\ \ \ \ \ \ \ \ \ }\\
+\texttt{\ \ \ \ \ \ \ \ \ \ \ \#f\ \ \ \ \ \ \ \ \ }\\[2\baselineskip]\texttt{\ \ \ \ \ \ \ \ \ \ \ (vector=\ =\ \textquotesingle{}\#(1\ 2\ 3\ 4\ 5)\ \textquotesingle{}\#(1\ 2\ 3\ 4))\ \ \ \ \ \ \ \ \ }\\
+\texttt{\ \ \ \ \ \ \ \ \ \ \ \#f\ \ \ \ \ \ \ \ \ }\\[2\baselineskip]\texttt{\ \ \ \ \ \ \ \ \ \ \ (vector=\ =\ \textquotesingle{}\#(1\ 2\ 3\ 4)\ \textquotesingle{}\#(1\ 2\ 3\ 4))\ \ \ \ \ \ \ \ \ }\\
+\texttt{\ \ \ \ \ \ \ \ \ \ \ \#t\ \ \ \ \ \ \ \ \ }\\[2\baselineskip]The
+two trivial
+cases.\\[2\baselineskip]\texttt{\ \ \ \ \ \ \ \ \ \ \ (vector=\ eq?)\ \ \ \ \ \ \ \ \ }\\
+\texttt{\ \ \ \ \ \ \ \ \ \ \ \#t\ \ \ \ \ \ \ \ \ }\\[2\baselineskip]\texttt{\ \ \ \ \ \ \ \ \ \ \ (vector=\ eq?\ \textquotesingle{}\#(a))\ \ \ \ \ \ \ \ \ }\\
+\texttt{\ \ \ \ \ \ \ \ \ \ \ \#t\ \ \ \ \ \ \ \ \ }\\[2\baselineskip]Note
+the fact that we don't use vector literals in the next two --- it is
+unspecified whether or not literal vectors with the same external
+representation are
+\texttt{eq?}.\\[2\baselineskip]\texttt{\ \ \ \ \ \ \ \ \ \ \ (vector=\ eq?\ (vector\ (vector\ \textquotesingle{}a))\ (vector\ (vector\ \textquotesingle{}a)))\ \ \ \ \ \ \ \ \ }\\
+\texttt{\ \ \ \ \ \ \ \ \ \ \ \#f\ \ \ \ \ \ \ \ \ }\\[2\baselineskip]\texttt{\ \ \ \ \ \ \ \ \ \ \ (vector=\ equal?\ (vector\ (vector\ \textquotesingle{}a))\ (vector\ (vector\ \textquotesingle{}a)))\ \ \ \ \ \ \ \ \ }\\
+\texttt{\ \ \ \ \ \ \ \ \ \ \ \#t\ \ \ \ \ \ \ \ \ }\\[2\baselineskip]
+\end{description}
+
+\subsection{\texorpdfstring{\href{}{5.3.
+Selectors}}{5.3. Selectors}}\label{selectors}
+
+\begin{description}
+\tightlist
+\item[ \href{}{(vector-ref \emph{vec i}) -\textgreater{} value} ]
+{[}\protect\hyperlink{R7RS-small}{\emph{R7RS-small}}{]} Vector element
+dereferencing: returns the value that the location in \texttt{vec} at
+\texttt{i} is mapped to in the store. Indexing is based on zero.
+\texttt{I} must be within the range {[}0,
+\texttt{(vector-length\ \ \ \ \ \ \ \ \ \ \ \ \ \ vec)}).\\[2\baselineskip]Example:\\[2\baselineskip]\texttt{\ \ \ \ \ \ \ \ \ \ \ (vector-ref\ \textquotesingle{}\#(a\ b\ c\ d)\ 2)\ \ \ \ \ \ \ \ \ }\\
+\texttt{\ \ \ \ \ \ \ \ \ \ \ c\ \ \ \ \ \ \ \ \ }\\[2\baselineskip]
+\item[ \href{}{(vector-length \emph{vec}) -\textgreater{} exact
+nonnegative integer} ]
+{[}\protect\hyperlink{R7RS-small}{\emph{R7RS-small}}{]} Returns the
+length of \texttt{vec}, the number of locations reachable from
+\texttt{vec}. (The careful word `reachable' is used to allow for `vector
+slices,' whereby \texttt{vec} refers to a larger vector that contains
+more locations that are unreachable from \texttt{vec}. This SRFI does
+not define vector slices, but later SRFIs
+may.)\\[2\baselineskip]Example:\\[2\baselineskip]\texttt{\ \ \ \ \ \ \ \ \ \ \ (vector-length\ \textquotesingle{}\#(a\ b\ c))\ \ \ \ \ \ \ \ \ }\\
+\texttt{\ \ \ \ \ \ \ \ \ \ \ 3\ \ \ \ \ \ \ \ \ }\\[2\baselineskip]
+\end{description}
+
+\subsection{\texorpdfstring{\href{}{5.4.
+Iteration}}{5.4. Iteration}}\label{iteration}
+
+\begin{description}
+\tightlist
+\item[ \href{}{(vector-fold \emph{kons knil vec\textsubscript{1}
+vec\textsubscript{2} \ldots{}}) -\textgreater{} value} ]
+The fundamental vector iterator. \texttt{Kons} is iterated over each
+value in all of the vectors, stopping at the end of the shortest;
+\texttt{kons} is applied as
+\texttt{\ \ \ \ \ \ \ \ \ \ \ (kons\ state\ \ \ \ \ \ \ \ \ \ \ \ \ (vector-ref\ \ \ \ \ \ \ \ \ \ \ \ \ \ vec1\ i)\ \ \ \ \ \ \ \ \ \ \ \ \ (vector-ref\ \ \ \ \ \ \ \ \ \ \ \ \ \ vec2\ i)\ \ \ \ \ \ \ \ \ \ \ \ \ ...)\ \ \ \ \ \ \ \ \ }
+where \texttt{state} is the current state value --- the current state
+value begins with \texttt{knil}, and becomes whatever \texttt{kons}
+returned on the previous iteration ---, and \texttt{i} is the current
+index.\\[2\baselineskip]The iteration is strictly
+left-to-right.\\[2\baselineskip]Examples:\\[2\baselineskip]Find the
+longest string's length in \texttt{vector-of-strings}.\\
+\texttt{\ \ \ \ \ \ \ \ \ \ \ (vector-fold\ (λ\ (len\ str)\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ (max\ (string-length\ str)\ len))\ \ \ \ \ \ \ \ \ \ \ ~~~~~~~~~\ \ \ \ \ \ \ \ \ \ \ ~~~~\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ 0\ vector-of-strings)\ \ \ \ \ \ \ \ \ }\\[2\baselineskip]Produce
+a list of the reversed elements of \texttt{vec}.\\
+\texttt{\ \ \ \ \ \ \ \ \ \ \ (vector-fold\ (λ\ (tail\ elt)\ (cons\ elt\ tail))\ \ \ \ \ \ \ \ \ \ \ ~~~~~~~~~\ \ \ \ \ \ \ \ \ \ \ ~~~~\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \textquotesingle{}()\ vec)\ \ \ \ \ \ \ \ \ }\\[2\baselineskip]Count
+the number of even numbers in \texttt{vec}.\\
+\texttt{\ \ \ \ \ \ \ \ \ \ \ (vector-fold\ (λ\ (counter\ n)\ \ \ \ \ \ \ \ \ \ \ ~~~~~~~~~\ \ \ \ \ \ \ \ \ \ \ ~~~~~~\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ (if\ (even?\ n)\ (+\ counter\ 1)\ counter))\ \ \ \ \ \ \ \ \ \ \ ~~~~~~~~~\ \ \ \ \ \ \ \ \ \ \ ~~~~\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ 0\ vec)\ \ \ \ \ \ \ \ \ }\\[2\baselineskip]
+\item[ \href{}{(vector-fold-right \emph{kons knil vec\textsubscript{1}
+vec\textsubscript{2} \ldots{}}) -\textgreater{} value} ]
+Similar to \texttt{vector-fold}, but it iterates right to left instead
+of left to right.\\[2\baselineskip]Example:\\[2\baselineskip]Convert a
+vector to a list.\\
+\texttt{\ \ \ \ \ \ \ \ \ \ \ (vector-fold-right\ (λ\ (tail\ elt)\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ (cons\ elt\ tail))\ \ \ \ \ \ \ \ \ \ \ ~~~~~~~~~\ \ \ \ \ \ \ \ \ \ \ ~~~~~~~~~~\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \textquotesingle{}()\ \textquotesingle{}\#(a\ b\ c\ d))\ \ \ \ \ \ \ \ \ }\\
+\texttt{\ \ \ \ \ \ \ \ \ \ \ (a\ b\ c\ d)\ \ \ \ \ \ \ \ \ }\\[2\baselineskip]
+\end{description}
+
+\begin{description}
+\tightlist
+\item[ \href{}{(vector-map \emph{f vec\textsubscript{1}
+vec\textsubscript{2} \ldots{}}) -\textgreater{} vector} ]
+{[}\protect\hyperlink{R7RS-small}{\emph{R7RS-small}}{]} Constructs a new
+vector of the shortest size of the vector arguments. Each element at
+index \texttt{i} of the new vector is mapped from the old vectors by
+\texttt{(f\ (vector-ref\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ vec1\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ i)\ \ \ \ \ \ \ \ \ \ \ \ \ \ (vector-ref\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ vec2\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ i)\ \ \ \ \ \ \ \ \ \ \ \ \ \ ...)}.
+The dynamic order of application of \texttt{f} is
+unspecified.\\[2\baselineskip]Examples:\\[2\baselineskip]\texttt{\ \ \ \ \ \ \ \ \ \ \ (vector-map\ (λ\ (x)\ (*\ x\ x))\ \ \ \ \ \ \ \ \ \ \ ~~~~~~~~~\ \ \ \ \ \ \ \ \ \ \ ~~~\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ (vector-unfold\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ (λ\ (i\ x)\ (values\ x\ (+\ x\ 1)))\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ 4\ 1))\ \ \ \ \ \ \ \ \ }\\
+\texttt{\ \ \ \ \ \ \ \ \ \ \ \#(1\ 4\ 9\ 16)\ \ \ \ \ \ \ \ \ }\\[2\baselineskip]\texttt{\ \ \ \ \ \ \ \ \ \ \ (vector-map\ (λ\ (x\ y)\ (*\ x\ y))\ \ \ \ \ \ \ \ \ \ \ ~~~~~~~~~~\ \ \ \ \ \ \ \ \ \ \ ~~~(vector-unfold\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ (λ\ (x)\ (values\ x\ (+\ x\ 1)))\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ 5\ 1)\ \ \ \ \ \ \ \ \ \ \ ~~~~~~~~~~\ \ \ \ \ \ \ \ \ \ \ ~~~(vector-unfold\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ (λ\ (x)\ (values\ x\ (-\ x\ 1)))\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ 5\ 5))\ \ \ \ \ \ \ \ \ }\\
+\texttt{\ \ \ \ \ \ \ \ \ \ \ \#(5\ 8\ 9\ 8\ 5)\ \ \ \ \ \ \ \ \ }\\[2\baselineskip]\texttt{\ \ \ \ \ \ \ \ \ \ \ (let\ ((count\ 0))\ \ \ \ \ \ \ \ \ }\\
+\texttt{\ \ \ \ \ \ \ \ \ \ \ ~~\ \ \ \ \ \ \ \ \ \ \ (vector-map\ (λ\ (ignored-elt)\ \ \ \ \ \ \ \ \ }\\
+\texttt{\ \ \ \ \ \ \ \ \ \ \ ~~~~~~~~~~\ \ \ \ \ \ \ \ \ \ \ ~~~~~\ \ \ \ \ \ \ \ \ \ \ (set!\ count\ (+\ count\ 1))\ \ \ \ \ \ \ \ \ }\\
+\texttt{\ \ \ \ \ \ \ \ \ \ \ ~~~~~~~~~~\ \ \ \ \ \ \ \ \ \ \ ~~~~~\ \ \ \ \ \ \ \ \ \ \ count)\ \ \ \ \ \ \ \ \ }\\
+\texttt{\ \ \ \ \ \ \ \ \ \ \ ~~~~~~~~~~\ \ \ \ \ \ \ \ \ \ \ ~~~\ \ \ \ \ \ \ \ \ \ \ \textquotesingle{}\#(a\ b)))\ \ \ \ \ \ \ \ \ }\\
+\texttt{\ \ \ \ \ \ \ \ \ \ \ \#(1\ 2)\ OR\ \#(2\ 1)\ \ \ \ \ \ \ \ \ }\\[2\baselineskip]
+\end{description}
+
+\begin{description}
+\tightlist
+\item[ \href{}{(vector-map! \emph{f vec\textsubscript{1}
+vec\textsubscript{2} \ldots{}}) -\textgreater{} unspecified} ]
+Similar to \texttt{vector-map}, but rather than mapping the new elements
+into a new vector, the new mapped elements are destructively inserted
+into \texttt{vec1}. Again, the dynamic order of application of
+\texttt{f} unspecified, so it is dangerous for \texttt{f} to apply
+either \texttt{vector-ref} or \texttt{vector-set!} to \texttt{vec1} in
+\texttt{f}.\\
+\end{description}
+
+\begin{description}
+\item[ \href{}{(vector-for-each \emph{f vec\textsubscript{1}
+vec\textsubscript{2} \ldots{}}) -\textgreater{} unspecified} ]
+{[}\protect\hyperlink{R7RS-small}{\emph{R7RS-small}}{]} Simple vector
+iterator: applies \texttt{f} to the corresponding list of parallel
+elements from \texttt{vec1\ vec2\ \ \ \ \ \ \ \ \ ...} in the range
+{[}0, \texttt{length}), where \texttt{length} is the length of the
+smallest vector argument passed, In contrast with \texttt{vector-map},
+\texttt{f} is reliably applied to each subsequent element, starting at
+index 0, in the
+vectors.\\[2\baselineskip]Example:\\[2\baselineskip]\texttt{\ \ \ \ \ \ \ \ \ \ \ (vector-for-each\ (λ\ (x)\ (display\ x)\ (newline))\ \ \ \ \ \ \ \ \ }\\
+\texttt{\ \ \ \ \ \ \ \ \ \ \ ~~~~~~~~~~\ \ \ \ \ \ \ \ \ \ \ ~~~~~\ \ \ \ \ \ \ \ \ \ \ \textquotesingle{}\#("foo"\ "bar"\ "baz"\ "quux"\ "zot"))\ \ \ \ \ \ \ \ \ }\\
+Displays:\\
+
+\begin{verbatim}
+foo
+bar
+baz
+quux
+zot
+\end{verbatim}
+\end{description}
+
+\begin{description}
+\tightlist
+\item[ \href{}{(vector-count \emph{pred? vec\textsubscript{1}
+vec\textsubscript{2} \ldots{}}) -\textgreater{} exact nonnegative
+integer} ]
+Counts the number of parallel elements in the vectors that satisfy
+\texttt{pred?}, which is applied, for each index \texttt{i} in the range
+{[}0, \texttt{length}) where \texttt{length} is the length of the
+smallest vector argument, to each parallel element in the vectors, in
+order.\\[2\baselineskip]Examples:\\[2\baselineskip]\texttt{\ \ \ \ \ \ \ \ \ \ \ (vector-count\ even?\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \textquotesingle{}\#(3\ 1\ 4\ 1\ 5\ 9\ 2\ 5\ 6))\ \ \ \ \ \ \ \ \ }\\
+\texttt{\ \ \ \ \ \ \ \ \ \ \ 3\ \ \ \ \ \ \ \ \ }\\[2\baselineskip]\texttt{\ \ \ \ \ \ \ \ \ \ \ (vector-count\ \textless{}\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \textquotesingle{}\#(1\ 3\ 6\ 9)\ \textquotesingle{}\#(2\ 4\ 6\ 8\ 10\ 12))\ \ \ \ \ \ \ \ \ }\\
+\texttt{\ \ \ \ \ \ \ \ \ \ \ 2\ \ \ \ \ \ \ \ \ }\\[2\baselineskip]
+\end{description}
+
+\begin{description}
+\item[ \href{}{(vector-cumulate \emph{f knil vec}) -\textgreater{}
+vector} ]
+Returns a newly allocated vector \texttt{new} with the same length as
+\texttt{vec}. Each element \emph{i} of \emph{new} is set to the result
+of invoking \texttt{f} on \emph{\texttt{new}\textsubscript{i-1}} and
+\emph{\texttt{vec}\textsubscript{i}}, except that for the first call on
+\emph{f}, the first argument is \emph{knil}. The \emph{new} vector is
+returned.
+
+Note that the order of arguments to \texttt{vector-cumulate} was changed
+by \texttt{errata-3} on 2016/9/2.
+
+Example:\\[2\baselineskip]\texttt{\ \ \ \ \ \ \ \ \ \ \ (vector-cumulate\ +\ 0\ \textquotesingle{}\#(3\ 1\ 4\ 1\ 5\ 9\ 2\ 5\ 6))\ \ \ \ \ \ \ \ \ }\\
+\texttt{\ \ \ \ \ \ \ \ \ \ \ \#(3\ 4\ 8\ 9\ 14\ 23\ 25\ 30\ 36)\ \ \ \ \ \ \ \ \ }\\[4\baselineskip]
+\end{description}
+
+\subsection{\texorpdfstring{\href{}{5.5.
+Searching}}{5.5. Searching}}\label{searching}
+
+\begin{description}
+\tightlist
+\item[ \href{}{(vector-index \emph{pred? vec\textsubscript{1}
+vec\textsubscript{2} \ldots{}}) -\textgreater{} exact nonnegative
+integer or \#f} ]
+Finds \& returns the index of the first elements in
+\texttt{vec1\ vec2\ \ \ \ \ \ \ \ \ ...} that satisfy \texttt{pred?}. If
+no matching element is found by the end of the shortest vector,
+\texttt{\#f} is
+returned.\\[2\baselineskip]Examples:\\[2\baselineskip]\texttt{\ \ \ \ \ \ \ \ \ \ \ (vector-index\ even?\ \textquotesingle{}\#(3\ 1\ 4\ 1\ 5\ 9))\ \ \ \ \ \ \ \ \ }\\
+\texttt{\ \ \ \ \ \ \ \ \ \ \ 2\ \ \ \ \ \ \ \ \ }\\[2\baselineskip]\texttt{\ \ \ \ \ \ \ \ \ \ \ (vector-index\ \textless{}\ \textquotesingle{}\#(3\ 1\ 4\ 1\ 5\ 9\ 2\ 5\ 6)\ \textquotesingle{}\#(2\ 7\ 1\ 8\ 2))\ \ \ \ \ \ \ \ \ }\\
+\texttt{\ \ \ \ \ \ \ \ \ \ \ 1\ \ \ \ \ \ \ \ \ }\\[2\baselineskip]\texttt{\ \ \ \ \ \ \ \ \ \ \ (vector-index\ =\ \textquotesingle{}\#(3\ 1\ 4\ 1\ 5\ 9\ 2\ 5\ 6)\ \textquotesingle{}\#(2\ 7\ 1\ 8\ 2))\ \ \ \ \ \ \ \ \ }\\
+\texttt{\ \ \ \ \ \ \ \ \ \ \ \#f\ \ \ \ \ \ \ \ \ }\\[2\baselineskip]
+\item[ \href{}{(vector-index-right \emph{pred? vec\textsubscript{1}
+vec\textsubscript{2} \ldots{}}) -\textgreater{} exact nonnegative
+integer or \#f} ]
+Like \texttt{vector-index}, but it searches right-to-left, rather than
+left-to-right, and all of the vectors \emph{must} have the same
+length.\\[2\baselineskip]
+\item[ \href{}{(vector-skip \emph{pred? vec\textsubscript{1}
+vec\textsubscript{2} \ldots{}}) -\textgreater{} exact nonnegative
+integer or \#f} ]
+Finds \& returns the index of the first elements in
+\texttt{vec1\ vec2\ \ \ \ \ \ \ \ \ ...} that do \emph{not} satisfy
+\texttt{pred?}. If all the values in the vectors satisfy \texttt{pred?}
+until the end of the shortest vector, this returns \texttt{\#f}. This is
+equivalent
+to:\\[2\baselineskip]\texttt{\ \ \ \ \ \ \ \ \ \ \ (vector-index\ \ \ \ \ \ \ \ \ \ \ \ (λ\ (x1\ x2\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ ...)\ \ \ \ \ \ \ \ \ \ \ \ \ \ (not\ (pred?\ x1\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ x1\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ ...)))\ \ \ \ \ \ \ \ \ \ \ \ ~~~~~~~~~\ \ \ \ \ \ \ \ \ \ \ \ ~~~~~~~~~\ \ \ \ \ \ \ \ \ \ \ \ vec1\ vec2\ \ \ \ \ \ \ \ \ \ \ \ ...)\ \ \ \ \ \ \ \ \ }\\[2\baselineskip]Example:\\[2\baselineskip]\texttt{\ \ \ \ \ \ \ \ \ \ \ (vector-skip\ number?\ \textquotesingle{}\#(1\ 2\ a\ b\ 3\ 4\ c\ d))\ \ \ \ \ \ \ \ \ }\\
+\texttt{\ \ \ \ \ \ \ \ \ \ \ 2\ \ \ \ \ \ \ \ \ }\\[2\baselineskip]
+\item[ \href{}{(vector-skip-right \emph{pred? vec\textsubscript{1}
+vec\textsubscript{2} \ldots{}}) -\textgreater{} exact nonnegative
+integer or \#f} ]
+Like \texttt{vector-skip}, but it searches for a non-matching element
+right-to-left, rather than left-to-right, and it is an error if all of
+the vectors do not have the same length. This is equivalent
+to:\\[2\baselineskip]\texttt{\ \ \ \ \ \ \ \ \ \ \ (vector-index-right\ \ \ \ \ \ \ \ \ \ \ \ (λ\ (x1\ x2\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ ...)\ \ \ \ \ \ \ \ \ \ \ \ \ \ (not\ (pred?\ x1\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ x1\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ ...)))\ \ \ \ \ \ \ \ \ \ \ \ ~~~~~~~~~\ \ \ \ \ \ \ \ \ \ \ \ ~~~~~~~~~~\ \ \ \ \ \ \ \ \ \ \ \ ~~~~\ \ \ \ \ \ \ \ \ \ \ \ vec1\ vec2\ \ \ \ \ \ \ \ \ \ \ \ ...)\ \ \ \ \ \ \ \ \ }\\[2\baselineskip]
+\item[ \href{}{(vector-binary-search \emph{vec value cmp})
+-\textgreater{} exact nonnegative integer or \#f} ]
+Similar to \texttt{vector-index} and \texttt{vector-index-right}, but
+instead of searching left to right or right to left, this performs a
+binary search. If there is more than one element of \emph{vec} that
+matches \emph{value} in the sense of \emph{cmp},
+\texttt{vector-binary-search} may return the index of any of them.
+
+\texttt{cmp} should be a procedure of two arguments and return a
+negative integer, which indicates that its first argument is less than
+its second, zero, which indicates that they are equal, or a positive
+integer, which indicates that the first argument is greater than the
+second argument. An example \texttt{cmp} might
+be:\\[2\baselineskip]\texttt{\ \ \ \ \ \ \ \ \ \ \ (λ\ (char1\ char2)\ \ \ \ \ \ \ \ \ }\\
+\texttt{\ \ \ \ \ \ \ \ \ \ \ ~~(cond\ ((char\textless{}?\ char1\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ char2)\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ -1)\ \ \ \ \ \ \ \ \ }\\
+\texttt{\ \ \ \ \ \ \ \ \ \ \ ~~~~~~~\ \ \ \ \ \ \ \ \ \ \ ((char=?\ char1\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ char2)\ \ \ \ \ \ \ \ \ \ \ \ 0)\ \ \ \ \ \ \ \ \ }\\
+\texttt{\ \ \ \ \ \ \ \ \ \ \ ~~~~~~~\ \ \ \ \ \ \ \ \ \ \ (else\ 1)))\ \ \ \ \ \ \ \ \ }\\[2\baselineskip]
+\item[ \href{}{(vector-any \emph{pred? vec\textsubscript{1}
+vec\textsubscript{2} \ldots{}}) -\textgreater{} value or \#f} ]
+Finds the first set of elements in parallel from
+\texttt{vec1\ vec2\ \ \ \ \ \ \ \ \ ...} for which \texttt{pred?}
+returns a true value. If such a parallel set of elements exists,
+\texttt{vector-any} returns the value that \texttt{pred?} returned for
+that set of elements. The iteration is strictly
+left-to-right.\\[2\baselineskip]
+\item[ \href{}{(vector-every \emph{pred? vec\textsubscript{1}
+vec\textsubscript{2} \ldots{}}) -\textgreater{} value or \#f} ]
+If, for every index \texttt{i} between 0 and the length of the shortest
+vector argument, the set of elements
+\texttt{(vector-ref\ vec1\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ i)\ \ \ \ \ \ \ \ \ \ \ \ \ (vector-ref\ vec2\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ i)\ \ \ \ \ \ \ \ \ \ \ \ \ ...}
+satisfies \texttt{pred?}, \texttt{vector-every} returns the value that
+\texttt{pred?} returned for the last set of elements, at the last index
+of the shortest vector. The iteration is strictly
+left-to-right.\\[2\baselineskip]
+\item[ \href{}{(vector-partition \emph{pred? vec}) -\textgreater{}
+vector} ]
+A vector the same size as \texttt{vec} is newly allocated and filled
+with all the elements of \texttt{vec} that satisfy \texttt{pred?} in
+their original order followed by all the elements that do not satisfy
+\texttt{pred}, also in their original order.\\[2\baselineskip]Two values
+are returned, the newly allocated vector and the index of the leftmost
+element that does not satisfy \texttt{pred}.\\[2\baselineskip]
+\end{description}
+
+\subsection{\texorpdfstring{\href{}{5.7.
+Mutators}}{5.7. Mutators}}\label{mutators}
+
+\href{}{(vector-set! \emph{vec i value}) -\textgreater{} unspecified}
+
+{[}\protect\hyperlink{R7RS-small}{\emph{R7RS-small}}{]} Assigns the
+contents of the location at \texttt{i} in \texttt{vec} to
+\texttt{value}.\\[2\baselineskip]
+
+\href{}{(vector-swap! \emph{vec i j}) -\textgreater{} unspecified}
+
+Swaps or exchanges the values of the locations in \texttt{vec} at
+\texttt{i} \& \texttt{j}.\\[2\baselineskip]
+
+\href{}{(vector-fill! \emph{vec fill} {[}\emph{start}
+{[}\emph{end}{]}{]}) -\textgreater{} unspecified}
+
+{[}\protect\hyperlink{R7RS-small}{\emph{R7RS-small}}{]} Assigns the
+value of every location in \texttt{vec} between \texttt{start}, which
+defaults to \texttt{0} and \texttt{end}, which defaults to the length of
+\texttt{vec}, to \texttt{fill}.\\[2\baselineskip]
+
+\href{}{(vector-reverse! \emph{vec} {[}\emph{start} {[}\emph{end}{]}{]})
+-\textgreater{} unspecified}
+
+Destructively reverses the contents of the sequence of locations in
+\texttt{vec} between \texttt{start} and \texttt{end}. \texttt{Start}
+defaults to \texttt{0} and \texttt{end} defaults to the length of
+\texttt{vec}. Note that this does not deeply reverse.\\[2\baselineskip]
+
+\href{}{(vector-copy! \emph{to at from} {[}\emph{start}
+{[}\emph{end}{]}{]}) -\textgreater{} unspecified}
+
+{[}\protect\hyperlink{R7RS-small}{\emph{R7RS-small}}{]} Copies the
+elements of vector \texttt{from} between \texttt{start} and \texttt{end}
+to vector \texttt{to}, starting at \texttt{at}. The order in which
+elements are copied is unspecified, except that if the source and
+destination overlap, copying takes place as if the source is first
+copied into a temporary vector and then into the destination. This can
+be achieved without allocating storage by making sure to copy in the
+correct direction in such circumstances.\\[2\baselineskip]
+
+\href{}{(vector-reverse-copy! \emph{to at from} {[}\emph{start}
+{[}\emph{end}{]}{]}) -\textgreater{} unspecified}
+
+Like \texttt{vector-copy!}, but the elements appear in \texttt{to} in
+reverse order.
+\texttt{\ \ \ \ \ \ \ \ \ \ \ (vector-reverse!\ \ \ \ \ \ \ \ \ \ \ \ target\ \ \ \ \ \ \ \ \ \ \ \ tstart\ \ \ \ \ \ \ \ \ \ \ \ send)\ \ \ \ \ \ \ \ \ }
+would.\\[2\baselineskip]
+
+\href{}{(vector-unfold! f vec start end initial-seed \ldots{})
+-\textgreater{} unspecified}
+
+Like \texttt{vector-unfold}, but the elements are copied into the vector
+\emph{vec} starting at element \emph{start} rather than into a newly
+allocated vector. Terminates when \emph{end-start} elements have been
+generated.\\[2\baselineskip]
+
+\href{}{(vector-unfold-right! f vec start end initial-seed \ldots{})
+-\textgreater{} unspecified}
+
+Like \texttt{vector-unfold!}, but the elements are copied in reverse
+order into the vector \emph{vec} starting at the index preceding
+\emph{end}.\\[2\baselineskip]
+
+\subsection{\texorpdfstring{\href{}{5.8.
+Conversion}}{5.8. Conversion}}\label{conversion}
+
+\begin{description}
+\tightlist
+\item[ \href{}{(vector-\textgreater{}list \emph{vec} {[}\emph{start}
+{[}\emph{end}{]}{]}) -\textgreater{} proper-list} ]
+{[}\protect\hyperlink{R7RS-small}{\emph{R7RS-small}}{]} Creates a list
+containing the elements in \texttt{vec} between \texttt{start}, which
+defaults to \texttt{0}, and \texttt{end}, which defaults to the length
+of \texttt{vec}.\\[2\baselineskip]
+\item[ \href{}{(reverse-vector-\textgreater{}list \emph{vec}
+{[}\emph{start} {[}\emph{end}{]}{]}) -\textgreater{} proper-list} ]
+Like \texttt{vector-\textgreater{}list}, but the resulting list contains
+the elements in reverse of \texttt{vector}.\\[2\baselineskip]
+\item[ \href{}{(list-\textgreater{}vector \emph{proper-list})
+-\textgreater{} vector} ]
+{[}\protect\hyperlink{R7RS-small}{\emph{R7RS-small}}{]} Creates a vector
+of elements from \texttt{proper-list}.\\[2\baselineskip]
+\item[ \href{}{(reverse-list-\textgreater{}vector \emph{proper-list})
+-\textgreater{} vector} ]
+Like \texttt{list-\textgreater{}vector}, but the resulting vector
+contains the elements in reverse of
+\texttt{proper-list}.\\[2\baselineskip]
+\item[ \href{}{(string-\textgreater{}vector \emph{string}
+{[}\emph{start} {[}\emph{end}{]}{]}) -\textgreater{} vector} ]
+{[}\protect\hyperlink{R7RS-small}{\emph{R7RS-small}}{]} Creates a vector
+containing the elements in \texttt{string} between \texttt{start}, which
+defaults to \texttt{0}, and \texttt{end}, which defaults to the length
+of \texttt{string}.\\[2\baselineskip]
+\item[ \href{}{(vector-\textgreater{}string \emph{vec} {[}\emph{start}
+{[}\emph{end}{]}{]}) -\textgreater{} string} ]
+{[}\protect\hyperlink{R7RS-small}{\emph{R7RS-small}}{]} Creates a string
+containing the elements in \texttt{vec} between \texttt{start}, which
+defaults to \texttt{0}, and \texttt{end}, which defaults to the length
+of \texttt{vec}. It is an error if the elements are not
+characters.\\[2\baselineskip]
+\end{description}
+
+\section{\texorpdfstring{\href{}{6. Sample
+Implementation}}{6. Sample Implementation}}\label{sample-implementation}
+
+The sample implementation is in the repository of this SRFI. It has only
+one non-R5RS dependency: \protect\hyperlink{SRFI-23}{SRFI 23}'s
+\texttt{error} procedure, which is also provided by R7RS-small. It is in
+the public domain, or alternatively under the same copyright as this
+SRFI. The following files are provided:
+
+\begin{itemize}
+\tightlist
+\item
+  \texttt{vectors-impl.scm} - a modified version of the implementation
+  of SRFI 43
+\item
+  \texttt{vectors.scm} - a Chicken library showing what to export for an
+  R5RS implementation
+\item
+  \texttt{vectors.sld} - an R7RS library that excludes what R7RS-small
+  already provides
+\item
+  \texttt{vectors-test.scm} - tests using the Chicken test egg (also
+  available on Chibi)
+\end{itemize}
+
+\section{\texorpdfstring{\href{}{7.
+Acknowledgements}}{7. Acknowledgements}}\label{acknowledgements}
+
+These acknowledgements are copied from SRFI 43.
+
+Thanks to Olin Shivers for his wonderfully complete
+\protect\hyperlink{SRFI-1}{list} and \protect\hyperlink{SRFI-13}{string}
+packages; to all the members of the
+\href{http://scheme-irc.webhop.org/}{\texttt{\#scheme} IRC channel} on
+\href{http://www.freenode.net/}{Freenode} who nitpicked a great deal,
+but also helped quite a lot in general, and helped test the reference
+implementation in various Scheme systems; to Michael Burschik for his
+numerous comments; to Sergei Egorov for helping to narrow down the
+procedures; to Mike Sperber for putting up with an \emph{extremely}
+overdue draft; to Felix Winkelmann for continually bugging me about
+finishing up the SRFI so that it would be only overdue and not
+withdrawn; and to everyone else who gave questions, comments, thoughts,
+or merely attention to the SRFI.
+
+\section{\texorpdfstring{\href{}{8.
+References}}{8. References}}\label{references}
+
+\begin{description}
+\tightlist
+\item[\href{}{R5RS}]
+\emph{R5RS: The Revised\textsuperscript{5} Report on Scheme}\\
+R. Kelsey, W. Clinger, J. Rees (editors).\\
+Higher-Order and Symbolic Computation, Vol. 11, No. 1, September, 1998\\
+and\\
+ACM SIGPLAN Notices, Vol. 33, No. 9, October, 1998\\
+Available at:
+\url{http://www.schemers.org/Documents/Standards/R5RS/}\\[2\baselineskip]
+\item[\href{}{R7RS-small}]
+\emph{R7RS: The Revised\textsuperscript{7} Report on Scheme}\\
+A. Shinn et al. (editors).\\
+Available at: \url{http://r7rs.org}\\[2\baselineskip]
+\item[\href{}{SRFI}]
+\emph{SRFI: Scheme Request for Implementation}\\
+The SRFI website can be found at: \url{http://srfi.schemers.org/}\\
+The SRFIs mentioned in this document are described
+later.\\[2\baselineskip]
+\item[\href{}{SRFI 1}]
+\emph{SRFI 1: List Library}\\
+A SRFI of list processing procedures, written by Olin Shivers.\\
+Available at: \url{http://srfi.schemers.org/srfi-1/}\\[2\baselineskip]
+\item[\href{}{SRFI 13}]
+\emph{SRFI 13: String Library}\\
+A SRFI of string processing procedures, written by Olin Shivers.\\
+Available at: \url{http://srfi.schemers.org/srfi-13/}\\[2\baselineskip]
+\item[\href{}{SRFI 23}]
+\emph{SRFI 23: Error Reporting Mechanism}\\
+A SRFI that defines a new primitive (\texttt{error}) for reporting that
+an error occurred, written by Stephan Houben.\\
+Available at: \url{http://srfi.schemers.org/srfi-23/}\\[2\baselineskip]
+\item[\href{}{SRFI 43}]
+\emph{SRFI 43: Vector Library (draft)}\\
+The direct predecessor of this SRFI, written by Taylor Campbell.\\
+Available at: \url{http://srfi.schemers.org/srfi-43/}
+\end{description}
+
+\section{\texorpdfstring{\href{}{9.
+Copyright}}{9. Copyright}}\label{copyright}
+
+Copyright (C) Taylor Campbell (2003). All rights reserved.
+
+Permission is hereby granted, free of charge, to any person obtaining a
+copy of this software and associated documentation files (the
+``Software''), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be included
+in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED ``AS IS'', WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+\begin{center}\rule{0.5\linewidth}{\linethickness}\end{center}
+
+Editor:
+\href{mailto:srfi\%20minus\%20editors\%20at\%20srfi\%20dot\%20schemers\%20dot\%20org}{Arthur
+A. Gleckler}

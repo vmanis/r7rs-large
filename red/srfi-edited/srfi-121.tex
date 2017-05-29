@@ -1,0 +1,588 @@
+\section{Generators}
+\redno{12} What generator library should R7RS-large provide?
+
+\begin{quote}
+SRFI 121 is a collection of routines for manipulating generators, which
+are nullary procedures that are invoked repeatedly to generate a
+sequence of values. They provide lightweight laziness.
+\end{quote}
+
+
+This SRFI defines utility procedures that create, transform, and consume
+generators. A generator is simply a procedure with no arguments that
+works as a source of a series of values. Every time it is called, it
+yields a value. Generators may be finite or infinite; a finite generator
+returns an end-of-file object to indicate that it is exhausted. For
+example, \texttt{read-char}, \texttt{read-line}, and \texttt{read} are
+generators that generate characters, lines, and objects from the current
+input port. Generators provide lightweight laziness.
+
+\setlibname{generator}
+
+
+Generators can be divided into two classes, finite and infinite. Both
+kinds of generators can be invoked an indefinite number of times. After
+a finite generator has generated all its values, it will return an
+end-of-file object for all subsequent calls. A generator is said to be
+\emph{exhausted} if calling it will return an end-of-file object. By
+definition, infinite generators can never be exhausted.
+
+A generator is said to be in an \emph{undefined state} if it cannot be
+determined exactly how many values it has generated. This arises because
+it is impossible to tell by inspecting a generator whether it is
+exhausted or not. For example,
+\texttt{(generator-fold\ +\ 0\ (generator\ 1\ 2\ 3)\ (generator\ 1\ 2))}
+will compute 0 + 1 + 1 + 2 + 2 = 6, at which time the second generator
+will be exhausted. If the first generator is invoked, however, it may
+return either 3 or an end-of-file object, depending on whether the
+implementation of \texttt{generator-fold} has invoked it or not.
+Therefore, the first generator is said to be in an undefined state.
+
+\subsection{Generator constructors}\label{generator-constructors}
+
+The result of a generator constructor is just a procedure, so printing
+it doesn't show much. In the examples in this section we use
+\texttt{generator->list} to convert the generator to a
+list.
+
+These procedures have names ending with \texttt{generator}.
+
+
+\begin{entry}{%
+  \Proto{generator}{ arg \ldots}{procedure}{generator}}
+
+The simplest finite generator. Generates each of its arguments in turn.
+When no arguments are provided, it returns an empty generator that
+generates no values.
+\end{entry}
+
+\begin{entry}{%
+  \Proto{make-iota-generator}{ count start step}{procedure}{generator}
+  \Proto{make-iota-generator}{ count start}{procedure}{generator}
+  \Proto{make-iota-generator}{ count}{procedure}{generator}}
+
+Creates a finite generator of a sequence of count numbers. The sequence
+begins with start (which defaults to 0) and increases by step (which
+defaults to 1). If both start and step are exact, it generates exact
+numbers; otherwise it generates inexact numbers. The exactness of count
+doesn't affect the exactness of the results.
+
+\begin{verbatim}
+(generator->list (make-iota-generator 3 8))
+  ⇒ (8 9 10)
+\end{verbatim}
+
+\begin{verbatim}
+(generator->list (make-iota-generator 3 8 2))
+  ⇒ (8 10 12)
+\end{verbatim}
+\end{entry}
+
+\begin{entry}{%
+  \Proto{make-range-generator}{ start end step}{procedure}{generator}
+  \Rproto{make-range-generator}{ start end}{procedure}{generator}
+  \Rproto{make-range-generator}{ start}{procedure}{generator}}
+
+  Creates a generator of a sequence of numbers. The sequence
+  begins with start, increases by step (default 1), and continues
+  while the number is less than end, or forever if end is omitted. If
+  both start and step are exact, it generates exact numbers; otherwise
+  it generates inexact numbers. The exactness of end doesn't affect
+  the exactness of the results.
+
+\begin{verbatim}
+(generator->list (make-range-generator 3) 4)
+  ⇒ (3 4 5 6)
+\end{verbatim}
+\begin{verbatim}
+(generator->list (make-range-generator 3 8))
+  ⇒ (3 4 5 6 7)
+\end{verbatim}
+\begin{verbatim}
+(generator->list (make-range-generator 3 8 2))
+  ⇒ (3 5 7)
+\end{verbatim}
+\end{entry}
+
+\begin{entry}{%
+  \Proto{make-coroutine-generator}{ proc}{procedure}{generator}}
+
+  Creates a
+  generator from a coroutine.
+
+  The proc argument is a procedure that takes one argument,
+  yield. When called, \texttt{make-coroutine-generator} immediately
+  returns a generator g. When g is called, proc runs until it calls
+  yield. Calling yield causes the execution of proc to be suspended,
+  and g returns the value passed to yield.
+
+  Whether this generator is finite or infinite depends on the behavior
+  of proc. If proc returns, it is the end of the sequence --- g
+  returns an end-of-file object from then on. The return value of proc
+  is ignored.
+
+  The following code creates a generator that produces a series 0, 1,
+  and 2 (effectively the same as \texttt{(make-range-generator\ 0\ 3)}
+  and binds it to \texttt{g}.
+
+\begin{verbatim}
+(define g
+  (make-coroutine-generator
+   (lambda (yield) (let loop ((i 0))
+               (when (< i 3) (yield i) (loop (+ i 1)))))))
+
+(generator->list g) ⇒ (0 1 2)
+\end{verbatim}
+\end{entry}
+
+
+\begin{entry}{%
+  \Proto{list>generator}{ lis}{procedure}{generator}  
+  \Proto{vector>generator}{ vec start end}{procedure}{generator}
+  \Rproto{vector>generator}{ vec start}{procedure}{generator}
+  \Rproto{vector>generator}{ vec}{procedure}{generator}
+  \Proto{reverse-vector>generator}{ vec start end}{procedure}{generator}
+  \Rproto{reverse-vector>generator}{ vec start}{procedure}{generator}
+  \Rproto{reverse-vector>generator}{ vec}{procedure}{generator}
+  \Proto{string>generator}{ str start end}{procedure}{generator}
+  \Rproto{string>generator}{ str start}{procedure}{generator}
+  \Rproto{string>generator}{ str}{procedure}{generator}
+  \Proto{bytevector>generator}{ bytevector start end}{procedure}{generator}
+  \Proto{bytevector>generator}{ bytevector start}{procedure}{generator}
+  \Proto{bytevector>generator}{ bytevector}{procedure}{generator}} 
+
+ These procedures return generators that yield each element of
+  the given argument. Mutating the underlying object will affect the
+  results of the generator.
+
+\begin{verbatim}
+(generator->list (list->generator '(1 2 3 4 5)))
+  ⇒ (1 2 3 4 5)
+(generator->list (vector->generator '#(1 2 3 4 5)))
+  ⇒ (1 2 3 4 5)
+(generator->list (reverse-vector->generator '#(1 2 3 4 5)))
+  ⇒ (5 4 3 2 1)
+(generator->list (string->generator "abcde"))
+  ⇒ (#\a #\b #\c #\d #\e)
+\end{verbatim}
+
+The generators returned by the constructors are exhausted once all
+elements are retrieved; the optional start-th and end-th arguments can
+limit the range the generator walks across.
+
+For \texttt{reverse-vector->generator}, the first value is the element
+right before the end-th element, and the last value is the start-th
+element. For all the other constructors, the first value the generator
+yields is the start-th element, and it ends right before the end-th
+element.
+
+\begin{verbatim}
+(generator->list (vector->generator '#(a b c d e) 2))
+  ⇒ (c d e)
+(generator->list (vector->generator '#(a b c d e) 2 4))
+  ⇒ (c d)
+(generator->list (reverse-vector->generator '#(a b c d e) 2))
+  ⇒ (e d c)
+(generator->list (reverse-vector->generator '#(a b c d e) 2 4))
+  ⇒ (d c)
+(generator->list (reverse-vector->generator '#(a b c d e) 0 2))
+  ⇒ (b a)
+\end{verbatim}
+\end{entry}
+
+\begin{entry}{%
+  \Proto{make-for-each-generator}{ for-each obj}{procedure}{generator}}
+
+  A
+  generator constructor that converts any collection obj to a
+  generator that returns its elements using a for-each procedure
+  appropriate for obj. This must be a procedure that when called as
+  (for-each proc obj) calls proc on each element of obj. Examples of
+  such procedures are \texttt{for-each}, \texttt{string-for-each}, and
+  \texttt{vector-for-each} from R7RS. The value returned by for-each
+  is ignored. The generator is finite if the collection is finite,
+  which would typically be the case.
+
+  The collections need not be conventional ones (lists, strings, etc.)
+  as long as \emph{for-each} can invoke a procedure on everything that
+  counts as a member. For example, the following procedure allows
+  \texttt{for-each-generator} to generate the digits of an integer
+  from least to most significant:
+
+\begin{verbatim}
+(define (for-each-digit proc n)
+  (when (> n 0)
+    (let-values (((div rem) (truncate/ n 10)))
+      (proc rem)
+      (for-each-digit proc div))))
+\end{verbatim}
+\end{entry}
+
+\begin{entry}{%
+  \Proto{make-unfold-generator}{ stop? mapper successor seed}{procedure}{}}
+
+A generator constructor similar to
+\href{http://srfi.schemers.org/srfi-1/srfi-1.html}{SRFI 1's}
+\texttt{unfold}.
+
+The stop? predicate takes a seed value and determines whether to stop.
+The mapper procedure calculates a value to be returned by the generator
+from a seed value. The successor procedure calculates the next seed
+value from the current seed value.
+
+For each call of the resulting generator, stop? is called with the
+current seed value. If it returns true, then the generator returns an
+end-of-file object. Otherwise, it applies mapper to the current seed
+value to get the value to return, and uses successor to update the seed
+value.
+
+This generator is finite unless stop? never returns true.
+
+\begin{verbatim}
+(generator->list (make-unfold-generator
+                      (lambda (s) (> s 5))
+                      (lambda (s) (* s 2))
+                      (lambda (s) (+ s 1))
+                      0))
+  ⇒ (0 2 4 6 8 10)
+\end{verbatim}
+\end{entry}
+
+\subsection{Generator operations}
+
+The following procedures accept one or more generators and return a new
+generator without consuming any elements from the source generator(s).
+In general, the result will be a finite generator if the arguments are.
+
+The names of these procedures are prefixed with \texttt{g}.
+
+\begin{entry}{%
+  \Proto{gcons*}{ item \ldots{} gen}{procedure}{generator}}
+
+Returns a generator that adds items in front of gen. Once the items have
+been consumed, the generator is guaranteed to tail-call gen.
+
+\begin{verbatim}
+(generator->list (gcons* 'a 'b (make-range-generator 0 2)))
+ ⇒ (a b 0 1)
+\end{verbatim}
+\end{entry}
+
+\begin{entry}{%
+  \Proto{gappend}{ gen \ldots}{procedure}{generator}}
+
+Returns a generator that yields the items from the first given
+generator, and once it is exhausted, from the second generator, and so
+on.
+
+\begin{verbatim}
+(generator->list 
+  (gappend (make-range-generator 0 3) 
+           (make-range-generator 0 2)))
+ ⇒ (0 1 2 0 1)
+
+(generator->list (gappend))
+ ⇒ ()
+\end{verbatim}
+\end{entry}
+
+\begin{entry}{%
+  \Proto{gcombine}{ proc seed gen gen$_2$ \ldots}{procedure}{}}
+
+\TODO{clarify this}
+
+A generator for mapping with state. It yields a sequence of sub-folds
+over proc.
+
+The proc argument is a procedure that takes as many arguments as the
+input generators plus one. It is called as \texttt{(}proc
+v$_1$ v$_2$ \ldots seed), where
+v$_1$, v$_2$, \ldots are the values yielded
+from the input generators, and seed is the current seed value. It must
+return two values, the yielding value and the next seed. The result
+generator is exhausted when any of the \emph{gen\textsubscript{n}}
+generators is exhausted, at which time all the others are in an
+undefined state.
+\end{entry}
+
+\begin{entry}{%
+  \Proto{gfilter}{ pred gen}{procedure}{generator} 
+  \Proto{gremove}{ pred gen}{procedure}{generator}}
+
+Return generators that yield the items from the source generator, except
+those on which pred answers false or true respectively.
+\end{entry}
+
+\begin{entry}{%
+  \Proto{gtake}{ gen k padding}{procedure}{generator}
+  \Rproto{gtake}{ gen k}{procedure}{generator}
+  \Proto{gdrop}{ gen k}{procedure}{generator}}
+
+These are generator analogues of SRFI 1 \texttt{take} and \texttt{drop}.
+\texttt{Gtake} returns a generator that yields (at most) the first k
+items of the source generator, while \texttt{gdrop} returns a generator
+that skips the first k items of the source generator.
+
+These won't complain if the source generator is exhausted before
+generating k items. By default, the generator returned by \texttt{gtake}
+terminates when the source generator does, but if you provide the
+padding argument, then the returned generator will yield exactly k
+items, using the padding value as needed to provide sufficient
+additional values.
+\end{entry}
+
+\begin{entry}{%
+  \Proto{gtake-while}{ pred gen}{procedure}{generator} 
+  \Proto{gdrop-while}{ pred gen}{procedure}{generator}}
+
+The generator analogues of SRFI-1 \texttt{take-while} and
+\texttt{drop-while}. The generator returned from \texttt{gtake-while}
+yields items from the source generator as long as pred returns true for
+each. The generator returned from \texttt{gdrop-while} first reads and
+discards values from the source generator while pred returns true for
+them, then starts yielding items returned by the source.
+\end{entry}
+
+\begin{entry}{%
+  \Proto{gdelete}{ item gen =}{procedure}{generator}
+  \Proto{gdelete}{ item gen}{procedure}{generator}}
+
+Creates a generator that returns whatever gen returns, except for any
+items that are the same as item in the sense of =, which defaults to
+\texttt{equal?}. The = predicate is passed exactly two arguments, of
+which the first was generated by gen before the second.
+
+\begin{verbatim}
+(generator->list (gdelete 3 (generator 1 2 3 4 5 3 6 7)))
+  ⇒ (1 2 4 5 6 7)
+\end{verbatim}
+\end{entry}
+
+\begin{entry}{%
+  \Proto{gdelete-neighbor-dups}{ gen =}{procedure}{generator}
+  \Proto{gdelete-neighbor-dups}{ gen}{procedure}{generator}}
+
+Creates a generator that returns whatever gen returns, except for any
+items that are equal to the preceding item in the sense of =, which
+defaults to \texttt{equal?}. The = predicate is passed exactly two
+arguments, of which the first was generated by gen before the second.
+
+\begin{verbatim}
+(generator->list 
+  (gdelete-neighbor-dups 
+    (list->generator '(a a b c a a a d c))))
+  ⇒ (a b c a d c)
+\end{verbatim}
+\end{entry}
+
+\begin{entry}{%
+  \Proto{gindex}{ value-gen index-gen}{procedure}{generator}}
+
+Creates a generator that returns elements of value-gen specified by the
+indices (non-negative exact integers) generated by index-gen. It is an
+error if the indices are not strictly increasing, or if any index
+exceeds the number of elements generated by value-gen. The result
+generator is exhausted when either generator is exhausted, at which time
+the other is in an undefined state.
+
+\begin{verbatim}
+(generator->list 
+  (gindex 
+    (list->generator '(a b c d e f))
+    (list->generator '(0 2 4))))
+  ⇒ (a c e)
+\end{verbatim}
+\end{entry}
+
+\begin{entry}{%
+  \Proto{gselect}{ value-gen truth-gen}{procedure}{generator}}
+
+Creates a generator that returns elements of value-gen that correspond
+to the values generated by truth-gen. If the current value of truth-gen
+is true, the current value of value-gen is generated, but otherwise not.
+The result generator is exhausted when either generator is exhausted, at
+which time the other is in an undefined state.
+
+\begin{verbatim}
+(generator->list 
+  (gselect 
+    (list->generator '(a b c d e f))
+    (list->generator '(#t #f #f #t #t #f))))
+  ⇒ (a d e)
+\end{verbatim}
+\end{entry}
+
+\subsection{Consuming generated values}\label{consuming-generated-values}
+
+Unless otherwise noted, these procedures consume all the values
+available from the generator that is passed to them, and therefore will
+not return if one or more generator arguments are infinite. They have
+names prefixed with \texttt{generator}.
+
+\begin{entry}{%
+  \Proto{generator->list}{ generator k}{procedure}{list}
+  \Rproto{generator->list}{ generator}{procedure}{list}}
+
+Reads items from generator and returns a newly allocated list of them.
+By default, it reads until the generator is exhausted.
+
+If an optional argument k is given, it must be a non-negative integer,
+and the list ends when either k items are consumed, or \emph{generator}
+is exhausted; therefore \emph{generator} can be infinite in this case.
+\end{entry}
+
+\begin{entry}{%
+  \Proto{generator->reverse-list}{ generator k}{procedure}{list}
+  \Rproto{generator->reverse-list}{ generator}{procedure}{list}}
+
+Reads items from generator and returns a newly allocated list of them in
+reverse order. By default, this reads until the generator is exhausted.
+
+If an optional argument k is given, it must be a non-negative integer,
+and the list ends when either k items are read, or \emph{generator} is
+exhausted; therefore \emph{generator} can be infinite in this case.
+\end{entry}
+
+\begin{entry}{%
+  \Proto{generator->vector}{ generator k}{procedure}{vector}
+  \Rproto{generator->vector}{ generator}{procedure}{vector}}
+
+Reads items from generator and returns a newly allocated vector of them.
+By default, it reads until the generator is exhausted.
+
+If an optional argument k is given, it must be a non-negative integer,
+and the list ends when either k items are consumed, or \emph{generator}
+is exhausted; therefore \emph{generator} can be infinite in this case.
+\end{entry}
+
+\begin{entry}{%
+  \Proto{generator->vector!}{ vector at generator}{procedure}{integer}}
+
+Reads items from generator and puts them into vector starting at index
+at, until vector is full or generator is exhausted. \emph{Generator} can
+be infinite. The number of elements generated is returned.
+\end{entry}
+
+\begin{entry}{%
+  \Proto{generator->string}{ generator k}{procedure}{string}
+  \Rproto{generator->string}{ generator}{procedure}{string}}
+
+Reads items from generator and returns a newly allocated string of them.
+It is an error if the items are not characters. By default, it reads
+until the generator is exhausted.
+
+If an optional argument k is given, it must be a non-negative integer,
+and the string ends when either k items are consumed, or
+\emph{generator} is exhausted; therefore \emph{generator} can be
+infinite in this case.
+\end{entry}
+
+\begin{entry}{%
+  \Proto{generator-fold}{ proc seed gen$_1$ gen$_2$ \ldots}{procedure}{value}}
+
+Works like SRFI 1 \texttt{fold} on the values generated by the generator
+arguments.
+
+When one generator is given, for each value v generated by gen, proc is
+called as \texttt{(proc\ v\ r)}, where r is the current accumulated
+result; the initial value of the accumulated result is seed, and the
+return value from proc becomes the next accumulated result. When gen is
+exhausted, the accumulated result at that time is returned from
+\texttt{generator-fold}.
+
+When more than one generator is given, proc is invoked on the values
+returned by all the generator arguments followed by the current
+accumulated result. The procedure terminates when any of the
+\emph{gen\textsubscript{n}} generators is exhausted, at which time all
+the others are in an undefined state.
+
+\begin{verbatim}
+(with-input-from-string "a b c d e"
+  (lambda () (generator-fold cons 'z read)))
+  ⇒ (e d c b a . z)
+\end{verbatim}
+\end{entry}
+
+\begin{entry}{%
+  \Proto{generator-for-each}{ proc gen gen$_2$ \ldots}{procedure}{unspecified}}
+
+A generator analogue of \texttt{for-each} that consumes generated values
+using side effects. Repeatedly applies proc on the values yielded by
+gen, gen$_2$ \ldots{} until any one of the generators is
+exhausted. The values returned from proc are discarded. The procedure
+terminates when any of the \emph{gen\textsubscript{n}} generators is
+exhausted, at which time all the others are in an undefined state.
+Returns an unspecified value.
+\end{entry}
+
+\begin{entry}{%
+  \Proto{generator-find}{ pred gen}{procedure}{value}}
+
+Returns the first item from the generator gen that satisfies the
+predicate pred, or \texttt{\#f} if no such item is found before gen is
+exhausted. If gen is infinite, \texttt{generator-find} will not return
+if it cannot find an appropriate item.
+\end{entry}
+
+\begin{entry}{%
+  \Proto{generator-count}{ pred gen}{procedure}{integer}}
+
+Returns the number of items available from the generator gen that
+satisfy the predicate pred.
+\end{entry}
+
+\begin{entry}{%
+  \Proto{generator-any}{ pred gen}{procedure}{value}}
+
+\TODO{This returns either a value from the generator, or
+  false. However, as a return type, \textit{value}~or~\schfalse{}
+  looks redundant.}
+
+Applies \emph{pred} to each item from \emph{gen}. As soon as it yields a
+true value, the value is returned without consuming the rest of
+\emph{gen}. If \emph{gen} is exhausted, returns \texttt{\#f}.
+\end{entry}
+
+\begin{entry}{%
+  \Proto{generator-every}{ pred gen}{procedure}{value}}
+
+\TODO{\textit{value}~or~\schtrue?}
+
+Applies \emph{pred} to each item from \emph{gen}. As soon as it yields a
+false value, the value is returned without consuming the rest of
+\emph{gen}. If \emph{gen} is exhausted, returns the last value returned
+by \emph{pred}, or \texttt{\#t} if \emph{pred} was never called.
+\end{entry}
+
+\begin{entry}{%
+  \Proto{generator-unfold}{ gen unfold arg \ldots}{procedure}{???}}
+
+Equivalent to \texttt{(}unfold
+\texttt{eof-object?\ (lambda\ (x)\ x)\ (lambda\ (x)\ (}gen\texttt{))\ (}gen\texttt{)}
+arg \ldots{}\texttt{)}. The values of gen are unfolded into the
+collection that unfold creates.
+
+The signature of the unfold procedure is \texttt{(}unfold stop? mapper
+successor seed args \ldots{}\texttt{)}. Note that the
+\texttt{vector-unfold} and \texttt{vector-unfold-right} of
+\href{http://srfi.schemers.org/srfi-43/srfi-43.html}{SRFI 43} and
+\href{http://srfi.schemers.org/srfi-133/srfi-133.html}{SRFI 133} do not
+have this signature and cannot be used with this procedure. To unfold
+into a vector, use SRFI 1's \texttt{unfold} and then apply
+\texttt{list->vector} to the result.
+
+\begin{verbatim}
+;; Iterates over string and unfolds into 
+;; a list using SRFI 1 unfold
+(generator-unfold 
+  (make-for-each-generator string-for-each "abc") 
+  unfold)
+  ⇒ (#\a #\b #\c)
+\end{verbatim}
+\end{entry}
+
+Editor:
+\href{mailto:srfi-editors\%20at\%20srfi\%20dot\%20schemers\%20\%20\%20\%20dot\%20org}{Arthur
+Gleckler}
+
+Last modified: Wed Jun 10 08:57:14 MST 2015

@@ -1,0 +1,37 @@
+\section{SRFI 124: Ephemerons}
+
+Weak references are a mechanism for building data structures that point
+at objects without protecting them from garbage collection. An example
+of such a data structure might be an entry in a lookup table that should
+be removed if the rest of the program does not reference its key. Such
+an entry must still point at its key to carry out comparisons, but
+should not in itself prevent its key from being garbage collected.
+
+A weak reference is a reference that points at an object without
+preventing it from being garbage collected. The term strong reference is
+used to distinguish normal references from weak ones. If there is no
+path of strong references to some object, the garbage collector will
+reclaim that object and mark any weak references to it to indicate that
+it has been reclaimed.
+
+If there is a path of strong references from an object A to an object B,
+A is said to hold B strongly. If there is a path of references from an
+object A to an object B, but every such path traverses at least one weak
+reference, A is said to hold B weakly.
+
+Ephemerons, unlike simple weak pairs, allow the correct handling of data
+structures in which the value points to the key. For example, a record
+may have a single field holding the key; if it's desired to use these
+records as values in a weak hash table using this internal key,
+ephemerons are necessary or the table will not really be weak.
+
+Ephemerons are considerably heavier-weight than simple weak pairs,
+because garbage-collecting ephemerons is more complicated than
+garbage-collecting weak pairs. In MIT Scheme, each ephemeron needs five
+words of storage rather than the two words needed by a weak pair.
+However, while the GC needs to spend more time on ephemerons than on
+other objects, the amount of time it spends on ephemerons can be made to
+scale linearly with the number of live ephemerons, which is how a
+copying GC's running time scales with the total number of live objects
+anyway.
+

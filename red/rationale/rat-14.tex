@@ -1,0 +1,94 @@
+\section{Character sets}
+
+The ability to efficiently manipulate sets of characters is quite useful
+for text-processing code. Encapsulating this functionality in a general,
+efficiently implemented library can assist all such code. This library
+defines a new data structure to represent these sets, called a
+``char-set.'' The char-set type is distinct from all other types.
+
+This library is designed to be portable across implementations that use
+different character types and representations, especially ASCII, Latin-1
+and Unicode. Some effort has been made to preserve compatibility with
+Java in the Unicode case (see the definition of
+\texttt{char-set:whitespace} for the single real deviation).
+
+\subsection{{Linear-update operations}}\label{linear-update-operations}
+
+The procedures of this SRFI, by default, are ``pure functional'' -- they
+do not alter their parameters. However, this SRFI defines a set of
+``linear-update'' procedures which have a hybrid
+pure-functional/side-effecting semantics: they are allowed, but not
+required, to side-effect one of their parameters in order to construct
+their result. An implementation may legally implement these procedures
+as pure, side-effect-free functions, or it may implement them using side
+effects, depending upon the details of what is the most efficient or
+simple to implement in terms of the underlying representation.
+
+The linear-update routines all have names ending with ``!''.
+
+Clients of these procedures \emph{may not} rely upon these procedures
+working by side effect. For example, this is not guaranteed to work:
+
+\begin{verbatim}
+(let* ((cs1 (char-set #\a #\b #\c))      ; cs1 = {a,b,c}.
+       (cs2 (char-set-adjoin! cs1 #\d))) ; Add d to {a,b,c}.
+  cs1) ; Could be either {a,b,c} or {a,b,c,d}.
+\end{verbatim}
+
+However, this is well-defined:
+
+\begin{verbatim}
+(let ((cs (char-set #\a #\b #\c)))
+  (char-set-adjoin! cs #\d)) ; Add d to {a,b,c}.
+\end{verbatim}
+
+So clients of these procedures write in a functional style, but must
+additionally be sure that, when the procedure is called, there are no
+other live pointers to the potentially-modified character set (hence the
+term ``linear update'').
+
+There are two benefits to this convention:
+
+\begin{itemize}
+\tightlist
+\item
+  Implementations are free to provide the most efficient possible
+  implementation, either functional or side-effecting.
+\item
+  Programmers may nonetheless continue to assume that character sets are
+  purely functional data structures: they may be reliably shared without
+  needing to be copied, uniquified, and so forth.
+\end{itemize}
+
+Note that pure functional representations are the right thing for ASCII-
+or Latin-1-based Scheme implementations, since a char-set can be
+represented in an ASCII Scheme with 4 32-bit words. Pure set-algebra
+operations on such a representation are very fast and efficient.
+Programmers who code using linear-update operations are guaranteed the
+system will provide the best implementation across multiple platforms.
+
+In practice, these procedures are most useful for efficiently
+constructing character sets in a side-effecting manner, in some limited
+local context, before passing the character set outside the local
+construction scope to be used in a functional manner.
+
+Scheme provides no assistance in checking the linearity of the
+potentially side-effected parameters passed to these functions ---
+there's no linear type checker or run-time mechanism for detecting
+violations. (But sophisticated programming environments, such as
+DrScheme, might help.)
+
+\subsection{{Extra-SRFI recommendations}}\label{extra-srfi-recommendations}
+
+Users are cautioned that the R5RS predicates
+
+\texttt{\ char-alphabetic?\ \ char-numeric?\ \ char-whitespace?\ \ char-upper-case?\ \ char-lower-case?\ }
+
+may or may not be in agreement with the SRFI 14 base character sets
+
+\texttt{\ char-set:letter\ char-set:digit\ char-set:whitespace\ char-set:upper-case\ char-set:lower-case}
+
+Implementors are strongly encouraged to bring these predicates into
+agreement with the base character sets of this SRFI; not to do so risks
+major confusion.
+

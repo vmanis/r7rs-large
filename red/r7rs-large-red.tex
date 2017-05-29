@@ -1,0 +1,132 @@
+%Temporarily turn off 2 column, pending reformatting.
+\documentclass[twoside]{algol60}
+
+% For overstriking. 
+\usepackage{color,soul}
+\setstcolor{black} % Strike-out rule color.
+
+\usepackage{amsmath}
+\usepackage{pifont}
+
+\usepackage{fontspec}
+\setmainfont{Latin Modern Roman}
+\setsansfont{Latin Modern Sans}
+\setmonofont{Latin Modern Mono}
+
+\setcounter{secnumdepth}{3}
+
+\pagestyle{headings}
+\showboxdepth=0
+\makeindex
+\input{commands}
+
+\def\headertitle{Revised$^{7}$ Scheme Large, Red Edition\qquad \textbf{DRAFT}}
+\def\integerversion{7}
+
+% Sizes and dimensions
+
+\topmargin -.375in       %    Nominal distance from top of page to top of
+                         %    box containing running head.
+\headsep 15pt            %    Space between running head and text.
+
+\textheight 663pt        % Height of text (including footnotes and figures, 
+                         % excluding running head and foot).
+
+\textwidth 523pt         % Width of text line.
+\columnsep 15pt          % Space between columns 
+\columnseprule 0pt       % Width of rule between columns.
+
+\parskip 5pt plus 2pt minus 2pt % Extra vertical space between paragraphs.
+\parindent 0pt                  % Width of paragraph indentation.
+\topsep 0pt plus 2pt            % Extra vertical space, in addition to 
+                                % \parskip, added above and below list and
+                                % paragraphing environments.
+
+\oddsidemargin  -.5in    % Left margin on odd-numbered pages.
+\evensidemargin -.5in    % Left margin on even-numbered pages.
+
+%% End of sizes and dimensions
+
+\usepackage{hyperref}
+
+%% Stuff defined by pandoc. This stuff will be deleted eventually.
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\setcounter{secnumdepth}{0}
+% Redefines (sub)paragraphs to behave more like sections
+\ifx\paragraph\undefined\else
+\let\oldparagraph\paragraph
+\renewcommand{\paragraph}[1]{\oldparagraph{#1}\mbox{}}
+\fi
+\ifx\subparagraph\undefined\else
+\let\oldsubparagraph\subparagraph
+\renewcommand{\subparagraph}[1]{\oldsubparagraph{#1}\mbox{}}
+\fi
+
+\usepackage{color}
+
+\hyphenation{
+  com-par-a-tor continuation
+}
+
+%%% Underscore typesets in non-math mode as a hyphen, but allows
+%%% hyphenation. You write call_with_current_continuation, and it
+%%% typesets properly. I only use this where otherwise there'd be
+%%% overfull/underfull boxes. Don't use in verbatim, of course!
+\let\oldunderscore=_
+\catcode`\_\active
+\def_{\ifmmode\oldunderscore\else\discretionary{-}{}{-}\fi}
+
+\begin{document}
+
+{
+\begin{center}   {\huge\bf
+	Revised{\Huge$^{\mathbf{7}}$} Report on the Algorithmic Language \\
+			      \vskip 3pt
+				Scheme
+                              \vskip 3pt
+                              \colorbox{red}{\textcolor{white}{Large Language, Red Edition}}
+}
+
+\vskip 1ex
+WG2 membership (Editors)
+\vskip 2ex
+With major contributions from:
+
+SRFI authors
+\vskip 2ex
+{\it Dedicated to the memory of ...?}
+\vskip 2.6ex
+{\large \bf DRAFT \today}             % *** DRAFT ***
+\end{center}
+}
+
+%%% This is used for including raw SRFIs, presumably before editing
+%%% into the consolidated document. I assume that this will never be
+%%% used in the final document. Note: don't change the name of this
+%%% macro, as the script that gathers SRFIs depends on it. 
+% \newcommand{\includesrfi}[1]{%
+%   \vskip 1ex
+%   \noindent\textbf{The following is SRFI~#1.}
+%   \vskip 1ex
+%   \input srfi-tex/srfi-#1.tex
+%   \vskip 1ex
+%   \noindent\textbf{End of SRFI~#1.}}
+%%% This is commented out because a version that works with the edited
+%%% SRFIs is included at the beginning of spec.tex.
+
+% More stuff to fix Pandoc glitches.
+\def\textquotesingle{'}
+
+
+\definecolor{verylightgray}{gray}{0.9}
+
+\def\TODO#1{{\large{%
+  {\sethlcolor{black}\textcolor{white}{\hl{\normalsize\,TODO\,}}}%
+  {\normalsize \,#1\,}}}}
+
+\include{authors}
+
+\include{spec}
+
+\end{document}

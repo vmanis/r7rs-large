@@ -1,0 +1,419 @@
+\chapter{Sorting library}
+\redno{4} What sorting library should R7RS-large provide?
+
+\begin{quote}
+SRFI 132 is an edited version of the withdrawn SRFI 32, with the
+algorithm-specific procedures removed and a few additional procedures;
+it provides sortedness testing, stable and unstable sorting, merging,
+duplicate removal, median, and selection. R6RS provides only stable
+sorting and merging.
+\end{quote}
+
+This SRFI describes the API for a full-featured sort toolkit.
+\setlibname{sort}
+
+\subsection{Procedure naming and
+functionality}\label{Procedurenamingandfunctionality}
+
+Most of the procedures described below are variants of two basic
+operations: sorting and merging. These procedures are consistently named
+by composing a set of basic lexemes to indicate what they do.
+
+\begin{tabular}{ll}
+Lexeme & Meaning\tabularnewline
+\texttt{vector} & The procedure operates upon vectors.\tabularnewline
+\texttt{list} & The procedure operates upon lists.\tabularnewline
+\texttt{stable} & This lexeme indicates that the sort is a stable
+one.\tabularnewline
+\texttt{sort} & The procedure sorts its input data set by some ordering
+function.\tabularnewline
+\texttt{merge} & The procedure merges two ordered data sets into a
+single ordered result.\tabularnewline
+\texttt{!} & Procedures that end in \texttt{!} are allowed, and
+sometimes required, to reuse their input storage to construct their
+answer.\tabularnewline
+\end{tabular}
+
+\subsection{Types of parameters and return
+values}\label{Typesofparametersandreturnvalues}
+
+In the procedures specified below:
+
+\begin{itemize}
+\tightlist
+\item
+  A \emph{lis} parameter is a list.
+\end{itemize}
+
+\begin{itemize}
+\tightlist
+\item
+  A \emph{v} parameter is a vector.
+\end{itemize}
+
+\begin{itemize}
+\tightlist
+\item
+  An \emph{=} parameter is an equality predicate. See
+  \href{http://srfi.schemers.org/srfi-128/srfi-128.html}{SRFI 128} for
+  the requirements on equality predicates. Note that neither this SRFI
+  nor its sample implementation depend on SRFI 128.
+\end{itemize}
+
+\begin{itemize}
+\tightlist
+\item
+  A \emph{\textless{}} parameter is an ordering predicate. See
+  \href{http://srfi.schemers.org/srfi-128/srfi-128.html}{SRFI 128} for
+  the requirements on ordering predicates. \TODO{use le? as a clearer
+    name.}
+
+\end{itemize}
+
+\begin{itemize}
+\tightlist
+\item
+  A \emph{start} parameter or \emph{start} and \emph{end} parameter pair
+  are exact non-negative integers such that 0 \textless{}= \emph{start}
+  \textless{}= \emph{end} \textless{}=
+  \texttt{(vector-length\ }\emph{v}\texttt{)}, where \emph{v} is the
+  related vector parameter. If not specified, they default to 0 and the
+  length of the vector, respectively. They are interpreted to select the
+  range {[}\emph{start}, \emph{end}), that is, all elements from index
+  \emph{start} (inclusive) up to, but not including, index \emph{end}.
+\end{itemize}
+
+Passing values to procedures with these parameters that do not satisfy
+these constraints is an error.
+
+If a procedure is said to return ``an unspecified value'', this means
+that nothing at all is said about what the procedure returns, except
+that it returns one value.
+
+\subsection{Predicates}
+
+\TODO{Change textless to le? throughout this section.}
+
+
+\begin{entry}{%
+  \Proto{list-sorted?}{ \textless{} lis}{procedure}{boolean}
+  \Proto{vector-sorted?}{ \textless{} v start end}{procedure}{boolean}
+  \Rproto{vector-sorted?}{ \textless{} v start}{procedure}{boolean}
+  \Rproto{vector-sorted?}{ \textless{} v}{procedure}{boolean}}
+
+  These procedures return true iff their input list or vector is in
+  sorted order, as determined by \emph{\textless{}}. Specifically,
+  they return \texttt{\#f} iff there is an adjacent pair \ldots{} X Y
+  \ldots{} in the input list or vector such that Y \textless{} X in
+  the sense of \emph{\textless{}}. The optional \emph{start} and
+  \emph{end} range arguments restrict \texttt{vector-sorted?} to
+  examining the indicated subvector.
+
+  These procedures are equivalent to the SRFI 95 \texttt{sorted?}
+  procedure when applied to lists or vectors respectively, except that
+  they do not accept a key procedure.
+\end{entry}
+\subsection{General sort procedures}\label{Generalsortprocedures}
+
+These procedures provide basic sorting and merging functionality
+suitable for general programming. The procedures are named by their
+semantic properties, i.e., what they do to the data (sort, stable sort,
+and so forth).
+
+
+\begin{entry}{%
+  \Proto{list-sort}{ \textless{} lis}{procedure}{list???}
+  \Proto{list-stable-sort}{ \textless{} lis}{procedure}{list???}}
+
+  These procedures do not alter their inputs, but are allowed to
+  return a value that shares a common tail with a list argument.
+
+  The \texttt{list-stable-sort} procedure is equivalent to the R6RS
+  \texttt{list-sort} procedure. It is also equivalent to the SRFI 95
+  \texttt{sort} procedure when applied to lists, except that it does
+  not accept a key procedure.
+\end{entry}
+
+\begin{entry}{%
+  \Proto{list-sort!}{ \textless{} lis}{procedure}{list???}
+  \Proto{list-stable-sort!}{ \textless{} lis}{procedure}{list???}}
+
+  These procedures are linear update operators --- they are allowed,
+  but not required, to alter the cons cells of their arguments to
+  produce their results. They return a sorted list containing the same
+  elements as \emph{lis}.
+
+  The \texttt{list-stable-sort!} procedure is equivalent to the SRFI
+  95 \texttt{sort!} procedure when applied to lists, except that it
+  does not accept a key procedure.
+\end{entry}
+
+
+\begin{entry}{%
+  \Proto{vector-sort}{ \textless{} v start end}{procedure}{vector???}
+  \Rproto{vector-sort}{ \textless{} v start}{procedure}{vector???}
+  \Rproto{vector-sort}{ \textless{} v end}{procedure}{vector???}
+  \Proto{vector-stable-sort}{ \textless{} v start end}{procedure}{vector???}
+  \Rproto{vector-stable-sort}{ \textless{} v start}{procedure}{vector???}
+  \Rproto{vector-stable-sort}{ \textless{} v}{procedure}{vector???}}
+
+  These procedures do not alter their inputs, but allocate a fresh
+  vector as their result, of length \emph{end} - \emph{start}. The
+  \texttt{vector-stable-sort} procedure with no optional arguments is
+  equivalent to the R6RS \texttt{vector-sort} procedure. It is also
+  equivalent to the SRFI 95 \texttt{sort} procedure when applied to
+  vectors, except that it does not accept a key procedure.
+\end{entry}
+
+\begin{entry}{%
+  \Proto{vector-sort!}{ \textless{} v start end}{procedure}{vector???}
+  \Rproto{vector-sort!}{ \textless{} v start}{procedure}{vector???}
+  \Rproto{vector-sort!}{ \textless{} v}{procedure}{vector???} 
+  \Proto{vector-stable-sort!}{ \textless{} v start end}{procedure}{vector???}
+  \Rproto{vector-stable-sort!}{ \textless{} v start}{procedure}{vector???}
+  \Rproto{vector-stable-sort!}{ \textless{} v}{procedure}{vector???} }
+
+  These procedures sort their data in-place. (But note that
+  \texttt{vector-stable-sort!} may allocate temporary storage
+  proportional to the size of the input --- there are no known O(n lg
+  n) stable vector sorting algorithms that run in constant space.)
+  They return an unspecified value.
+
+  The \texttt{vector-sort!} procedure with no optional arguments is
+  equivalent to the R6RS \texttt{vector-sort!} procedure.
+\end{entry}
+
+\subsection{Merge procedures}\label{Mergeprocedures}
+
+All four merge operations are stable: an element of the initial list
+\emph{lis$_1$} or vector \emph{v$_1$} will
+come before an equal-comparing element in the second list
+\emph{lis$_2$} or vector \emph{v$_2$} in the
+result.
+
+\begin{entry}{%
+  \Proto{list-merge}{ \textless{} lis$_1$ lis$_2$}{procedure}{list???}}
+
+  This procedure does not alter its inputs, and is allowed to return a
+  value that shares a common tail with a list argument.
+
+  This procedure is equivalent to the SRFI 95 \texttt{merge} procedure
+  when applied to lists, except that it does not accept a key
+  procedure.
+\end{entry}
+
+\begin{entry}{%
+  \Proto{list-merge!}{ \textless{} lis$_1$ lis$_2$}{procedure}{list???}}
+
+  This procedure makes only a single, iterative, linear-time pass over
+  its argument lists, using \texttt{set-cdr!}s to rearrange the cells
+  of the lists into the list that is returned --- it works ``in
+  place.'' Hence, any cons cell appearing in the result must have
+  originally appeared in an input. It returns the sorted input.
+
+  Additionally, \texttt{list-merge!} is iterative, not recursive ---
+  it can operate on arguments of arbitrary size without requiring an
+  unbounded amount of stack space. The intent of this
+  iterative-algorithm commitment is to allow the programmer to be sure
+  that if, for example, \texttt{list-merge!} is asked to merge two
+  ten-million-element lists, the operation will complete without
+  performing some extremely (possibly twenty-million) deep recursion.
+
+  This procedure is equivalent to the SRFI 95 \texttt{merge!}
+  procedure when applied to lists, except that it does not accept a
+  key procedure.
+\end{entry}
+
+\begin{entry}{%
+  \Proto{vector-merge}{ \textless{} v$_1$ v$_2$ start$_1$ end$_1$
+    start$_2$ end$_2$}{procedure}{vector???}
+  \Rproto{vector-merge}{ \textless{} v$_1$ v$_2$ start$_1$ end$_1$
+    start$_2$}{procedure}{vector???}
+  \Proto{vector-merge}{ \textless{} v$_1$ v$_2$ start$_1$ end$_1$}{procedure}{vector???}
+  \Proto{vector-merge}{ \textless{} v$_1$ v$_2$ start$_1$}{procedure}{vector???}
+  \Proto{vector-merge}{ \textless{} v$_1$ v$_2$}{procedure}{vector???}}
+
+  This procedure does not alter its inputs, and returns a newly
+  allocated vector of length (\emph{end$_1$} - \emph{start$_1$}) +
+  (\emph{end$_2$} - \emph{start$_2$}\texttt{)}.
+
+This procedure is equivalent to the SRFI 95 \texttt{merge} procedure
+when applied to vectors, except that it does not accept a key procedure.
+\end{entry}
+
+\begin{entry}{%
+  \Proto{vector-merge!}{ \textless{} to from$_1$ from$_2$ start
+    start$_1$ end$_1$ start$_2$ end$_2$}{procedure}{vector???}
+  \Rproto{vector-merge!}{ \textless{} to from$_1$ from$_2$ start
+    start$_1$ end$_1$ start$_2$}{procedure}{vector???}
+  \Rproto{vector-merge!}{ \textless{} to from$_1$ from$_2$ start
+    start$_1$ end$_1$}{procedure}{vector???}
+  \Rproto{vector-merge!}{ \textless{} to from$_1$ from$_2$ start
+    start$_1$}{procedure}{vector???}
+  \Rproto{vector-merge!}{ \textless{} to from$_1$ from$_2$ start}{procedure}{vector???}
+  \Rproto{vector-merge!}{ \textless{} to from$_1$ from$_2$}{procedure}{vector???}}
+
+  This procedure writes its result into vector \emph{to}, beginning at
+  index \emph{start}, for indices less than \emph{end}, which is
+  defined as \emph{start} + (\emph{end$_1$} - \emph{start$_1$}) +
+  (\emph{end$_2$} - \emph{start$_2$}\texttt{)}. The target subvector
+  \emph{to}{[}\emph{start}, \emph{end}) may not overlap either of the
+  source subvectors \emph{from$_1$}{[}\emph{start$_1$},
+  \emph{end$_1$}{]} and \emph{from$_2$}{[}\emph{start$_2$},
+  \emph{end$_2$}{]}. It returns an unspecified value.
+
+  This procedure is equivalent to the SRFI 95 \texttt{merge!}
+  procedure when applied to lists, except that it does not accept a
+  key procedure.
+\end{entry}
+
+\subsection{Deleting duplicate neighbors}
+
+These procedures delete adjacent duplicate elements from a list or a
+vector, using a given element-equality procedure. The first/leftmost
+element of a run of equal elements is the one that survives. The list or
+vector is not otherwise disordered.
+
+These procedures are linear time --- much faster than the
+O(n\textsuperscript{2}) general duplicate-element deletion procedures
+that do not assume any ``bunching'' of elements provided by
+\href{http://srfi.schemers.org/srfi-1/srfi-1.html}{SRFI 1}. If you want
+to delete duplicate elements from a large list or vector, sort the
+elements to bring equal items together, then use one of these
+procedures, for a total time of O(n lg n).
+
+The equality procedure is always invoked as \texttt{(=\ x\ y)}, where
+\emph{x} comes before \emph{y} in the containing list or vector.
+
+\begin{entry}{%
+  \Proto{list-delete-neighbor-dups}{ = lis}{procedure}{list???}}
+
+  This procedure does not alter its input list, but its result may
+  share storage with the input list.
+\end{entry}
+
+\begin{entry}{%
+  \Proto{list-delete-neighbor-dups!}{ = lis}{procedure}{list???}}
+
+  This procedure mutates its input list in order to construct its
+  result.  It makes only a single, iterative, linear-time pass over
+  its argument, using \texttt{set-cdr!}s to rearrange the cells of the
+  list into the final result --- it works ``in place.'' Hence, any
+  cons cell appearing in the result must have originally appeared in
+  the input.
+\end{entry}
+
+\begin{entry}{%
+  \Proto{vector-delete-neighbor-dups}{ = v start
+    end}{procedure}{vector???}
+  \Rproto{vector-delete-neighbor-dups}{ = v
+    start}{procedure}{vector???}
+  \Rproto{vector-delete-neighbor-dups}{ = v}{procedure}{vector???}}
+
+  This procedure does not alter its input vector, but rather newly
+  allocates and returns a vector to hold the result.
+\end{entry}
+
+
+\begin{entry}{%
+  \Proto{vector-delete-neighbor-dups!}{ = v start
+    end}{procedure}{vector???}
+  \Rproto{vector-delete-neighbor-dups!}{ = v
+    start}{procedure}{vector???}
+  \Rproto{vector-delete-neighbor-dups!}{ = v}{procedure}{vector???}}
+
+  This procedure reuses its input vector to hold the answer, packing
+  it into the index range {[}\emph{start, newend}), where
+  \emph{newend} is the non-negative exact integer that is returned as
+  its value. The vector is not altered outside the range
+  {[}\emph{start, newend}).
+\end{entry}
+Examples:
+
+\begin{verbatim}
+  (list-delete-neighbor-dups = '(1 1 2 7 7 7 0 -2 -2))
+               => (1 2 7 0 -2)
+
+    (vector-delete-neighbor-dups = '#(1 1 2 7 7 7 0 -2 -2))
+               => #(1 2 7 0 -2)
+
+    (vector-delete-neighbor-dups < '#(1 1 2 7 7 7 0 -2 -2) 3 7))
+               => #(7 0 -2)
+
+;; Result left in v[3,9):
+(let ((v (vector 0 0 0 1 1 2 2 3 3 4 4 5 5 6 6)))
+  (cons (vector-delete-neighbor-dups! < v 3)
+        v))
+              => (9 . #(0 0 0 1 2 3 4 5 6 4 4 5 5 6 6))
+\end{verbatim}
+
+\subsection{Finding the median}\label{Findingthemedian}
+
+These procedures do not have SRFI 32 counterparts. They find the median
+element of a vector after sorting it in accordance with an ordering
+procedure. If the number of elements in \texttt{v} is odd, the
+middlemost element of the sorted result is returned. If the number of
+elements is zero, \texttt{knil} is returned. Otherwise, \texttt{mean} is
+applied to the two middlemost elements in the order in which they appear
+in \texttt{v}, and whatever it returns is returned. If \texttt{mean} is
+omitted, then the default mean procedure is
+\texttt{(lambda\ (a\ b)\ (/\ (+\ a\ b)\ 2)}, but this procedure is
+applicable to non-numeric values as well.
+
+\begin{entry}{%
+  \Proto{vector-find-median}{ \textless{} v knil
+    mean}{procedure}{value???}
+  \Rproto{vector-find-median}{ \textless{} v knil}{procedure}{value???}}
+
+  This procedure does not alter its input vector, but rather newly
+  allocates a vector to hold the intermediate result. Runs in $O(n)$
+  time.
+\end{entry}
+
+\begin{entry}{%
+  \Proto{vector-find-median!}{ \textless{} v knil
+    mean}{procedure}{value???}
+  \Rproto{vector-find-median!}{ \textless{} v knil}{procedure}{value???}}
+
+  This procedure reuses its input vector to hold the intermediate
+  result, leaving it sorted, but is otherwise the same as
+  \texttt{vector-find-median}. Runs in $O(n\ln{} n)$
+  time. \TODO{Should that be $O(n\lg{} n)$? And aren't there median
+    algorithms that run in $O(n)$ time?}
+\end{entry}
+
+\subsection{Selection}\label{Selection}
+
+These procedures do not have SRFI 32 counterparts.
+
+\begin{entry}{%
+  \Proto{vector-select!}{ \textless{} v k start end}{procedure}{value???}
+  \Rproto{vector-select!}{ \textless{} v k start}{procedure}{value???}
+  \Rproto{vector-select!}{ \textless{} v k}{procedure}{value???}}
+
+  This procedure returns the \emph{k}th smallest element (in the sense
+  of the \textless{} argument) of the region of a vector between
+  \emph{start} and \emph{end}. Elements within the range may be
+  reordered, whereas those outside the range are left alone. Runs in
+  $O(n)$ time.
+\end{entry}
+
+
+\begin{entry}{%
+  \Proto{vector-separate!}{ \textless{} v k start
+    end}{procedure}{unspecified}  
+  \Rproto{vector-separate!}{ \textless{} v k start}{procedure}{unspecified}  
+  \Rproto{vector-separate!}{ \textless{} v k}{procedure}{unspecified}}
+
+This procedure places the smallest \emph{k} elements (in the sense of
+the \textless{} argument) of the region of a vector between
+\emph{start} and \emph{end} into the first \emph{k} positions of that
+range, and the remaining elements into the remaining
+positions. Otherwise, the elements are not in any particular
+order. Elements outside the range are left alone. Runs in $O(n)$
+time. Returns an unspecified value.
+\end{entry}
+
+Editor:
+\href{mailto:srfi-editors\%20at\%20srfi\%20dot\%20schemers\%20dot\%20org}{Arthur
+A. Gleckler}

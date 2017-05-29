@@ -1,0 +1,25 @@
+\section{Immutable Deques}\label{rationale}
+
+A double-ended queue, or \emph{deque} (pronounced ``deck'') is a
+sequential data structure which allows elements to be added or removed
+from either end in amortized O(1) time. It is a generalization of both a
+queue and a stack, and can be used as either by disregarding the
+irrelevant procedures.
+
+This SRFI describes immutable deques, or \emph{ideques}. Immutable
+structures are sometimes called \emph{persistent} and are closely
+related to \emph{pure functional} (a.k.a. \emph{pure}) structures. The
+availability of immutable data structures facilitates writing efficient
+programs in the pure-functional style. Immutable deques can also be seen
+as a bidirectional generalization of immutable lists, and some of the
+procedures documented below are most useful in that context. Unlike the
+immutable lists of
+\href{http://srfi.schemers.org/srfi-116/srfi-116.html}{SRFI 116}, it is
+efficient to produce modified versions of an ideque; unlike the list
+queues of \href{http://srfi.schemers.org/srfi-117/srfi-117.html}{SRFI
+117}, it is possible to efficiently return an updated version of an
+ideque without mutating any earlier versions of it.
+
+The specification was designed jointly by Kevin Wortman and John Cowan.
+John Cowan is the editor and shepherd. The two-list implementation was
+written by John Cowan.

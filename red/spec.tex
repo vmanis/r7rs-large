@@ -1,0 +1,177 @@
+% Cross-reference items here to the Red Edition specification on
+% http://trac.sacrideo.us/wg/wiki/RedEdition. This command will
+% be made null in future edits. 
+\newcommand{\redno}[1]{%
+  \textbf{[Red Edition item #1]}}
+
+%%% This replaces the version of \includesrfi that's provided for
+%%% working with the raw SRFIs, as produced by pandoc. NB:
+%%% LaTeX's \include command refuses to nest, so I use the original
+%%% TeX \input command.
+\newcommand{\libname}{???Unknown???}
+\newcommand{\includesrfi}[1]{%
+  \input srfi-edited/srfi-#1.tex
+  \renewcommand{\libname}{???Unknown???}}
+
+%%% Handling library names.
+\newcommand{\setlibname}[1]{%
+  The names described in this section comprise the \texttt{(scheme
+    #1)} library.
+  \renewcommand{\libname}{#1}}
+% Modern practice is to include a return type in procedure
+% descriptions. Turn off the old proto macros, and include new ones
+% that take an additional argument for the return type. New names are
+% used, rather than the ones in R7RS, to avoid confusion & misuse. 
+% Return value spec, make null if no return value types to be shown.
+\newcommand{\protoret}[1]{%
+  \,\ding{213}\,\textrm{\textit{#1}\/}}  % Best-looking arrow I could find. 
+% Parenthesized prototype
+\newcommand{\Proto}[4]{%
+  \pproto{(\mainschindex{#1}\hbox{#1}{\it#2\/})%
+    \protoret{#4}}{\libname\ library #3}}
+
+% Variable prototype: no type argument just now, maybe later.
+\newcommand{\Vproto}[2]{\mainschindex{#1}\pproto{#1}{\libname #2}}
+
+% Extending an existing definition (\proto without the index entry)
+\newcommand{\Rproto}[4]{%
+  \pproto{(\hbox{#1}{\it#2\/})%
+    \protoret{#4}}{\libname\ library #3}}
+
+% (Eventually) Turn off the old ones, to avoid mixing them up.
+\renewcommand{\proto}[3]{\errmessage{This shouldn't be used.}}
+\renewcommand{\vproto}[3]{\errmessage{This shouldn't be used.}}
+\renewcommand{\rproto}[3]{\errmessage{This shouldn't be used.}}
+
+
+% Some of the SRFIs have icons relating to validated XHTML or the
+% like. Provide an almost-null version of graphics inclusion that
+% flags these, so they can be removed during proofreading. And for all
+% I know, some SRFI may actually have a picture in it!
+\renewcommand{\includegraphics}[2][]{%
+  \textbf{Included graphics: #2}}
+
+\TODO{Restore 2-column layout, once LaTeX artifacts have been fixed.}
+
+\chapter*{Summary}
+[This needs to be rewritten.]
+
+This is a frozen version of the Red Edition ballot.
+
+By unanimous consent, the libraries of R7RS-small are all required in
+implementations of the Red Edition. This document specifies the
+additional libraries required in the Red Edition. 
+
+
+
+
+\todo{expand the summary so that it fills up the column.}
+
+\vfill
+\eject
+
+\chapter*{Contents}
+\addvspace{3.5pt}                  % don't shrink this gap
+\renewcommand{\tocshrink}{-3.5pt}  % value determined experimentally
+{\footnotesize
+\tableofcontents
+}
+
+\vfill
+\eject
+
+
+Programming languages should be designed not by piling feature on top of
+feature, but by removing the weaknesses and restrictions that make additional
+features appear necessary.  Scheme demonstrates that a very small number
+of rules for forming expressions, with no restrictions on how they are
+composed, suffice to form a practical and efficient programming language
+that is flexible enough to support most of the major programming
+paradigms in use today.
+
+The Revised$^7$ Report on The Algorithmic Language Scheme (R$^7$RS)
+describes an elegant and powerful language that fulfills the promise
+of the previous paragraph. In some cases, e.g., when using Scheme as
+an extension language, that is all the programmer needs. Often,
+though, modern programmers expect a set of libraries that will provide
+the facilities they need to get the job done. Many Scheme
+implementations have provided such libraries, but often the libraries
+are  implementation-specific.  It would be desirable to
+standardize as many of them as possible.
+
+Accordingly, the Scheme community embarked upon the collection of a
+group of Scheme Requests For Implementation, or SRFIs. These specify
+particular libraries that can be provided in a compatible way across
+implementations. 
+
+More recently, it was decided that R$^7$RS would be a core language,
+dubbed~“R$^7$RS-Small”, and that a Large language would be created
+by identifying particular SRFIs, and adapting them to form a
+consistent library collection.
+
+This report, the Red Edition, is the first stage of defining
+R$^7$RS-Large, concentrating primarily upon data structure
+support. Subsequent reports, also named for colors, will provide
+additional facilities.
+
+\TODO{Check all descriptions to make sure that argument references are
+  in appropriate font.}
+
+
+
+\chapter{Basic libraries}\label{Basiclibraries}
+
+\includesrfi{1}
+
+\includesrfi{133}
+
+\section{String library}
+\redno{3} As no consensus was achieved on a string library, no string
+library is provided in the Red Edition; one might be provided later.
+
+This section is left in as a placeholder, and will be removed later in
+the editing process.
+ 
+\includesrfi{132}
+
+\chapter{Sets and maps}\label{Setsandmaps}
+
+\includesrfi{113}
+
+\includesrfi{14}
+
+\includesrfi{125}
+
+\chapter{Immutability}\label{Immutability}
+
+\includesrfi{116}
+
+\includesrfi{101}
+
+\includesrfi{134}
+
+\includesrfi{135}
+
+\chapter{Laziness}
+
+\includesrfi{121}
+
+\includesrfi{127}
+
+\includesrfi{41}
+
+\chapter{Miscellaneous}
+
+\includesrfi{111}
+
+\includesrfi{117}
+
+\includesrfi{124}
+
+\section{Titlecase library}
+\redno{18} The vote was for no titlecase library. 
+
+This section is left in as a placeholder, and will be removed later in
+the editing process.
+
+\includesrfi{128}

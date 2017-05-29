@@ -1,0 +1,88 @@
+\section{SRFI 135}
+
+The \protect\hyperlink{R6RS-Rationale}{R6RS Rationale} identified
+problems created by the mutability of strings, and several more problems
+were mentioned by SRFI 130 or came up during its discussion period:
+
+\begin{itemize}
+\tightlist
+\item
+  Mutability complicates the specification of higher-order procedures
+  that operate on strings.
+\item
+  Mutability inhibits several compiler optimizations, including common
+  subexpression elimination.
+\item
+  Mutability complicates reasoning about programs that use strings.
+\item
+  Mutations invalidate the string cursors of SRFI 130.
+\item
+  Using a SRFI 130 string cursor that has been invalidated by mutation
+  is an error, but that error is likely to go undetected, making
+  programs harder to test and to debug.
+\item
+  Mutations can be expensive if strings are represented as encapsulated
+  UTF-8 or UTF-16.
+\item
+  Although representations based on UTF-32 provide fast referencing as
+  well as fast mutation, they occupy more space than representations
+  based on UTF-8 or UTF-16.
+\item
+  Mutations preclude sharing of substructure that could save space while
+  making \texttt{substring} and \texttt{string-append} run faster.
+\end{itemize}
+
+Recognizing the first three of these problems, while acknowledging that
+removing mutable strings from the language would cause ``significant
+compatibility problems for existing code''
+\protect\hyperlink{R6RS-Rationale}{{[}R6RS-Rationale{]}}, the R6RS
+standard banished \texttt{string-set!} and \texttt{string-fill!} to a
+separate \texttt{(rnrs\ mutable-strings)} library in hope of
+discouraging and/or deprecating mutation of strings.
+
+The R7RS restored \texttt{string-set!} and \texttt{string-fill!} to the
+\texttt{(scheme\ base)} library and added a new mutator,
+\texttt{string-copy!}. Waiting for some revised standard to make strings
+immutable is not viable.
+
+We can, however, add a new data type of immutable texts capable of
+replacing Scheme's string data type for all applications that do not
+require mutation. Immutable texts do away with the problems listed above
+while offering these advantages over mutable strings:
+
+\begin{itemize}
+\tightlist
+\item
+  space efficiency approaching that of UTF-8 or UTF-16
+\item
+  faster sequential access (if strings use UTF-8 or UTF-16)
+\item
+  faster random access (if strings use UTF-8 or UTF-16)
+\item
+  fast extraction of subtexts
+\item
+  faster concatenation of texts
+\end{itemize}
+
+SRFI 130 aims for the second of those advantages, but cannot achieve
+that advantage in any portable implementation of its procedures.
+Furthermore SRFI 130 introduces a new data type (cursors) that is hard
+to use correctly (because its error situations are likely to go
+undetected, partly because many of its operations accept both cursors
+and character indexes, which are allowed but not required to be the same
+things).
+
+This SRFI offers all five advantages, at the expense of introducing a
+new data type (immutable texts) that can be implemented portably and
+efficiently and is easy to use correctly (partly because most of its
+error situations are detected by its sample implementations, and partly
+because its character indexes are the same as those used by Scheme's
+mutable strings).
+
+See also the \protect\hyperlink{Unicode}{discussion of Unicode}.
+
+This SRFI is based upon SRFI 130, copying much of its structure and
+wording, which should make it easier to compare this SRFI against SRFI
+130 and to convert programs using SRFI 130 to use immutable texts
+instead.
+

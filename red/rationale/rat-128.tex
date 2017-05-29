@@ -1,0 +1,29 @@
+\section{SRFI 128: Comparators}
+
+The four procedures above have complex dependencies on one another, and
+it is inconvenient to have to pass them individually to other procedures
+that might or might not make use of all of them. For example, a set
+implementation by its nature requires only an equality predicate, but if
+it is implemented using a hash table, an appropriate hash function is
+also required if the implementation does not provide one; alternatively,
+if it is implemented using a tree, procedures specifying a total order
+are required. By passing a comparator rather than a bare equality
+predicate, the set implementation can make use of whatever procedures
+are available and useful to it.
+
+This SRFI is a simplified and enhanced rewrite of
+\href{http://srfi.schemers.org/srfi-114/srfi-114.html}{SRFI 114}, and
+shares some of its design rationale and all of its acknowledgements. The
+largest change is the replacement of the comparison procedure with the
+ordering procedure. This allowed most of the special-purpose comparators
+to be removed. In addition, many of the more specialized procedures, as
+well as all but one of the syntax forms, have been removed as
+unnecessary.
+
+Special thanks to Taylan Ulrich Bayırlı/Kammer, whose insistence that
+SRFI 114 was unacceptable inspired this redesign. Jörg Wittenberger
+added Chicken-specific type declarations, which I have moved to
+\texttt{comparators.scm}, as it is a Chicken-specific library. He also
+provided Chicken-specific metadata and setup commands. Comments from
+Shiro Kawai, Alex Shinn, and Kevin Wortman guided me to the current
+design for bounds and salt.

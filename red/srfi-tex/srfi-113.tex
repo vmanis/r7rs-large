@@ -1,0 +1,856 @@
+\section{Title}\label{title}
+
+Sets and bags
+
+\section{Author}\label{author}
+
+John Cowan
+
+\section{Status}\label{status}
+
+This SRFI is currently in ``final'' status. To see an explanation of
+each status that a SRFI can hold, see
+\href{http://srfi.schemers.org/srfi-process.html}{here}. To provide
+input on this SRFI, please
+\href{mailto:srfi\%20minus\%20113\%20at\%20srfi\%20dot\%20schemers\%20dot\%20org}{mail
+to
+\texttt{\textless{}srfi\ minus\ 113\ at\ srfi\ dot\ schemers\ dot\ org\textgreater{}}}.
+See \href{../srfi-list-subscribe.html}{instructions here} to subscribe
+to the list. You can access previous messages via
+\href{mail-archive/maillist.html}{the archive of the mailing list}. You
+can access post-finalization messages via
+\href{http://srfi.schemers.org/srfi-111/post-mail-archive/maillist.html}{the
+archive of the mailing list}.
+
+\begin{itemize}
+\tightlist
+\item
+  Received:
+  \href{http://srfi.schemers.org/srfi-113/srfi-113-1.1.html}{2013/05/31}
+\item
+  Draft: 2013/06/01-2013/08/01
+\item
+  Revised:
+  \href{http://srfi.schemers.org/srfi-113/srfi-113-1.2.html}{2013/06/09}
+\item
+  Revised:
+  \href{http://srfi.schemers.org/srfi-113/srfi-113-1.3.html}{2013/07/03}
+\item
+  Revised:
+  \href{http://srfi.schemers.org/srfi-113/srfi-113-1.4.html}{2013/12/04}
+\item
+  Revised:
+  \href{http://srfi.schemers.org/srfi-113/srfi-113-1.5.html}{2014/03/31}
+\item
+  Revised:
+  \href{http://srfi.schemers.org/srfi-113/srfi-113-1.6.html}{2014/08/15}
+\item
+  Revised:
+  \href{http://srfi.schemers.org/srfi-113/srfi-113-1.8.html}{2014/08/19}
+\item
+  Revised:
+  \href{http://srfi.schemers.org/srfi-113/srfi-113-1.9.html}{2014/08/22}
+\item
+  Revised:
+  \href{http://srfi.schemers.org/srfi-113/srfi-113-1.10.html}{2014/08/22}
+\item
+  Revised:
+  \href{http://srfi.schemers.org/srfi-113/srfi-113-1.11.html}{2014/08/29}
+\item
+  Revised:
+  \href{http://srfi.schemers.org/srfi-113/srfi-113-1.12.html}{2014/11/16}
+\item
+  Revised:
+  \href{http://srfi.schemers.org/srfi-113/srfi-113-1.13.html}{2014/11/28}
+\item
+  Final:
+  \href{http://srfi.schemers.org/srfi-113/srfi-113-1.14.html}{2014/11/29}
+\item
+  Revised to fix errata: 2016/5/14 (Add post-finalization note.)
+\item
+  Revised to fix errata: 2016/11/29 (Fixed calls to `set-map` and
+  `bag-map`.)
+\item
+  Revised to fix errata: 2017/1/3 (Replaced references to ``character
+  set'' with ``set or bag.'')
+\end{itemize}
+
+\textbf{Post-finalization note 1}: Because SRFI 114 has been deprecated
+by SRFI 128, it is recommended that implementers make use of SRFI 128
+rather than SRFI 114 comparators where comparators are specified in this
+SRFI. Specifically, the procedures \texttt{set}, \texttt{bag},
+\texttt{set-unfold}, \texttt{bag-unfold}, \texttt{set-map},
+\texttt{list-\textgreater{}set}, \texttt{list-\textgreater{}bag}, and
+\texttt{alist-\textgreater{}bag}, should accept SRFI 128 rather than
+SRFI 114 comparators as arguments. By the same token, the results of
+\texttt{set-element-comparator} and \texttt{bag-element-comparator}, as
+well as the values of \texttt{set-comparator} and
+\texttt{bag-comparator}, should be SRFI 128 comparators. The sample
+implementation has been updated to depend on SRFI 128 rather than SRFI
+114.
+
+\textbf{Post-finalization note 2}: The order of arguments of
+\texttt{set-map} and \texttt{set-unfold} are not consistent with those
+of \texttt{hash-table-map} and \texttt{hash-table-unfold} in
+\href{https://srfi.schemers.org/srfi-125/}{SRFI 125}. Both SRFI 113 and
+SRFI 125 are going to be part of R7RS large (also known as the
+\href{http://trac.sacrideo.us/wg/wiki/RedEdition}{Red Edition}), and the
+plan is to make them consistent there, following the order in SRFI 125.
+Furthermore, \href{https://srfi.schemers.org/srfi-146/}{SRFI 146} (in
+draft status at the time of this writing) uses the order of SRFI 125.
+Since this problem was discovered after SRFI 113 was finalized, and it
+wasn't an error in the SRFI, it's too late to fix it here. However, John
+Cowan, the author, encourages implementers to consider adopting the
+order of SRFI 125. Thanks to Marc Nieper-Wißkirchen for reporting this
+mismatch, and for providing a version of SRFI 113 with the recommended
+argument order in the implementation of SRFI 146.
+
+\section{Abstract}\label{abstract}
+
+\emph{Sets} and \emph{bags} (also known as multisets) are unordered
+collections that can contain any Scheme object. Sets enforce the
+constraint that no two elements can be the same in the sense of the
+set's associated \emph{equality predicate}; bags do not.
+
+\section{Rationale}\label{rationale}
+
+Sets are a standard part of the libraries of many high-level programming
+languages, including Smalltalk,
+\href{http://docs.oracle.com/javase/6/docs/api/java/util/Set.html}{Java},
+and \href{http://www.cplusplus.com/reference/set/set/}{C++}.
+\href{http://docs.racket-lang.org/reference/sets.html}{Racket} provides
+general sets similar to those of this proposal, though with fewer
+procedures, and there is a Chicken egg called \texttt{sets}
+(unfortunately undocumented), which provides a minimal set of
+procedures. \href{http://srfi.schemers.org/srfi-1/srfi-1.html}{SRFI 1}
+also provides a list-based implementation of sets.
+
+Bags are useful for counting anything from a fixed set of possibilities,
+e.g. the number of each type of error in a log file or the number of
+uses of each word in a lexicon drawn from a body of documents. Although
+other data structures can serve the same purpose, using bags clearly
+expresses the programmer's intent and allows for optimization.
+
+Insofar as possible, the names in this SRFI are harmonized with the
+names used for ordered collections (lists, strings, vectors, and
+bytevectors) in Scheme. However, \texttt{size} is used instead of
+\texttt{length} to express the number of elements in a collection,
+because \texttt{length} implies order.
+
+It's possible to use the general sets of this SRFI to contain
+characters, but the use of
+\href{http://srfi.schemers.org/srfi-14/srfi-14.html}{SRFI 14} is
+recommended instead. The names and facilities in this SRFI are
+harmonized with SRFI 14, except that SRFI 14 does not contain analogues
+of the \texttt{set-search!}, \texttt{set\textgreater{}?},
+\texttt{set\textless{}=?}, \texttt{set\textgreater{}=?},
+\texttt{set-remove}, or \texttt{set-partition} procedures.
+
+Sets and bags do not have a lexical syntax representation. It's possible
+to use \href{http://srfi.schemers.org/srfi-108/srfi-108.html}{SRFI 108}
+quasi-literal constructors to create them in code, but this SRFI does
+not standardize how that is done.
+
+The interface to general sets and bags depends on
+\href{http://srfi.schemers.org/srfi-114/srfi-114.html}{SRFI 114}
+comparators, despite that SRFI having a higher number than this one for
+\href{http://www.catb.org/jargon/html/H/hysterical-reasons.html}{hysterical
+raisins}. Comparators conveniently package the equality predicate of the
+set with the hash function or comparison procedure needed to implement
+the set efficiently.
+
+\section{Specification}\label{specification}
+
+Sets and bags are mutually disjoint, and disjoint from other types of
+Scheme objects.
+
+It is an error for any procedure defined in this SRFI to be invoked on
+sets or bags with distinct comparators (in the sense of \texttt{eq?}).
+
+It is an error to mutate any object while it is contained in a set or
+bag.
+
+It is an error to add an object to a set or bag which does not satisfy
+the type test predicate of the comparator.
+
+It is an error to add or remove an object for a set or a bag while
+iterating over it.
+
+\subsection{Linear update}\label{linear-update}
+
+The procedures of this SRFI, by default, are ``pure functional'' ---
+they do not alter their parameters. However, this SRFI also defines
+``linear-update'' procedures, all of whose names end in \texttt{!}. They
+have hybrid pure-functional/side-effecting semantics: they are allowed,
+but not required, to side-effect one of their parameters in order to
+construct their result. An implementation may legally implement these
+procedures as pure, side-effect-free functions, or it may implement them
+using side effects, depending upon the details of what is the most
+efficient or simple to implement in terms of the underlying
+representation.
+
+It is an error to rely upon these procedures working by side effect. For
+example, this is not guaranteed to work:
+
+\begin{verbatim}
+        (let* ((set1 (set 'a 'b 'c))      ; set1 = {a,b,c}.
+               (set2 (set-adjoin! set1 'd)))   ; Add d to {a,b,c}.
+          set1) ; Could be either {a,b,c} or {a,b,c,d}.
+\end{verbatim}
+
+However, this is well-defined:
+
+\begin{verbatim}
+        (let ((set1 (set 'a 'b 'c)))
+          (set-adjoin! set1 'd)) ; Add d to {a,b,c}.
+\end{verbatim}
+
+So clients of these procedures write in a functional style, but must
+additionally be sure that, when the procedure is called, there are no
+other live pointers to the potentially-modified set or bag (hence the
+term ``linear update'').
+
+There are two benefits to this convention:
+
+\begin{itemize}
+\item
+  Implementations are free to provide the most efficient possible
+  implementation, either functional or side-effecting.
+\item
+  Programmers may nonetheless continue to assume that sets are purely
+  functional data structures: they may be reliably shared without
+  needing to be copied, uniquified, and so forth.
+\end{itemize}
+
+In practice, these procedures are most useful for efficiently
+constructing sets and bags in a side-effecting manner, in some limited
+local context, before passing the set or bag outside the local
+construction scope to be used in a functional manner.
+
+Scheme provides no assistance in checking the linearity of the
+potentially side-effected parameters passed to these functions ---
+there's no linear type checker or run-time mechanism for detecting
+violations.
+
+Note that if an implementation uses no side effects at all, it is
+allowed to return existing sets and bags rather than newly allocated
+ones, even where this SRFI explicitly says otherwise.
+
+\subsection{Comparator restrictions}\label{comparator-restrictions}
+
+Implementations of this SRFI are allowed to place restrictions on the
+comparators that the procedures accept. In particular, an implementation
+may require comparators to provide a comparison procedure.
+Alternatively, an implementation may require comparators to provide a
+hash function, unless the equality predicate of the comparator is
+\texttt{eq?}, \texttt{eqv?}, \texttt{equal?}, \texttt{string=?}, or
+\texttt{string-ci=?}. Implementations must not require the provision of
+both a comparison procedure and a hash function.
+
+\subsection{Index}\label{Index}
+
+\begin{itemize}
+\item
+  \protect\hyperlink{Constructors}{Constructors}: \texttt{set},
+  \texttt{set-contains?}, \texttt{set-unfold}
+\item
+  \protect\hyperlink{Predicates}{Predicates}: \texttt{set?},
+  \texttt{set-empty?}, \texttt{set-disjoint?}
+\item
+  \protect\hyperlink{Accessors}{Accessors}: \texttt{set-member},
+  \texttt{set-element-comparator}
+\item
+  \protect\hyperlink{Updaters}{Updaters}: \texttt{set-adjoin},
+  \texttt{set-adjoin!}, \texttt{set-replace}, \texttt{set-replace!},
+  \texttt{set-delete}, \texttt{set-delete!}, \texttt{set-delete-all},
+  \texttt{set-delete-all!}, \texttt{set-search!}
+\item
+  \protect\hyperlink{Thewholeset}{The whole set}: \texttt{set-size},
+  \texttt{set-find}, \texttt{set-count}, \texttt{set-any?},
+  \texttt{set-every?}
+\item
+  \protect\hyperlink{Mappingandfolding}{Mapping and folding}:
+  \texttt{set-map}, \texttt{set-for-each}, \texttt{set-fold},
+  \texttt{set-filter}, \texttt{set-filter!}, \texttt{set-remove},
+  \texttt{set-remove!}, \texttt{set-partition}, \texttt{set-partition!}
+\item
+  \protect\hyperlink{Copyingandconversion}{Copying and conversion}:
+  \texttt{set-copy}, \texttt{set-\textgreater{}list},
+  \texttt{list-\textgreater{}set}, \texttt{list-\textgreater{}set!}
+\item
+  \protect\hyperlink{Subsets}{Subsets}: \texttt{set=?},
+  \texttt{set\textless{}?}, \texttt{set\textgreater{}?},
+  \texttt{set\textless{}=?}, \texttt{set\textgreater{}=?}
+\item
+  \protect\hyperlink{Settheoryoperations}{Set theory operations}:
+  \texttt{set-union}, \texttt{set-intersection},
+  \texttt{set-difference}, \texttt{set-xor}, \texttt{set-union!},
+  \texttt{set-intersection!}, \texttt{set-difference!},
+  \texttt{set-xor!}
+\item
+  \protect\hyperlink{Additionalbagprocedures}{Additional bag
+  procedures}: \texttt{bag-sum}, \texttt{bag-sum!},
+  \texttt{bag-product}, \texttt{bag-product!},
+  \texttt{bag-element-count}, \texttt{bag-for-each-unique},
+  \texttt{bag-fold-unique}, \texttt{bag-increment!},
+  \texttt{bag-decrement!}, \texttt{bag-\textgreater{}set},
+  \texttt{set-\textgreater{}bag}, \texttt{set-\textgreater{}bag!}
+\item
+  \protect\hyperlink{Comparators}{Comparators}: \texttt{set-comparator},
+  \texttt{bag-comparator}
+\end{itemize}
+
+\subsection{Set procedures}\label{Setprocedures}
+
+\hypertarget{Constructors}{\subsubsection{Constructors}\label{Constructors}}
+
+\texttt{(set\ }\emph{comparator} \emph{element} \ldots{} \texttt{)}
+
+Returns a newly allocated empty set. The \emph{comparator} argument is a
+\href{http://srfi.schemers.org/srfi-114/srfi-114.html}{SRFI 114}
+comparator, which is used to control and distinguish the elements of the
+set. The \emph{elements} are used to initialize the set.
+
+\texttt{(set-unfold\ }\emph{comparator stop? mapper successor
+seed}\texttt{)}
+
+Create a newly allocated set as if by \texttt{set} using
+\emph{comparator}. If the result of applying the predicate \emph{stop?}
+to \emph{seed} is true, return the set. Otherwise, apply the procedure
+\emph{mapper} to \emph{seed}. The value that \emph{mapper} returns is
+added to the set. Then get a new seed by applying the procedure
+\emph{successor} to \emph{seed}, and repeat this algorithm.
+
+\hypertarget{Predicates}{\subsubsection{Predicates}\label{Predicates}}
+
+\texttt{(set?\ }\emph{obj}\texttt{)}
+
+Returns \texttt{\#t} if \emph{obj} is a set, and \texttt{\#f} otherwise.
+
+\texttt{(set-contains?\ }\emph{set element}\texttt{)}
+
+Returns \texttt{\#t} if \emph{element} is a member of \emph{set} and
+\texttt{\#f} otherwise.
+
+\texttt{(set-empty?\ }\emph{set}\texttt{)}
+
+Returns \texttt{\#t} if \emph{set} has no elements and \texttt{\#f}
+otherwise.
+
+\texttt{(set-disjoint?\ }\emph{set\textsubscript{1}
+set\textsubscript{2}}\texttt{)}
+
+Returns \texttt{\#t} if \emph{set\textsubscript{1}} and
+\emph{set\textsubscript{2}} have no elements in common and \texttt{\#f}
+otherwise.
+
+\hypertarget{Accessors}{\subsubsection{Accessors}\label{Accessors}}
+
+\texttt{(set-member\ }\emph{set element default}\texttt{)}
+
+Returns the element of \emph{set} that is equal, in the sense of
+\emph{set's} equality predicate, to \emph{element}. If \emph{element} is
+not a member of \emph{set}, \emph{default} is returned.
+
+\texttt{(set-element-comparator\ }\emph{set}\texttt{)}
+
+Returns the comparator used to compare the elements of \emph{set}.
+
+\hypertarget{Updaters}{\subsubsection{Updaters}\label{Updaters}}
+
+\texttt{(set-adjoin\ }\emph{set element} \ldots{}\texttt{)}
+
+The \texttt{set-adjoin} procedure returns a newly allocated set that
+uses the same comparator as \emph{set} and contains all the values of
+\emph{set}, and in addition each \emph{element} unless it is already
+equal (in the sense of the comparator) to one of the existing or newly
+added members. It is an error to add an element to \emph{set} that does
+not return \texttt{\#t} when passed to the type test procedure of the
+comparator.
+
+\texttt{(set-adjoin!\ }\emph{set element} \ldots{}\texttt{)}
+
+The \texttt{set-adjoin!} procedure is the same as \texttt{set-adjoin},
+except that it is permitted to mutate and return the \emph{set} argument
+rather than allocating a new set.
+
+\texttt{(set-replace\ }\emph{set element}\texttt{)}
+
+The \texttt{set-replace} procedure returns a newly allocated set that
+uses the same comparator as \emph{set} and contains all the values of
+\emph{set} except as follows: If \emph{element} is equal (in the sense
+of \emph{set}'s comparator) to an existing member of \emph{set}, then
+that member is omitted and replaced by \emph{element}. If there is no
+such element in \emph{set}, then \emph{set} is returned unchanged.
+
+\texttt{(set-replace!\ }\emph{set element}\texttt{)}
+
+The \texttt{set-replace!} procedure is the same as\texttt{set-replace},
+except that it is permitted to mutate and return the \emph{set} argument
+rather than allocating a new set.
+
+\texttt{(set-delete\ }\emph{set element} \ldots{}\texttt{)}
+
+\texttt{(set-delete!\ }\emph{set element} \ldots{}\texttt{)}
+
+\texttt{(set-delete-all\ }\emph{set element-list}\texttt{)}
+
+\texttt{(set-delete-all!\ }\emph{set element-list}\texttt{)}
+
+The \texttt{set-delete} procedure returns a newly allocated set
+containing all the values of \emph{set} except for any that are equal
+(in the sense of \emph{set}'s comparator) to one or more of the
+\emph{elements}. Any \emph{element} that is not equal to some member of
+the set is ignored.
+
+The \texttt{set-delete!} procedure is the same as \texttt{set-delete},
+except that it is permitted to mutate and return the \emph{set} argument
+rather than allocating a new set.
+
+The \texttt{set-delete-all} and \texttt{set-delete-all!} procedures are
+the same as \texttt{set-delete} and \texttt{set-delete!}, except that
+they accept a single argument which is a list of elements to be deleted.
+
+\texttt{(set-search!\ }\emph{set element failure success}\texttt{)}
+
+The \emph{set} is searched for \emph{element}. If it is not found, then
+the \emph{failure} procedure is tail-called with two continuation
+arguments, \emph{insert} and \emph{ignore}, and is expected to tail-call
+one of them. If \emph{element} is found, then the \emph{success}
+procedure is tail-called with the matching element of \emph{set} and two
+continuations, \emph{update} and \emph{remove}, and is expected to
+tail-call one of them.
+
+The effects of the continuations are as follows (where \emph{obj} is any
+Scheme object):
+
+\begin{itemize}
+\item
+  Invoking \texttt{(}\emph{insert obj}\texttt{)} causes \emph{element}
+  to be inserted into \emph{set}.
+\item
+  Invoking \texttt{(}\emph{ignore obj}\texttt{)} causes \emph{set} to
+  remain unchanged.
+\item
+  Invoking \texttt{(}\emph{update new-element obj}\texttt{)} causes
+  \emph{new-element} to be inserted into \emph{set} in place of
+  \emph{element}.
+\item
+  Invoking \texttt{(}\emph{remove obj}\texttt{)} causes the matching
+  element of \emph{set} to be removed from it.
+\end{itemize}
+
+In all cases, two values are returned: the possibly updated \emph{set}
+and \emph{obj}.
+
+\hypertarget{Thewholeset}{\subsubsection{The whole
+set}\label{Thewholeset}}
+
+\texttt{(set-size\ }\emph{set}\texttt{)}
+
+Returns the number of elements in \emph{set} as an exact integer.
+
+\texttt{(set-find\ }\emph{predicate set failure}\texttt{)}
+
+Returns an arbitrarily chosen element of \emph{set} that satisfies
+\emph{predicate}, or the result of invoking \emph{failure} with no
+arguments if there is none.
+
+\texttt{(set-count\ }\emph{predicate set}\texttt{)}
+
+Returns the number of elements of \emph{set} that satisfy
+\emph{predicate} as an exact integer.
+
+\texttt{(set-any?\ }\emph{predicate set}\texttt{)}
+
+Returns \texttt{\#t} if any element of \emph{set} satisfies
+\emph{predicate}, or \texttt{\#f} otherwise. Note that this differs from
+the SRFI 1 analogue because it does not return an element of the set.
+
+\texttt{(set-every?\ }\emph{predicate set}\texttt{)}
+
+Returns \texttt{\#t} if every element of \emph{set} satisfies
+\emph{predicate}, or \texttt{\#f} otherwise. Note that this differs from
+the SRFI 1 analogue because it does not return an element of the set.
+
+\hypertarget{Mappingandfolding}{\subsubsection{Mapping and
+folding}\label{Mappingandfolding}}
+
+\texttt{(set-map\ }\emph{comparator proc set}\texttt{)}
+
+Applies \emph{proc} to each element of \emph{set} in arbitrary order and
+returns a newly allocated set, created as if by
+\texttt{(set\ }\emph{comparator}\texttt{)}, which contains the results
+of the applications. For example:
+
+\begin{verbatim}
+        (set-map string-ci-comparator symbol->string (set eq? 'foo 'bar 'baz))
+             => (set string-ci-comparator "foo" "bar" "baz")
+\end{verbatim}
+
+Note that, when \emph{proc} defines a mapping that is not 1:1, some of
+the mapped objects may be equivalent in the sense of \emph{comparator's}
+equality predicate, and in this case duplicate elements are omitted as
+in the set constructor. For example:
+
+\begin{verbatim}
+(set-map (lambda (x) (quotient x 2))
+         integer-comparator
+         (set integer-comparator 1 2 3 4 5))
+ => (set integer-comparator 0 1 2)
+\end{verbatim}
+
+If the elements are the same in the sense of \texttt{eqv?}, it is
+unpredictable which one will be preserved in the result.
+
+\texttt{(set-for-each\ }\emph{proc set}\texttt{)}
+
+Applies \emph{proc} to \emph{set} in arbitrary order, discarding the
+returned values. Returns an unspecified result.
+
+\texttt{(set-fold\ }\emph{proc nil set}\texttt{)}
+
+Invokes \emph{proc} on each member of \emph{set} in arbitrary order,
+passing the result of the previous invocation as a second argument. For
+the first invocation, \emph{nil} is used as the second argument. Returns
+the result of the last invocation, or \emph{nil} if there was no
+invocation.
+
+\texttt{(set-filter\ }\emph{predicate set}\texttt{)}
+
+Returns a newly allocated set with the same comparator as \emph{set},
+containing just the elements of \emph{set} that satisfy
+\emph{predicate}.
+
+\texttt{(set-filter!\ }\emph{predicate set}\texttt{)}
+
+A linear update procedure that returns a set containing just the
+elements of \emph{set} that satisfy \emph{predicate}.
+
+\texttt{(set-remove\ }\emph{predicate set}\texttt{)}
+
+Returns a newly allocated set with the same comparator as \emph{set},
+containing just the elements of \emph{set} that do not satisfy
+\emph{predicate}.
+
+\texttt{(set-remove!\ }\emph{predicate set}\texttt{)}
+
+A linear update procedure that returns a set containing just the
+elements of \emph{set} that do not satisfy \emph{predicate}.
+
+\texttt{(set-partition\ }\emph{predicate set}\texttt{)}
+
+Returns two values: a newly allocated set with the same comparator as
+\emph{set} that contains just the elements of \emph{set} that satisfy
+\emph{predicate}, and another newly allocated set, also with the same
+comparator, that contains just the elements of \emph{set} that do not
+satisfy \emph{predicate}.
+
+\texttt{(set-partition!\ }\emph{predicate set}\texttt{)}
+
+A linear update procedure that returns two sets containing the elements
+of \emph{set} that do and do not, respectively, not satisfy
+\emph{predicate}.
+
+\hypertarget{Copyingandconversion}{\subsubsection{Copying and
+conversion}\label{Copyingandconversion}}
+
+\texttt{(set-copy\ }\emph{set}\texttt{)}
+
+Returns a newly allocated set containing the elements of \emph{set}, and
+using the same comparator.
+
+\texttt{(set-\textgreater{}list\ }\emph{set}\texttt{)}
+
+Returns a newly allocated list containing the members of \emph{set} in
+unspecified order.
+
+\texttt{(list-\textgreater{}set\ }\emph{comparator list}\texttt{)}
+
+Returns a newly allocated set, created as if by \texttt{set} using
+\emph{comparator}, that contains the elements of \emph{list}. Duplicate
+elements (in the sense of the equality predicate) are omitted.
+
+\texttt{(list-\textgreater{}set!\ }\emph{set list}\texttt{)}
+
+Returns a set that contains the elements of both \emph{set} and
+\emph{list}. Duplicate elements (in the sense of the equality predicate)
+are omitted.
+
+\hypertarget{Subsets}{\subsubsection{Subsets}\label{Subsets}}
+
+Note: The following three predicates do not obey the trichotomy law and
+therefore do not constitute a total order on sets.
+
+\texttt{(set=?\ }\emph{set\textsubscript{1} set\textsubscript{2}}
+\ldots{}\texttt{)}
+
+Returns \texttt{\#t} if each \emph{set} contains the same elements.
+
+\texttt{(set\textless{}?\ }\emph{set\textsubscript{1}
+set\textsubscript{2}} \ldots{}\texttt{)}
+
+Returns \texttt{\#t} if each \emph{set} other than the last is a proper
+subset of the following \emph{set}, and \texttt{\#f} otherwise.
+
+\texttt{(set\textgreater{}?\ }\emph{set\textsubscript{1}
+set\textsubscript{2}} \ldots{}\texttt{)}
+
+Returns \texttt{\#t} if each \emph{set} other than the last is a proper
+superset of the following \emph{set}, and \texttt{\#f} otherwise.
+
+\texttt{(set\textless{}=?\ }\emph{set\textsubscript{1}
+set\textsubscript{2}} \ldots{}\texttt{)}
+
+Returns \texttt{\#t} if each \emph{set} other than the last is a subset
+of the following \emph{set}, and \texttt{\#f} otherwise.
+
+\texttt{(set\textgreater{}=?\ }\emph{set\textsubscript{1}
+set\textsubscript{2}} \ldots{}\texttt{)}
+
+Returns \texttt{\#t} if each \emph{set} other than the last is a
+superset of the following \emph{set}, and \texttt{\#f} otherwise.
+
+\hypertarget{Settheoryoperations}{\subsubsection{Set theory
+operations}\label{Settheoryoperations}}
+
+\texttt{(set-union\ }\emph{set\textsubscript{1} set\textsubscript{2}}
+\ldots{}\texttt{)}
+
+\texttt{(set-intersection\ }\emph{set\textsubscript{1}
+set\textsubscript{2}} \ldots{}\texttt{)}
+
+\texttt{(set-difference\ }\emph{set\textsubscript{1}
+set\textsubscript{2}} \ldots{}\texttt{)}
+
+\texttt{(set-xor\ }\emph{set\textsubscript{1}
+set\textsubscript{2}}\texttt{)}
+
+Return a newly allocated set that is the union, intersection, asymmetric
+difference, or symmetric difference of the \emph{sets}. Asymmetric
+difference is extended to more than two sets by taking the difference
+between the first set and the union of the others. Symmetric difference
+is not extended beyond two sets. Elements in the result set are drawn
+from the first set in which they appear.
+
+\texttt{(set-union!\ }\emph{set\textsubscript{1} set\textsubscript{2}}
+\ldots{}\texttt{)}
+
+\texttt{(set-intersection!\ }\emph{set\textsubscript{1}
+set\textsubscript{2}} \ldots{}\texttt{)}
+
+\texttt{(set-difference!\ }\emph{set\textsubscript{1}
+set\textsubscript{2}} \ldots{}\texttt{)}
+
+\texttt{(set-xor!\ }\emph{set\textsubscript{1}
+set\textsubscript{2}}\texttt{)}
+
+Linear update procedures returning a set that is the union,
+intersection, asymmetric difference, or symmetric difference of the
+\emph{sets}. Asymmetric difference is extended to more than two sets by
+taking the difference between the first set and the union of the others.
+Symmetric difference is not extended beyond two sets. Elements in the
+result set are drawn from the first set in which they appear.
+
+\subsection{Bag procedures}\label{Bagprocedures}
+
+Bags are like sets, but can contain the same object more than once.
+However, if two elements that are the same in the sense of the equality
+predicate, but not in the sense of \texttt{eqv?}, are both included, it
+is not guaranteed that they will remain distinct when retrieved from the
+bag. It is an error for a single procedure to be invoked on bags with
+different comparators.
+
+The procedures for creating and manipulating bags are the same as those
+for sets, except that \texttt{set} is replaced by \texttt{bag} in their
+names, and that adjoining an element to a bag is effective even if the
+bag already contains the element. If two elements in a bag are the same
+in the sense of the bag's comparator, the implementation may in fact
+store just one of them.
+
+The \texttt{bag-union}, \texttt{bag-intersection},
+\texttt{bag-difference}, and \texttt{bag-xor} procedures (and their
+linear update analogues) behave as follows when both bags contain
+elements that are equal in the sense of the bags' comparator:
+
+\begin{itemize}
+\item
+  For \texttt{bag-union}, the number of equal elements in the result is
+  the largest number of equal elements in any of the original bags.
+\item
+  For \texttt{bag-intersection}, the number of equal elements in the
+  result is the smallest number of equal elements in any of the original
+  bags.
+\item
+  For \texttt{bag-difference}, the number of equal elements in the
+  result is the number of equal elements in the first bag, minus the
+  number of elements in the other bags (but not less than zero).
+\item
+  For \texttt{bag-xor}, the number of equal elements in the result is
+  the absolute value of the difference between the number of equal
+  elements in the first and second bags.
+\end{itemize}
+
+\hypertarget{Additionalbagprocedures}{\subsubsection{Additional bag
+procedures}\label{Additionalbagprocedures}}
+
+\texttt{(bag-sum\ }\emph{set\textsubscript{1} set\textsubscript{2}}
+\ldots{} \texttt{)}
+
+\texttt{(bag-sum!\ }\emph{bag\textsubscript{1} bag\textsubscript{2}}
+\ldots{} \texttt{)}
+
+The \texttt{bag-sum} procedure returns a newly allocated bag containing
+all the unique elements in all the \emph{bags}, such that the count of
+each unique element in the result is equal to the sum of the counts of
+that element in the arguments. It differs from \texttt{bag-union} by
+treating identical elements as potentially distinct rather than
+attempting to match them up.
+
+The \texttt{bag-sum!} procedure is equivalent except that it is
+linear-update.
+
+\texttt{(bag-product\ }\emph{n bag}\texttt{)}
+
+\texttt{(bag-product!\ }\emph{n bag}\texttt{)}
+
+The \texttt{bag-product} procedure returns a newly allocated bag
+containing all the unique elements in \emph{bag}, where the count of
+each unique element in the bag is equal to the count of that element in
+\texttt{bag} multiplied by \emph{n}.
+
+The \texttt{bag-product!} procedure is equivalent except that it is
+linear-update.
+
+\texttt{(bag-unique-size\ }\emph{bag}\texttt{)}
+
+Returns the number of unique elements of \emph{bag}.
+
+\texttt{(bag-element-count\ }\emph{bag element}\texttt{)}
+
+Returns an exact integer representing the number of times that
+\emph{element} appears in \emph{bag}.
+
+\texttt{(bag-for-each-unique\ }\emph{proc bag}\texttt{)}
+
+Applies \emph{proc} to each unique element of \emph{bag} in arbitrary
+order, passing the element and the number of times it occurs in
+\emph{bag}, and discarding the returned values. Returns an unspecified
+result.
+
+\texttt{(bag-fold-unique\ }\emph{proc nil bag}\texttt{)}
+
+Invokes \emph{proc} on each unique element of \emph{bag} in arbitrary
+order, passing the number of occurrences as a second argument and the
+result of the previous invocation as a third argument. For the first
+invocation, \emph{nil} is used as the third argument. Returns the result
+of the last invocation.
+
+\texttt{(bag-increment!\ }\emph{bag\texttt{\ }element\texttt{\ }count}\texttt{)}
+
+\texttt{(bag-decrement!\ }\emph{bag\texttt{\ }element\texttt{\ }count}\texttt{)}
+
+Linear update procedures that return a bag with the same elements as
+\emph{bag}, but with the element count of \emph{element} in \emph{bag}
+increased or decreased by the exact integer \emph{count} (but not less
+than zero).
+
+\texttt{(bag-\textgreater{}set\ }\emph{bag}\texttt{)}
+
+\texttt{(set-\textgreater{}bag\ }\emph{set}\texttt{)}
+
+\texttt{(set-\textgreater{}bag!\ }\emph{bag set}\texttt{)}
+
+The \texttt{bag-\textgreater{}set} procedure returns a newly allocated
+set containing the unique elements (in the sense of the equality
+predicate) of \emph{bag}. The \texttt{set-\textgreater{}bag} procedure
+returns a newly allocated bag containing the elements of \emph{set}. The
+\texttt{set-\textgreater{}bag!} procedure returns a bag containing the
+elements of both \emph{bag} and \emph{set}. In all cases, the comparator
+of the result is the same as the comparator of the argument or
+arguments.
+
+\texttt{(bag-\textgreater{}alist\ }\emph{bag}\texttt{)}
+
+\texttt{(alist-\textgreater{}bag\ }\emph{comparator alist}\texttt{)}
+
+The \texttt{bag-\textgreater{}alist} procedure returns a newly allocated
+alist whose keys are the unique elements of \emph{bag} and whose values
+are the number of occurrences of each element. The
+\texttt{alist-\textgreater{}bag} returning a newly allocated bag based
+on \emph{comparator}, where the keys of \emph{alist} specify the
+elements and the corresponding values of \emph{alist} specify how many
+times they occur.
+
+\hypertarget{Comparators}{\subsection{Comparators}\label{Comparators}}
+
+The following comparators are used to compare sets or bags, and allow
+sets of sets, bags of sets, etc.
+
+\texttt{set-comparator}
+
+\texttt{bag-comparator}
+
+Note that these comparators do not provide comparison procedures, as
+there is no ordering between sets or bags. It is an error to compare
+sets or bags with different element comparators.
+
+\section{Implementation}\label{implementation}
+
+The implementation places the identifiers defined above into the
+\texttt{sets} library.
+
+Sets and bags are implemented as a thin veneer over hashtables.
+
+The implementation registers \texttt{set-comparator} and
+\texttt{bag-comparator} with SRFI 114's default comparator, assuming the
+sample implementation of SRFI 114 is being used. Scheme implementers who
+provide their own implementations of SRFI 114 must change this part of
+the code.
+
+The \href{http://srfi.schemers.org/srfi-113/sets.tar.gz}{sample
+implementation} contains the following files:
+
+\begin{itemize}
+\tightlist
+\item
+  \texttt{sets-impl.scm} -- implementation of general sets and bags
+\item
+  \texttt{sets.sld} -- an R7RS library named \texttt{(sets)}
+\item
+  \texttt{sets.scm} -- a Chicken library
+\item
+  \texttt{sets-test.scm} -- test suite
+\end{itemize}
+
+The test suite will work with the Chicken \texttt{test} egg, which is
+provided on Chibi as the \texttt{(chibi\ test)} library.
+
+\section{Copyright}\label{copyright}
+
+Copyright (C) John Cowan 2013. All Rights Reserved.
+
+Permission is hereby granted, free of charge, to any person obtaining a
+copy of this software and associated documentation files (the
+``Software''), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be included
+in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED ``AS IS'', WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+\begin{center}\rule{0.5\linewidth}{\linethickness}\end{center}
+
+Editor:
+\href{mailto:srfi-editors\%20at\%20srfi\%20dot\%20schemers\%20dot\%20org}{Mike
+Sperber}

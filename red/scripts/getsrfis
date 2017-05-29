@@ -1,0 +1,16 @@
+#!/bin/sh
+
+# getsrfis filename
+#
+# This script scans the file named filename, looking for all
+# occurrences of \includesrfi{n}. It downloads each matching SRFI to
+# the directory srfi.
+for x in $(grep "\\includesrfi" $1); do
+  srfiname=srfi-$(echo $x | sed  "s/^.*\includesrfi{\(.*\)}.*$/\1/")
+  wget -O srfi/$srfiname.html http://srfi.schemers.org/$srfiname/$srfiname.html
+  exit=$?
+  if [ $exit -gt 0 ]; then
+    echo "Unable to retrieve $srfiname.html; exit status $exit"
+    exit 1
+  fi
+done

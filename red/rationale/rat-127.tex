@@ -1,0 +1,42 @@
+\section{SRFI 127}
+
+Lazy sequences are more heavyweight than generators, on which they are
+based, but they are more lightweight than
+\href{http://srfi.schemers.org/srfi-41/srfi-41.html}{SRFI 41} streams.
+However, streams are \emph{even}, as explained in the SRFI 41 rationale;
+that is, the initial state of a stream does not have any elements that
+have already been realized. By contrast, lazy sequences are \emph{odd},
+meaning that at least one element is realized at all times unless the
+lseq is empty. Therefore, when constructing an lseq in an iterative lazy
+algorithm, only the cdr side of the lazy pair is lazily evaluated; the
+car side is evaluated immediately, even if it is never used.
+
+In most cases this doesn't matter, because calculating one additional
+item is a negligible overhead. However, when you create a
+self-referential lazy structure, in which the earlier elements of a
+sequence are used to calculate the later elements of itself, a bit of
+caution is needed; code that is valid for circular streams may not
+terminate if it is mechanically converted to use lazy sequences. This
+eagerness is also visible when side effects are involved; for example, a
+lazy character sequence reading from a port may read one character
+ahead.
+
+This SRFI is less comprehensive than SRFI 1, because it omits many
+procedures that process every element of their list arguments (at least,
+when used in the absence of \texttt{call/cc}). Lseqs are meant to be
+used with ordinary Scheme functions, which are strict, so neither left
+nor right folds are provided: it is just as time-efficient to use
+\texttt{lseq-realize} and then SRFI 1 \texttt{fold} or
+\texttt{fold-right}, and just as space-efficient to use
+\texttt{lseq-\textgreater{}generator} and SRFI 121's
+\texttt{generator-fold}. Exceptions are \texttt{lseq-length} and
+\texttt{lseq-for-each}, which are very common operations on lists and so
+are provided.
+
+Lazy alists have been omitted, as the point of an alist is to express a
+function whose results are not algorithmically deducible from its
+arguments. As a result, there is little point in using a generator
+procedure to produce key-value mappings when an ordinary procedure can
+compute the value from the key directly. The linear-update procedures of
+SRFI 1 are also left out, as lazy sequences are not intended to be
+mutated.

@@ -1,0 +1,747 @@
+\section{Title}\label{title}
+
+Purely Functional Random-Access Pairs and Lists
+
+\section{Author}\label{author}
+
+David Van Horn
+
+\section{Status}\label{status}
+
+This SRFI is in ``final'' status. To see an explanation of each status
+that a SRFI can hold, see
+\href{http://srfi.schemers.org/srfi-process.html}{here}. To provide
+input on this SRFI, please
+\href{mailto:srfi\%20minus\%20101\%20at\%20srfi\%20dot\%20schemers\%20dot\%20org}{mail
+to
+\texttt{\textless{}srfi\ minus\ 101\ at\ srfi\ dot\ schemers\ dot\ org\textgreater{}}}.
+See \href{../srfi-list-subscribe.html}{instructions here} to subscribe
+to the list. You can access previous messages via
+\href{mail-archive/maillist.html}{the archive of the mailing list}. You
+can access post-finalization messages via
+\href{http://srfi.schemers.org/srfi-101/post-mail-archive/maillist.html}{the
+archive of the mailing list}.
+
+\begin{itemize}
+\tightlist
+\item
+  Received: 2009/09/09
+\item
+  Draft: 2009/09/16-2009/11/16
+\item
+  Revised: 2009/09/20
+\item
+  Revised: 2009/11/13
+\item
+  Finalized: 2013/02/24
+\end{itemize}
+
+\section{Table of contents}\label{table-of-contents}
+
+\begin{itemize}
+\tightlist
+\item
+  \protect\hyperlink{Abstract}{Abstract}
+\item
+  \protect\hyperlink{Issues}{Issues}
+\item
+  \protect\hyperlink{Rationale}{Rationale}
+\item
+  \protect\hyperlink{Specification}{Specification}
+
+  \begin{itemize}
+  \tightlist
+  \item
+    \protect\hyperlink{RandomAccessLists}{Random-access pairs and lists}
+  \item
+    \protect\hyperlink{RepresentationConversion}{Representation
+    conversion}
+  \item
+    \protect\hyperlink{ImplementationRequirements}{Implementation
+    requirements}
+  \end{itemize}
+\item
+  \protect\hyperlink{ReferenceImplementation}{Reference Implementation}
+\item
+  \protect\hyperlink{References}{References}
+\item
+  \protect\hyperlink{Acknowledgements}{Acknowledgements}
+\item
+  \protect\hyperlink{Copyright}{Copyright}
+\end{itemize}
+
+\section{\texorpdfstring{\href{}{Abstract}}{Abstract}}\label{abstract}
+
+Random-access lists {[}\protect\hyperlink{note-1}{1}{]} are a purely
+functional data structure for representing lists of values. A
+random-access list may act as a drop in replacement for the usual
+linear-access pair and list data structures (\texttt{pair?},
+\texttt{cons}, \texttt{car}, \texttt{cdr}), which additionally supports
+fast index-based addressing and updating (\texttt{list-ref},
+\texttt{list-set}). The impact is a whole class of purely-functional
+algorithms expressed in terms of index-based list addressing become
+feasible compared with their linear-access list counterparts.
+
+This document proposes a library API for purely functional random-access
+lists consistent with the R\textsuperscript{6}RS
+{[}\protect\hyperlink{note-2}{2}{]} base library and list utility
+standard library {[}\protect\hyperlink{note-3}{3}{]}.
+
+\section{\texorpdfstring{\href{}{Issues}}{Issues}}\label{issues}
+
+\begin{itemize}
+\tightlist
+\item
+  Procedure names have been chosen to be consistent with R6RS, even
+  though in some cases such as \texttt{list-ref} and \texttt{list-tail}
+  the choice seems poor since they include the prefix \texttt{list-}
+  even though they do not operate on lists, but chains of pairs, i.e.
+  lists and improper lists, and arbitrary objects, respectively.
+  Although the names have remained the same, the descriptions have been
+  corrected (e.g. using \emph{pair} or \emph{obj} instead of \emph{list}
+  for parameter names). Should the names be changed as well?
+\item
+  To what extent should standard Scheme procedures and syntax that
+  consume or construct lists be included in this proposal? For example,
+  should all of the \texttt{(rnrs\ base)} library that deals with lists
+  be included? By my count this would mean adding: \texttt{lambda},
+  \texttt{apply}, \texttt{vector-\textgreater{}list},
+  \texttt{list-\textgreater{}vector},
+  \texttt{string-\textgreater{}list}, and
+  \texttt{list-\textgreater{}string}. I am inclined to add these. Should
+  all of the \texttt{(rnrs\ \ \ \ \ lists)} library be included? These
+  procedures are easily defined in terms of what's given here, and no
+  perfomance advantage is gained by implementig them ``under the hood''
+  using the data structures in the reference implementation. I am
+  inclined \emph{not} to include them.
+\item
+  Should a \texttt{car+cdr} procedure be added?
+\item
+  Should the current \texttt{syntax} and \texttt{procedures}
+  sub-libraries be included?
+\end{itemize}
+
+\section{\texorpdfstring{\href{}{Rationale}}{Rationale}}\label{rationale}
+
+Functional programming and list hacking go together like peanut butter
+and jelly, eval and apply, syntax and semantics, or cursing and
+recursing. But the traditional approach to implementing pairs and lists
+results in index-based access (\texttt{list-ref}) requiring time
+proportional the index being accessed. Moreover, indexed-based
+functional update (\texttt{list-set}) becomes so inefficient as to be
+nearly unspeakable. Instead, programmers revert the imperatives of the
+state; they use a stateful data structure and imperative algorithms.
+
+This SRFI intends to improve the situation by offering an alternative
+implementation strategy based on Okasaki's purely functional
+random-access lists {[}\protect\hyperlink{note-1}{1}{]}. Random-access
+pairs and lists can be used as a replacement for traditional,
+linear-access pairs and lists with no asymptotic loss of efficiency. In
+other words, the typical list and pair operations such as \texttt{cons},
+\texttt{car}, and \texttt{cdr}, all operate in \emph{O(1)} time as
+usual. However, random-access lists additionally support index-based
+access and functional update operations that are asymptotically cheaper;
+\emph{O(log(n))} for random-access lists versus \emph{O(n)} for
+linear-access lists, where \emph{n} is the length of the list being
+access or updated. As such, many purely functional index-based list
+algorithms become feasible by using a random-access list representation
+for pairs and lists.
+
+The requirements of this SRFI have been designed in such a way as to
+admit portable library implementations of this feature, such as the
+reference implementation, while at the same time admit more radical
+implementations that embrace random-access pairs as the fundamental pair
+representation.
+
+\section{\texorpdfstring{\href{}{Specification}}{Specification}}\label{specification}
+
+\subsection{\texorpdfstring{\href{}{Random-access pairs and
+lists}}{Random-access pairs and lists}}\label{random-access-pairs-and-lists}
+
+A \emph{random-access pair} (or just \emph{pair}) is a compound
+structure with two fields called the car and the cdr fields (consistent
+with the historical naming of pair fields in Scheme). Pairs are created
+by the procedure \texttt{cons}. The car and cdr fields are accessed by
+the procedures \texttt{car} and \texttt{cdr}.
+
+Pairs are used primarily to represents lists. A list can be defined
+recursively as either the empty list or a pair whose cdr is a list. More
+precisely, the set of lists is defined as the smallest set \emph{X} such
+that
+
+\begin{itemize}
+\tightlist
+\item
+  The empty list is in \emph{X}.
+\item
+  If \emph{list} is in \emph{X}, then any pair whose cdr field contains
+  \emph{list} is also in \emph{X}.
+\end{itemize}
+
+The objects in the car fields of successive pairs of a list are the
+elements of the list. For example, a two-element list is a pair whose
+car is the first element and whose cdr is a pair whose car is the second
+element and whose cdr is the empty list. The length of a list is the
+number of elements, which is the same as the number of pairs.
+
+The empty list is a special object of its own type. It is not a pair. It
+has no elements and its length is zero.
+
+\begin{quote}
+\emph{Note:} The above definitions imply that all lists have finite
+length and are terminated by the empty list.
+\end{quote}
+
+A chain of pairs is defined recursively as either a non-pair object or a
+pair whose cdr is a chain of pairs (Note: \emph{every value} is a chain
+of pairs). A chain of pairs ending in the empty list is a list. A chain
+of pairs not ending in the empty list is called an improper list. Note
+that an improper list is not a list. Whether a given pair is a list
+depends upon what is stored in the cdr field.
+
+The external representation of pairs is not specified by this SRFI,
+however the examples below do use the typical notation for writing pair
+and list values.
+
+Random-access pairs and lists are specified to be fully functional, or,
+to use the term from the academic literature, \emph{fully persistent}
+{[}\protect\hyperlink{note-1}{1}{]}. Full persistence means that all
+operations on random-access lists, notably including \texttt{cons},
+\texttt{list-ref}, \texttt{list-set}, and \texttt{list-ref/update}, are
+specified
+
+\begin{enumerate}
+\tightlist
+\item
+  not to mutate any of their arguments; perforce
+\item
+  to be safe to execute concurrently on shared arguments; and
+\item
+  to suffer no degradation of performance as a consequence of the
+  history of operations carried out to produce their arguments (except
+  as it is reflected in the lengths of those arguments); but permitted
+\item
+  to produce results that share structure with their arguments.
+\end{enumerate}
+
+It is usually taken for granted that standard Scheme lists have these
+properties. This SRFI explicitly specifies that random-access lists
+share them.
+
+syntax: \texttt{(quote\ datum)}
+
+\emph{Syntax:} \textless{}Datum\textgreater{} should be a syntactic
+datum.
+
+\emph{Semantics:} \texttt{(quote\ \textless{}datum\textgreater{})}
+evaluates to the datum value represented by
+\textless{}datum\textgreater{} (see section
+\href{http://www.r6rs.org/final/html/r6rs/r6rs-Z-H-7.html\#node_sec_4.3}{4.3}
+of R6RS). This notation is used to include constants.
+
+When the datum value represented by \textless{}datum\textgreater{}
+contains pair structure, \texttt{quote} produces random-access pairs.
+
+\begin{verbatim}
+(quote a)                                      ⇒ a
+(quote #(a b c))                               ⇒ #(a b c)
+(quote (+ 1 2))                                ⇒ (+ 1 2)
+\end{verbatim}
+
+As noted in section
+\href{http://www.r6rs.org/final/html/r6rs/r6rs-Z-H-7.html\#node_sec_4.3.5}{4.3.5}
+of R6RS, \texttt{(quote\ \textless{}datum\textgreater{})} may be
+abbreviated as
+\texttt{\textquotesingle{}\textless{}datum\textgreater{}}:
+
+\begin{verbatim}
+'"abc"                                         ⇒ "abc"
+'145932                                        ⇒ 145932
+'a                                             ⇒ a
+'#(a b c)                                      ⇒ #(a b c)
+'()                                            ⇒ ()
+'(+ 1 2)                                       ⇒ (+ 1 2)
+'(quote a)                                     ⇒ (quote a)
+''a                                            ⇒ (quote a)
+\end{verbatim}
+
+As noted in section
+\href{http://www.r6rs.org/final/html/r6rs/r6rs-Z-H-8.html\#node_sec_5.10}{5.10}
+of R6RS, constants are immutable.
+
+\begin{quote}
+\emph{Note:} Different constants that are the value of \texttt{quote}
+expression may share the same locations.
+\end{quote}
+
+procedure: \texttt{(equal?\ obj1\ obj2)\ →\ bool}
+
+The \texttt{equal?} predicate returns \texttt{\#t} if and only if the
+(possibly infinite) unfoldings of its arguments into regular trees are
+equal as ordered trees.
+
+The \texttt{equal?} predicate treats pairs and vectors as nodes with
+outgoing edges, uses \texttt{string=?} to compare strings, uses
+\texttt{bytevector=?} to compare bytevectors, and uses \texttt{eqv?} to
+compare other nodes.
+
+\begin{verbatim}
+(equal? 'a 'a)                                 ⇒ #t
+(equal? '(a) '(a))                             ⇒ #t
+(equal? '(a (b) c)
+        '(a (b) c))                            ⇒ #t
+(equal? "abc" "abc")                           ⇒ #t
+(equal? 2 2)                                   ⇒ #t
+(equal? (make-vector 5 'a)
+        (make-vector 5 'a))                    ⇒ #t
+(equal? '#vu8(1 2 3 4 5)
+        (u8-list->bytevector
+         '(1 2 3 4 5))                         ⇒ #t
+(equal? (lambda (x) x)
+        (lambda (y) y))                        ⇒ unspecified
+
+(let* ((x (list 'a))
+       (y (list 'a))
+       (z (list x y)))
+  (list (equal? z (list y x))
+        (equal? z (list x x))))                ⇒ (#t #t)
+\end{verbatim}
+
+procedure: \texttt{(pair?\ obj)\ →\ bool}
+
+Returns \texttt{\#t} if \emph{obj} is a pair, and otherwise returns
+\texttt{\#f}. This operation must take \emph{O(1)} time.
+
+\begin{verbatim}
+(pair? '(a . b))                               ⇒ #t
+(pair? '(a b c))                               ⇒ #t
+(pair? '())                                    ⇒ #f
+(pair? '#(a b))                                ⇒ #f
+\end{verbatim}
+
+procedure: \texttt{(cons\ obj1\ obj2)\ →\ pair}
+
+Returns a newly allocated pair whose car is \emph{obj\textsubscript{1}}
+and whose cdr is \emph{obj\textsubscript{2}}. The pair is guaranteed to
+be different (in the sense of \texttt{eqv?}) from every existing object.
+This operation must take \emph{O(1)} time.
+
+\begin{verbatim}
+(cons 'a '())                                  ⇒  (a)
+(cons '(a) '(b c d))                           ⇒  ((a) b c d)
+(cons "a" '(b c))                              ⇒  ("a" b c)
+(cons 'a 3)                                    ⇒  (a . 3)
+(cons '(a b) 'c)                               ⇒  ((a b) . c)
+\end{verbatim}
+
+procedure: \texttt{(car\ pair)\ →\ obj}
+
+Returns the contents of the car field of \emph{pair}. This operation
+must take \emph{O(1)} time.
+
+\begin{verbatim}
+(car '(a b c))                                 ⇒  a
+(car '((a) b c d))                             ⇒  (a)
+(car '(1 . 2))                                 ⇒  1
+(car '())                               &assertion exception
+\end{verbatim}
+
+procedure: \texttt{(cdr\ pair)\ →\ obj}
+
+Returns the contents of the cdr field of \emph{pair}. This operation
+must take \emph{O(1)} time.
+
+\begin{verbatim}
+(cdr '((a) b c d))                             ⇒  (b c d)
+(cdr '(1 . 2))                                 ⇒  2
+(cdr '())                               &assertion exception
+\end{verbatim}
+
+procedure: \texttt{(caar\ pair)\ →\ obj}\\
+procedure: \texttt{(cadr\ pair)\ →\ obj}\\
+\ldots{}\\
+procedure: \texttt{(cdddar\ pair)\ →\ obj}\\
+procedure: \texttt{(cddddr\ pair)\ →\ obj}\\
+
+These procedures are compositions of \texttt{car} and \texttt{cdr},
+where for example \texttt{caddr} could be defined by\\
+\texttt{(define\ caddr\ (lambda\ (x)\ (car\ (cdr\ (cdr\ x)))))}.
+
+Arbitrary compositions, up to four deep, are provided. There are
+twenty-eight of these procedures in all. These operations must take
+\emph{O(1)} time.
+
+procedure: \texttt{(null?\ obj)\ →\ bool}
+
+Returns \texttt{\#t} if \emph{obj} is the empty list, \texttt{\#f}
+otherwise. This procedure is equivalent to the \texttt{null?} procedure
+of the R6RS base library.
+
+procedure: \texttt{(list?\ obj)\ →\ bool}
+
+Returns \texttt{\#t} if \emph{obj} is a list, \texttt{\#f} otherwise. By
+definition, all lists are chains of pairs that have finite length and
+are terminated by the empty list. This operation must take time bounded
+by \emph{O(log(n))}, where \emph{n} is the number of pairs in the chain
+forming the potential list.
+
+\begin{verbatim}
+(list? '(a b c))                               ⇒  #t
+(list? '())                                    ⇒  #t
+(list? '(a . b))                               ⇒  #f
+\end{verbatim}
+
+procedure: \texttt{(list\ obj\ ...)\ →\ list}
+
+Returns a newly allocated list of its arguments. This operation must
+take time bounded by \emph{O(n)}, where \emph{n} is the number of
+arguments to \texttt{list}.
+
+\begin{verbatim}
+(list 'a (+ 3 4) 'c)                           ⇒  (a 7 c)
+(list)                                         ⇒  ()
+\end{verbatim}
+
+procedure: \texttt{(make-list\ k)\ →\ list}\\
+procedure: \texttt{(make-list\ k\ obj)\ →\ list}
+
+Returns a newly allocated list of \emph{k} elements. If a second
+argument is given, then each element is initialized to \emph{obj}.
+Otherwise the initial contents of each element is unspecified. This
+operation must take time and space bounded by \emph{O(log(k))}.
+
+\begin{verbatim}
+(make-list 5 0)                                ⇒  (0 0 0 0 0)
+\end{verbatim}
+
+procedure: \texttt{(length\ list)\ →\ k}
+
+Returns the length of \emph{list}. This operation must take time bounded
+by \emph{O(log(n))}, where \emph{n} is the length of the list.
+
+\begin{verbatim}
+(length '(a b c))                              ⇒  3
+(length '(a (b) (c)))                          ⇒  3
+(length '())                                   ⇒  0
+\end{verbatim}
+
+procedure: \texttt{(length\textless{}=?\ obj\ k)\ →\ bool}
+
+Returns true if \emph{obj} is a chain of at least \emph{k} pairs and
+false otherwise. This operation must take time bounded by
+\emph{O(log(min(k,n)))}, where \emph{n} is the length of the chain of
+pairs.
+
+\begin{verbatim}
+(length<=? 'not-a-list 0)                      ⇒  #t
+(length<=? '(a . b) 0)                         ⇒  #t
+(length<=? '(a . b) 1)                         ⇒  #t
+(length<=? '(a . b) 2)                         ⇒  #f
+\end{verbatim}
+
+procedure: \texttt{(append\ list\ ...\ obj)\ →\ obj}
+
+Returns a chain of pairs consisting of the elements of the first
+\emph{list} followed by the elements of the other lists, with \emph{obj}
+as the cdr of the final pair. An improper list results if \emph{obj} is
+not a list. This operation must take time bounded by \emph{O(log(n))},
+where \emph{n} is the total number of elements in the given lists.
+
+\begin{verbatim}
+(append '(x) '(y))                             ⇒  (x y)
+(append '(a) '(b c d))                         ⇒  (a b c d)
+(append '(a (b)) '((c)))                       ⇒  (a (b) (c))
+(append '(a b) '(c . d))                       ⇒  (a b c . d)
+(append '() 'a)                                ⇒  a
+\end{verbatim}
+
+procedure: \texttt{(reverse\ list)\ →\ list}
+
+Returns a newly allocated list consisting of the element of \emph{list}
+in reverse order. This operation must take time bounded by \emph{O(n)}
+where \emph{n} is the length of the list.
+
+\begin{verbatim}
+(reverse '(a b c))                             ⇒  (c b a)
+(reverse '(a (b c) 'd '(e (f))))               ⇒  ((e (f)) d (b c) a)
+\end{verbatim}
+
+procedure: \texttt{(list-tail\ obj\ k)\ →\ obj}
+
+\emph{Obj} should be a chain of pairs with a count of at least \emph{k}.
+The \texttt{list-tail} procedure returns the object obtained by omitting
+the first \emph{k} elements in \emph{obj}. This operation must take time
+bounded by \emph{O(log(min(k,n)))}, where \emph{n} is the length of the
+chain of pairs.
+
+\begin{verbatim}
+(list-tail '(a b c d) 0)                       ⇒  (a b c d)
+(list-tail '(a b c d) 2)                       ⇒  (c d)
+(list-tail 'not-a-list 0)                      ⇒  not-a-list
+\end{verbatim}
+
+\emph{Implementation responsibilities:} The implementation must check
+that \emph{obj} is a chain of pairs whose count is at least \emph{k}.
+
+procedure: \texttt{(list-ref\ pair\ k)\ →\ obj}
+
+\emph{Pair} must be a chain of pairs whose count is at least \emph{k +
+1}. The \texttt{list-ref} procedure returns the \emph{k}th element of
+\emph{pair}. This operation must take time bounded by
+\emph{O(min(k,log(n)))}, where \emph{n} is the length of the chain of
+pairs.
+
+\begin{verbatim}
+(list-ref '(a b c d) 2)                        ⇒  c
+\end{verbatim}
+
+\emph{Implementation responsibilities:} The implementation must check
+that \emph{pair} is a chain of pairs whose count is at least \emph{k +
+1}.
+
+procedure: \texttt{(list-set\ pair\ k\ obj)\ →\ obj}
+
+\emph{Pair} must be a chain of pairs whose count is at least \emph{k +
+1}. The \texttt{list-set} procedure returns the chain of pairs obtained
+by replacing the \emph{k}th element with \emph{obj}. This operation must
+take time bounded by \emph{O(min(k,log(n)))}, where \emph{n} is the
+length of the chain of pairs.
+
+\begin{verbatim}
+(list-set '(a b c d) 2 'x)                     ⇒  (a b x d)
+\end{verbatim}
+
+\emph{Implementation responsibilities:} The implementation must check
+that \emph{pair} is a chain of pairs whose count is at least \emph{k +
+1}.
+
+procedure: \texttt{(list-ref/update\ pair\ k\ proc)\ →\ obj1\ obj2}
+
+Returns the same results as:
+
+\begin{verbatim}
+(values (list-ref pair k) 
+        (list-set pair k (proc (list-ref pair k))))
+\end{verbatim}
+
+but it may be implemented more efficiently.
+
+\begin{verbatim}
+(list-ref/update '(7 8 9 10) 2 -)              ⇒  9 (7 8 -9 10)
+\end{verbatim}
+
+procedure: \texttt{(map\ proc\ list1\ list2\ ...)\ →\ list}
+
+The \emph{list}s should all have the same length. \emph{Proc} should
+accept as many arguments as there are \emph{list}s and return a single
+value.
+
+The \texttt{map} procedure applies \emph{proc} element-wise to the
+elements of the \emph{list}s and returns a list of the results, in
+order. \emph{Proc} is always called in the same dynamic environment as
+\texttt{map} itself. The order in which \emph{proc} is applied to the
+elements of the \emph{list}s is unspecified.
+
+\begin{verbatim}
+(map cadr '((a b) (d e) (g h)))                ⇒  (b e h)
+
+(map (lambda (n) (expt n n))
+     '(1 2 3 4 5))
+                ⇒  (1 4 27 256 3125)
+
+(map + '(1 2 3) (4 5 6))                       ⇒  (5 7 9)
+
+(let ((count 0))
+  (map (lambda (ignored)
+         (set! count (+ count 1))
+         count)
+       '(a b)))                                ⇒  (1 2) or (2 1)
+\end{verbatim}
+
+\emph{Implementation responsibilities:} The implementation should check
+that the \emph{list}s all have the same length. The implementation must
+check the restrictions on \emph{proc} to the extent performed by
+applying it as described. An implementation may check whether
+\emph{proc} is an appropriate argument before applying it.
+
+procedure: \texttt{(for-each\ proc\ list1\ list2\ ...)\ →\ unspecified}
+
+The lists should all have the same length. \emph{Proc} should accept as
+many arguments as there are lists.
+
+The \texttt{for-each} procedure applies \emph{proc} element-wise to the
+elements of the \emph{list}s for its side effects, in order from the
+first element to the last. \emph{Proc} is always called in the same
+dynamic environment as \texttt{for-each} itself. The return values of
+\texttt{for-each} are unspecified.
+
+\begin{verbatim}
+(let ((v (make-vector 5)))
+  (for-each (lambda (i)
+              (vector-set! v i (* i i)))
+            '(0 1 2 3 4))
+  v)                                           ⇒  #(0 1 4 9 16)
+
+(for-each (lambda (x) x) '(1 2 3 4))           ⇒  unspecified
+(for-each even? '())                           ⇒  unspecified
+\end{verbatim}
+
+\emph{Implementation responsibilities:} The implementation should check
+that the \emph{list}s all have the same length. The implementation must
+check the restrictions on \emph{proc} to the extent performed by
+applying it as described. An implementation may check whether
+\emph{proc} is an appropriate argument before applying it.
+
+\begin{quote}
+\emph{Note:} Implementations of \texttt{for-each} may or may not
+tail-call \emph{proc} on the last element.
+\end{quote}
+
+\subsection{\texorpdfstring{\href{}{Representation
+conversion}}{Representation conversion}}\label{representation-conversion}
+
+procedure:
+\texttt{(random-access-list-\textgreater{}linear-access-list\ ra-list)\ →\ la-list}\\
+procedure:
+\texttt{(linear-access-list-\textgreater{}random-access-list\ la-list)\ →\ ra-list}
+
+These procedures convert between (potentially) distinct representations
+of lists. To avoid confusion, parameters named \emph{ra-list} range over
+lists represented with random-access lists, i.e. objects satisfying the
+\texttt{list?} predicate described above, while parameters named
+\emph{la-list} range over lists represented with the more traditional
+linear-access lists, i.e. objects satisfying the \texttt{list?}
+predicate of R6RS. In systems that represent all lists as random-access
+lists, these conversions may simply be list identity procedures.
+
+\subsection{\texorpdfstring{\href{}{Implementation
+requirements}}{Implementation requirements}}\label{implementation-requirements}
+
+Random-access pairs must be disjoint from all other base types with the
+possible exception of (linear-access) pairs.
+
+The external representation of random-access pairs is unspecified. The
+behavior of \texttt{equal?} when given a random-access pair and a
+sequential-access pair is unspecified in implementations with disjoint
+representations.
+
+The behavior of \texttt{eq?} and \texttt{eqv?} on random-access pairs
+must be the same as that for pairs, vectors, or records. Namely, two
+random-access pair objects are \texttt{eq?} if and only if they are
+\texttt{eqv?}, and they are \texttt{eqv?} if and only if they refer to
+the same location in the store.
+
+All argument checking for each operation must be done within the time
+bounds given for that operation.
+
+Implementations are encouraged, but not required, to support
+random-access pairs and lists as their primary pair and list
+representation. In such an implementation, the external representation
+of random-access pairs and list should be as described in section
+\href{http://www.r6rs.org/final/html/r6rs/r6rs-Z-H-7.html\#node_sec_4.3.2}{4.3.2
+(Pairs and lists)} of R\textsuperscript{6}RS, the behavior of
+equivalence predicates on random-access pairs should be as described in
+section
+\href{http://www.r6rs.org/final/html/r6rs/r6rs-Z-H-14.html\#node_idx_436}{11.5
+(Equivalence predicates)} of R\textsuperscript{6}RS, and so on. In
+short, all pairs should be random-access pairs.
+
+Implementations supporting SRFI Libraries
+{[}\protect\hyperlink{note-4}{4}{]} and SRFI 101 must provide the
+following libraries:
+
+\begin{verbatim}
+    (srfi :101)                                 ; Composite libraries
+    (srfi :101 random-access-lists)
+
+    (srfi :101 random-access-lists procedures)  ; Procedures only
+    (srfi :101 random-access-lists syntax)      ; Syntax only
+\end{verbatim}
+
+\section{\texorpdfstring{\href{}{Reference
+Implementation}}{Reference Implementation}}\label{reference-implementation}
+
+A portable R6RS library \href{srfi-101.sls}{reference implementation}
+and \href{srfi-101-tests.sls}{test suite} are provided. The library has
+been tested successfully using Ikarus (0.0.3), Larceny (0.97), and PLT
+Scheme (4.2.1.7).
+
+A PLT Scheme specific library that implements purely functional
+random-access lists, but with an API designed to be consistent with
+PLT's list libraries rather than R6RS, is available as the RaList
+package on Planet {[}\protect\hyperlink{note-5}{5}{]}.
+
+\section{\texorpdfstring{\href{}{References}}{References}}\label{references}
+
+\begin{description}
+\tightlist
+\item[\href{}{{[}1{]}} Purely Functional Random-Access Lists]
+Chris Okasaki, \emph{Functional Programming Languages and Computer
+Architecture}, June 1995, pages 86-95.\\
+\url{http://www.eecs.usma.edu/webs/people/okasaki/pubs.html\#fpca95}
+\item[\href{}{{[}2{]}} Revised\textsuperscript{6} Report on the
+Algorithmic Language Scheme]
+Michael Sperber, \emph{et al.} (Editors)\\
+\url{http://www.r6rs.org/}
+\item[\href{}{{[}3{]}} Revised\textsuperscript{6} Report on the
+Algorithmic Language Scheme, Standard Libraries]
+Michael Sperber, \emph{et al.} (Editors)\\
+\url{http://www.r6rs.org/}
+\item[\href{}{{[}4{]}} SRFI 97: SRFI Libraries]
+David Van Horn\\
+\url{http://srfi.schemers.org/srfi-97/}
+\item[\href{}{{[}5{]}} PLaneT: Purely Functional Random-Access Lists]
+David Van Horn\\
+\url{http://planet.plt-scheme.org/display.ss?package=ralist.plt\&owner=dvanhorn}
+\end{description}
+
+\section{\texorpdfstring{\href{}{Acknowledgments}}{Acknowledgments}}\label{acknowledgments}
+
+I am grateful to the members of the
+\href{http://www.ccs.neu.edu/research/prl/}{Northeastern University
+Programming Research Laboratory} and \href{http://plt-scheme.org/}{PLT}
+(and their intersection) for discussions during the pre-draft
+development of this SRFI and the library that preceded it. We are all
+indebted to Okasaki for his elegant solution to this problem. Much of
+the specification is adapted from text intended to belong to the Scheme
+community; I thank the editors and authors of the RnRS series
+collectively for their efforts. I am grateful to Donovan Kolbly for
+serving as SRFI editor and to Taylor R Campbell, Robert Bruce Findler,
+Aubrey Jaffer, Shiro Kawai, and Alexey Radul for discussion during the
+draft period. I thank William D Clinger, Robert Bruce Findler, and
+Abdulaziz Ghuloum for help writing the implementations of \texttt{quote}
+specific to Larceny, Ikarus, and PLT, respectively. Support was provided
+by the National Science Foundation under Grant \#0937060 to the
+Computing Research Association for the CIFellow Project.
+
+\section{\texorpdfstring{\href{}{Copyright}}{Copyright}}\label{copyright}
+
+Copyright (C) David Van Horn 2009. All Rights Reserved.
+
+Permission is hereby granted, free of charge, to any person obtaining a
+copy of this software and associated documentation files (the
+``Software''), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be included
+in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED ``AS IS'', WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+REMEMBER, THERE IS NO SCHEME UNDERGROUND. IN NO EVENT SHALL THE AUTHORS
+OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+\begin{center}\rule{0.5\linewidth}{\linethickness}\end{center}
+
+Editor:
+\href{mailto:srfi\%20minus\%20editors\%20at\%20srfi\%20dot\%20schemers\%20dot\%20org}{Donovan
+Kolbly}
+
+\href{http://validator.w3.org/check/referer}{\includegraphics[width=0.91667in,height=0.32292in]{http://www.w3.org/Icons/valid-xhtml10-blue}}

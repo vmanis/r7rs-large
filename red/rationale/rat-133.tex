@@ -1,0 +1,88 @@
+\section{{vector library Rationale}}
+
+R5RS provides very few list-processing
+procedures, for which reason \protect\hyperlink{SRFI-1}{SRFI 1} exists.
+However, R5RS provides even fewer vector
+operations --- while it provides mapping, appending, et cetera
+operations for lists, it specifies only nine vector manipulation
+operations:
+
+\begin{itemize}
+\tightlist
+\item
+  \texttt{vector?}
+\item
+  \texttt{make-vector}
+\item
+  \texttt{vector}
+\item
+  \texttt{vector-length}
+\item
+  \texttt{vector-ref}
+\item
+  \texttt{vector-set!}
+\item
+  \texttt{vector-\textgreater{}list}
+\item
+  \texttt{list-\textgreater{}vector}
+\item
+  \texttt{vector-fill!}
+\end{itemize}
+
+\protect\hyperlink{R7RS-small}{R7RS-small} added support for
+\emph{start} and \emph{end} arguments to
+\texttt{vector-\textgreater{}list}, \texttt{list-\textgreater{}vector}
+and \texttt{vector-fill!}. It also provided seven additional vector
+procedures, bringing vectors and lists to approximate parity:
+
+\begin{itemize}
+\tightlist
+\item
+  \texttt{vector-copy}
+\item
+  \texttt{vector-copy!}
+\item
+  \texttt{vector-append}
+\item
+  \texttt{vector-map}
+\item
+  \texttt{vector-for-each}
+\item
+  \texttt{vector-\textgreater{}string}
+\item
+  \texttt{string-\textgreater{}vector}
+\end{itemize}
+
+\protect\hyperlink{SRFI-43}{SRFI 43} standardized more vector
+procedures, all of which are included in this SRFI. Unfortunately,
+R7RS-small and SRFI 43 placed irreconcileable requirements on the
+procedures invoked by \texttt{vector-map} and \texttt{vector-for-each}.
+This SRFI resolves that issue by changing these SRFI 43 procedures as
+well as \texttt{vector-map!}, \texttt{vector-fold},
+\texttt{vector-fold-right}, and \texttt{vector-count} to leave out the
+index argument that is passed under SRFI 43's definition.
+
+In addition, the version of \texttt{vector-copy} in this SRFI does not
+require support for a fill argument, which makes it equivalent to the
+R7RS-small definition.
+
+This SRFI also provides the following new procedures (some from Python,
+some from other sources):
+
+\begin{itemize}
+\tightlist
+\item
+  \texttt{vector-unfold!}
+\item
+  \texttt{vector-unfold-right!}
+\item
+  \texttt{vector-append-subvectors}
+\item
+  \texttt{vector-cumulate}
+\item
+  \texttt{vector-partition}
+\end{itemize}
+
+It should be noted that no vector sorting procedures are provided by
+this SRFI, because there already are several SRFIs for that purpose.
+

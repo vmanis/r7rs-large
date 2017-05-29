@@ -1,0 +1,81 @@
+\section{Boxes: SRFI 111}
+
+\TODO{I've duplicated this paragraph in the Report, because it's more
+  like an introduction than rationale.}
+A box is a container for an object of any Scheme type, including another
+box. It is like a single-element vector, or half of a pair, or a direct
+representation of state. Boxes are normally used as minimal mutable
+storage, and can inject a controlled amount of mutability into an
+otherwise immutable data structure (or one that is conventionally
+treated as immutable). They can be used to implement call-by-reference
+semantics by passing a boxed value to a procedure and expecting the
+procedure to mutate the box before returning.
+
+Some Scheme systems use boxes to implement \texttt{set!}. In this
+transformation, known as \emph{assignment conversion}, all variables
+that are actually mutated are initialized to boxes, and all
+\texttt{set!} syntax forms become calls on \texttt{set-box!}. Naturally,
+all ordinary references to those variables must become calls on
+\texttt{unbox}. By reducing all variable mutation to data-structure
+mutation in this way, such Scheme systems are free to maintain variables
+in multiple hardware locations, such as the stack and the heap or
+registers and the stack, without worrying about exactly when and where
+they are mutated.
+
+Boxes are also useful for providing an extra level of indirection,
+allowing more than one body of code or data structure to share a
+reference, or pointer, to an object. In this way, if any procedure
+mutates the box in any of the data structures, all procedures will
+immediately ``see'' the new value in all data structures containing it.
+
+Racket and Chicken provide \emph{immutable boxes}, which look like boxes
+to \texttt{box?} and \texttt{unbox} but which cannot be mutated. They
+are not considered useful enough to be part of this SRFI. If they are
+provided nevertheless, the recommended constructor name is
+\texttt{immutable-box}.
+
+The following table specifies the procedure names used by the Scheme
+implementations that provide boxes:
+
+\begin{longtable}[]{@{}llllllll@{}}
+\toprule
+Proposed &
+\href{http://docs.racket-lang.org/reference/boxes.html}{Racket} &
+\href{http://www.iro.umontreal.ca/~gambit/doc/gambit-c.html\#index-boxes}{Gambit}
+& \href{http://sisc-scheme.org/manual/html/ch03.html\#Boxing}{SISC} &
+\href{http://www.scheme.com/csug7/objects.html\#g50}{Chez} &
+\href{http://wiki.call-cc.org/eggref/4/box}{Chicken} &
+\href{http://web.mit.edu/scheme_v9.0.1/doc/mit-scheme-ref/Cells.html}{MIT}
+&
+\href{http://s48.org/1.1/manual/s48manual_42.html}{Scheme48/scsh}\tabularnewline
+box & box & box & box & box & make-box & make-cell &
+make-cell\tabularnewline
+box? & box? & box? & box? & box? & box-mutable? & cell? &
+cell?\tabularnewline
+unbox & unbox & unbox & unbox & unbox & box-ref & cell-contents &
+cell-ref\tabularnewline
+set-box\texttt{!} & set-box\texttt{!} & set-box\texttt{!} &
+set-box\texttt{!} & set-box\texttt{!} & box-set\texttt{!} &
+set-cell-contents\texttt{!} & cell-set\texttt{!}\tabularnewline
+\bottomrule
+\end{longtable}
+
+Note that Chicken also supports the procedure names defined by this SRFI
+in addition to its native API. Although the native API uses the standard
+naming pattern, for the purposes of this SRFI the unanimous voice of
+Racket, Gambit, SISC, and Chez is considered more significant.
+
+Racket, Gambit, SISC, Chez, and Chicken all support the lexical syntax
+\texttt{\#\&}\emph{datum} to create a literal box (immutable in Racket,
+mutable in the other implementations). However, this SRFI does not.
+Incorporating a specifically mutable object into code makes it hard for
+an implementation to separate compile-time and run-time reliably, and
+it's not clear that providing them in data files provides enough
+benefit, as the box has to be located by tree-walking in any case. MIT
+Scheme and Scheme48/scsh do not provide a lexical syntax.
+
+The features specified in the autoboxing section of specification are
+based on those specified by RnRS for promises, which are analogous to
+immutable boxes except that their value is specified by code instead of
+data.
+

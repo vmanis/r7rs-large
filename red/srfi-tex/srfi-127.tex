@@ -1,0 +1,677 @@
+\section{Title}\label{title}
+
+Lazy Sequences
+
+\section{Author}\label{author}
+
+John Cowan
+
+\section{Status}\label{status}
+
+This SRFI is currently in \emph{final} status. Here is
+\href{http://srfi.schemers.org/srfi-process.html}{an explanation} of
+each status that a SRFI can hold. To provide input on this SRFI, please
+send email to \texttt{srfi-127@nospamsrfi.schemers.org}. To subscribe to
+the list, follow
+\href{http://srfi.schemers.org/srfi-list-subscribe.html}{these
+instructions}. You can access previous messages via the mailing list
+\href{http://srfi-email.schemers.org/srfi-127}{archive}.
+
+\begin{itemize}
+\tightlist
+\item
+  Received: 2015/10/20
+\item
+  60-day deadline: 2015/12/19
+\item
+  Draft \#1 published: 2015/10/20
+\item
+  Draft \#2 published: 2015/10/21
+\item
+  Draft \#3 published: 2015/10/25
+\item
+  Draft \#4 published: 2015/10/29
+\item
+  Draft \#5 published: 2015/12/16
+\item
+  Finalized: 2016/1/18
+\item
+  Revised to fix errata: 2016/1/20, 2016/8/8
+\end{itemize}
+
+\section{Abstract}\label{abstract}
+
+Lazy sequences (or lseqs, pronounced ``ell-seeks'') are a generalization
+of lists. In particular, an lseq is either a proper list or a dotted
+list whose last cdr is a
+\href{http://srfi.schemers.org/srfi-121/srfi-121.html}{SRFI 121}
+generator. A generator is a procedure that can be invoked with no
+arguments in order to lazily supply additional elements of the lseq.
+When a generator has no more elements to return, it returns an
+end-of-file object. Consequently, lazy sequences cannot reliably contain
+end-of-file objects.
+
+This SRFI provides a set of procedures suitable for operating on lazy
+sequences based on
+\href{http://srfi.schemers.org/srfi-1/srfi-1.html}{SRFI 1}.
+
+\section{Issues}\label{issues}
+
+None at present.
+
+\section{\texorpdfstring{\href{}{Rationale}}{Rationale}}\label{rationale}
+
+Lazy sequences are more heavyweight than generators, on which they are
+based, but they are more lightweight than
+\href{http://srfi.schemers.org/srfi-41/srfi-41.html}{SRFI 41} streams.
+However, streams are \emph{even}, as explained in the SRFI 41 rationale;
+that is, the initial state of a stream does not have any elements that
+have already been realized. By contrast, lazy sequences are \emph{odd},
+meaning that at least one element is realized at all times unless the
+lseq is empty. Therefore, when constructing an lseq in an iterative lazy
+algorithm, only the cdr side of the lazy pair is lazily evaluated; the
+car side is evaluated immediately, even if it is never used.
+
+In most cases this doesn't matter, because calculating one additional
+item is a negligible overhead. However, when you create a
+self-referential lazy structure, in which the earlier elements of a
+sequence are used to calculate the later elements of itself, a bit of
+caution is needed; code that is valid for circular streams may not
+terminate if it is mechanically converted to use lazy sequences. This
+eagerness is also visible when side effects are involved; for example, a
+lazy character sequence reading from a port may read one character
+ahead.
+
+This SRFI is less comprehensive than SRFI 1, because it omits many
+procedures that process every element of their list arguments (at least,
+when used in the absence of \texttt{call/cc}). Lseqs are meant to be
+used with ordinary Scheme functions, which are strict, so neither left
+nor right folds are provided: it is just as time-efficient to use
+\texttt{lseq-realize} and then SRFI 1 \texttt{fold} or
+\texttt{fold-right}, and just as space-efficient to use
+\texttt{lseq-\textgreater{}generator} and SRFI 121's
+\texttt{generator-fold}. Exceptions are \texttt{lseq-length} and
+\texttt{lseq-for-each}, which are very common operations on lists and so
+are provided.
+
+Lazy alists have been omitted, as the point of an alist is to express a
+function whose results are not algorithmically deducible from its
+arguments. As a result, there is little point in using a generator
+procedure to produce key-value mappings when an ordinary procedure can
+compute the value from the key directly. The linear-update procedures of
+SRFI 1 are also left out, as lazy sequences are not intended to be
+mutated.
+
+\subsection{Table of contents}\label{table-of-contents}
+
+\protect\hyperlink{ProcedureIndex}{Procedure index}
+
+\protect\hyperlink{Specification}{Specification}
+
+\begin{itemize}
+\tightlist
+\item
+  \protect\hyperlink{Constructors}{Constructors}
+\item
+  \protect\hyperlink{Predicates}{Predicates}
+\item
+  \protect\hyperlink{Selectors}{Selectors}
+\item
+  \protect\hyperlink{Whole}{The whole lazy sequence}
+\item
+  \protect\hyperlink{MappingFiltering}{Mapping and filtering}
+\item
+  \protect\hyperlink{Searching}{Searching}
+\end{itemize}
+
+\protect\hyperlink{SampleImplementation}{Sample Implementation}
+
+\protect\hyperlink{Acknowledgements}{Acknowledgements}
+
+\protect\hyperlink{ReferencesLinks}{References \& links}
+
+\protect\hyperlink{Copyright}{Copyright}
+
+\section{\texorpdfstring{\href{}{Procedure
+Index}}{Procedure Index}}\label{procedure-index}
+
+Here is a short list of the procedures provided by this SRFI.
+
+\begin{description}
+\item[ Constructors ]
+\begin{verbatim}
+generator->lseq 
+\end{verbatim}
+\item[ Predicates ]
+\begin{verbatim}
+lseq?         lseq=?
+\end{verbatim}
+\item[ Selectors ]
+\begin{verbatim}
+lseq-car     lseq-cdr
+lseq-first   lseq-rest lseq-ref
+lseq-take    lseq-drop   
+\end{verbatim}
+\item[ The whole lazy sequence ]
+\begin{verbatim}
+lseq-realize lseq->generator
+lseq-length
+lseq-append  lseq-zip
+\end{verbatim}
+\item[ Mapping and filtering ]
+\begin{verbatim}
+lseq-map        lseq-for-each
+lseq-filter     lseq-remove
+\end{verbatim}
+\item[ Searching ]
+\begin{verbatim}
+lseq-find         lseq-find-tail 
+lseq-any          lseq-every
+lseq-index
+lseq-take-while   lseq-drop-while
+lseq-member       lseq-memq     lseq-memv
+\end{verbatim}
+\end{description}
+
+\section{\texorpdfstring{\href{}{Specification}}{Specification}}\label{specification}
+
+The templates given below obey the following conventions for procedure
+formals:
+
+\begin{longtable}[]{@{}ll@{}}
+\toprule
+lseq & A lazy sequence\tabularnewline
+x, y, a, b & Any value\tabularnewline
+object, value & Any value\tabularnewline
+n, i & A natural number (an integer \textgreater{}= 0)\tabularnewline
+proc & A procedure\tabularnewline
+pred & A procedure whose return value is treated as a
+boolean\tabularnewline
+generator & A procedure with no arguments that returns a sequence of
+values\tabularnewline
+= & A boolean procedure taking two arguments\tabularnewline
+\bottomrule
+\end{longtable}
+
+To interpret the examples, pretend that they are executed on a Scheme
+that prints lazy sequences with the syntax of lists, truncating them
+when they get too long.
+
+\subsection{\texorpdfstring{\href{}{Constructors}}{Constructors}}\label{constructors}
+
+Every list constructor procedure is also an lseq constructor procedure.
+The procedure \texttt{generator-\textgreater{}lseq} constructs an lseq
+based on the values of a generator. In order to prepend a value to an
+lseq, simply use \texttt{cons}; to prepend more than one value, use SRFI
+1's \texttt{cons*}.
+
+\href{}{}
+
+\texttt{generator-\textgreater{}lseq} generator -\textgreater{} lseq
+
+Returns an lseq whose elements are the values generated by generator.
+The exact behavior is as follows:
+
+\begin{itemize}
+\tightlist
+\item
+  Generator is invoked with no arguments to produce an object obj.
+\item
+  If obj is an end-of-file object, the empty list is returned.
+\item
+  Otherwise, a newly allocated pair whose car is obj and whose cdr is
+  generator is returned.
+\end{itemize}
+
+\begin{verbatim}
+(generator->lseq (make-iota-generator +inf.0 1)) => (1 2 3 ...)
+\end{verbatim}
+
+\subsection{\texorpdfstring{\href{}{Predicates}}{Predicates}}\label{predicates}
+
+\begin{description}
+\item[ \texttt{lseq?} x -\textgreater{} boolean \href{}{} ]
+Returns \texttt{\#t} if x is an lseq. This procedure may also return
+\texttt{\#t} if x is an improper list whose last cdr is a procedure that
+requires arguments, since there is no portable way to examine a
+procedure to determine how many arguments it requires. Otherwise it
+returns \texttt{\#f}.
+\item[ \href{}{} \texttt{lseq=?} elt=? lseq\textsubscript{1}
+lseq\textsubscript{2} -\textgreater{} boolean ]
+Determines lseq equality, given an element-equality procedure. Two lseqs
+are equal if they are of the same length, and their corresponding
+elements are equal, as determined by elt=?. When elt=? is called, its
+first argument is always from lseq\textsubscript{1} and its second
+argument is from lseq\textsubscript{2}.
+
+The dynamic order in which the elt=? procedure is applied to pairs of
+elements is not specified.
+
+The elt=? procedure must be consistent with \texttt{eq?}. This implies
+that two lseqs which are \texttt{eq?} are always \texttt{lseq=?}, as
+well; implementations may exploit this fact to ``short-cut'' the
+element-by-element equality tests.
+\end{description}
+
+\subsection{\texorpdfstring{\href{}{Selectors}}{Selectors}}\label{selectors}
+
+\href{}{} \texttt{lseq-car\ \ \ }lseq -\textgreater{} object
+
+\href{}{} \texttt{lseq-first\ \ }lseq -\textgreater{} object
+
+These procedures are synonymous. They return the first element of lseq.
+They are included for completeness, as they are the same as
+\texttt{car}. It is an error to apply them to an empty lseq.
+
+\href{}{} \texttt{lseq-cdr\ \ \ }lseq -\textgreater{} lseq
+
+\href{}{} \texttt{lseq-rest\ \ }lseq -\textgreater{} lseq
+
+These procedures are synonymous. They return an lseq with the contents
+of lseq except for the first element. The exact behavior is as follows:
+
+If lseq is a pair whose cdr is a procedure, then the procedure is
+invoked with no arguments to produce an object obj.
+
+\begin{itemize}
+\tightlist
+\item
+  If obj is an end-of-file object, then the cdr of lseq is set to the
+  empty list, which is returned.
+\item
+  If obj is any other object, then a new pair is allocated whose car is
+  \emph{obj} and whose cdr is the cdr of lseq (i.e. the procedure). The
+  cdr of lseq is set to the newly allocated pair, which is returned.
+\end{itemize}
+
+If lseq is a pair whose cdr is not a procedure, then the cdr is
+returned.
+
+If lseq is not a pair, it is an error.
+
+\texttt{lseq-ref} lseq i -\textgreater{} value
+
+Returns the ith element of lseq. (This is the same as
+\texttt{(lseq-first\ (lseq-drop\ lseq\ i))}.) It is an error if i
+\textgreater{}= n, where n is the length of lseq.
+
+\begin{verbatim}
+    
+(lseq-ref '(a b c d) 2) => c
+\end{verbatim}
+
+\href{}{} \texttt{lseq-take} lseq i -\textgreater{} lseq
+
+\href{}{} \texttt{lseq-drop} lseq i -\textgreater{} lseq
+
+\texttt{lseq-take} lazily returns the first i elements of lseq.
+\texttt{lseq-drop} returns all but the first i elements of lseq.
+
+\begin{verbatim}
+(lseq-take '(a b c d e)  2) => (a b)
+(lseq-drop '(a b c d e)  2) => (c d e)
+\end{verbatim}
+
+\texttt{lseq-drop} is exactly equivalent to performing i
+\texttt{lseq-rest} operations on lseq.
+
+\subsection{\texorpdfstring{\href{}{The whole lazy
+sequence}}{The whole lazy sequence}}\label{the-whole-lazy-sequence}
+
+\begin{description}
+\item[ \href{}{} \texttt{lseq-realize} lseq -\textgreater{} list ]
+Repeatedly applies \texttt{lseq-cdr} to lseq until its generator (if
+there is one) has been exhausted, and returns lseq, which is now
+guaranteed to be a proper list. This procedure can be called on an
+arbitrary lseq before passing it to a procedure which only accepts
+lists. However, if the generator never returns an end-of-file object,
+\texttt{lseq-realize} will never return.
+\end{description}
+
+\begin{description}
+\item[ \href{}{} \texttt{lseq-\textgreater{}generator} lseq
+-\textgreater{} generator ]
+Returns a generator which when invoked will return all the elements of
+lseq, including any that have not yet been realized.
+\end{description}
+
+\href{}{} \texttt{lseq-length\ \ }lseq -\textgreater{} integer
+
+Returns the length of its argument, which is the non-negative integer n
+such that \texttt{lseq-rest} applied n times to the lseq produces an
+empty lseq. lseq must be finite, or this procedure will not return.
+
+\begin{description}
+\item[\texttt{lseq-append} \emph{lseq \ldots{}}]
+Returns an lseq that lazily contains all the elements of all the lseqs
+in order.
+\end{description}
+
+\href{}{}
+
+\texttt{lseq-zip} lseq\textsubscript{1} lseq\textsubscript{2} \ldots{}
+-\textgreater{} lseq
+
+If \texttt{lseq-zip} is passed n lseqs, it lazily returns an lseq each
+element of which is an n-element list comprised of the corresponding
+elements from the lseqs. If any of the lseqs are finite in length, the
+result is as long as the shortest lseq.
+
+\begin{verbatim}
+(lseq-zip '(one two three) 
+     (generator->lseq (make-iota-generator +inf.0 1 1))
+     (generator->lseq (make-repeating-generator) '(odd even))))
+    => ((one 1 odd) (two 2 even) (three 3 odd))
+
+(lseq-zip '(1 2 3)) => ((1) (2) (3))
+\end{verbatim}
+
+\subsection{\texorpdfstring{\href{}{Mapping and
+filtering}}{Mapping and filtering}}\label{mapping-and-filtering}
+
+\href{}{} \texttt{lseq-map} proc lseq\textsubscript{1}
+lseq\textsubscript{2} \ldots{} -\textgreater{} lseq
+
+The \texttt{lseq-map} procedure lazily applies proc element-wise to the
+corresponding elements of the lseqs, where proc is a procedure taking as
+many arguments as there are lseqs and returning a single value, and
+returns an lseq of the results in order. The dynamic order in which proc
+is applied to the elements of the lseqs is unspecified.
+
+\begin{verbatim}
+(lseq-map
+  (lambda (x) (lseq-car (lseq-cdr x)))
+  '((a b) (d e) (g h))) =>  (b e h)
+
+(lseq-map (lambda (n) (expt n n))
+     (make-iota-generator +inf.0 1 1)
+    =>  (1 4 27 256 3125 ...)
+
+(lseq-map + '(1 2 3) '(4 5 6)) =>  (5 7 9)
+
+(let ((count 0))
+  (lseq-map (lambda (ignored)
+         (set! count (+ count 1))
+         count)
+       '(a b))) =>  (1 2) or (2 1)
+\end{verbatim}
+
+\href{}{} \texttt{lseq-for-each} proc lseq\textsubscript{1}
+lseq\textsubscript{2} \ldots{} -\textgreater{} unspecified
+
+The arguments to \texttt{lseq-for-each} are like the arguments to
+\texttt{lseq-map}, but \texttt{lseq-for-each} calls proc for its side
+effects rather than for its values. Unlike \texttt{lseq-map},
+\texttt{lseq-for-each} is guaranteed to call proc on the elements of the
+lseqs in order from the first element(s) to the last, and the value
+returned by \texttt{lseq-for-each} is unspecified.
+
+If none of the lseqs are finite, \texttt{lseq-for-each} never returns.
+
+\begin{verbatim}
+(let ((v (make-vector 5)))
+  (lseq-for-each (let ((count 0))
+                   (lambda (i)
+                     (vector-set! v count (* i i))
+                     (set! count (+ count 1))))
+                 '(0 1 2 3 4))
+  v)
+  =>  (#0 1 2 3 4)
+\end{verbatim}
+
+\href{}{} \texttt{lseq-filter} pred lseq -\textgreater{} lseq
+
+\href{}{} \texttt{lseq-remove} pred lseq -\textgreater{} lseq
+
+The procedure \texttt{lseq-filter} lazily returns an lseq that contains
+only the elements of lseq that satisfy pred.
+
+The procedure \texttt{lseq-remove} is the same as \texttt{lseq-filter},
+except that it returns elements that do not satisfy pred. These
+procedures are guaranteed to call pred on the elements of the lseqs in
+sequence order.
+
+\begin{verbatim}
+(lseq-filter odd? (generator->lseq (make-range-generator 1 5)))
+  =>  (1 3)
+\end{verbatim}
+
+\begin{verbatim}
+(lseq-remove odd? (generator->lseq (make-range-generator 1 5)))
+  =>  (2 4)
+\end{verbatim}
+
+\subsection{\texorpdfstring{\href{}{Searching}}{Searching}}\label{searching}
+
+The following procedures all search lseqs for the leftmost element
+satisfying some criterion.
+
+\href{}{} \texttt{lseq-find} pred lseq -\textgreater{} value
+
+Return the first element of lseq that satisfies predicate pred, or
+\texttt{\#f} if no element does. It cannot reliably be applied to lseqs
+that include \texttt{\#f} as an element; use \texttt{lseq-find-tail}
+instead. The predicate is guaranteed to be evaluated on the elements of
+lseq in sequence order, and only as often as necessary.
+
+\begin{verbatim}
+(lseq-find even? '(3 1 4 1 5 9 2 6)) => 4
+\end{verbatim}
+
+\href{}{} \texttt{lseq-find-tail} pred lseq -\textgreater{} lseq or
+\texttt{\#f}
+
+Returns the longest tail of lseq whose first element satisfies pred, or
+\texttt{\#f} if no element does. The predicate is guaranteed to be
+evaluated on the elements of lseq in sequence order, and only as often
+as necessary.
+
+\texttt{lseq-find-tail} can be viewed as a general-predicate variant of
+the \texttt{lseq-member} function.
+
+Examples:
+
+\begin{verbatim}
+(lseq-find-tail even? '(3 1 37 -8 -5 0 0)) => (-8 -5 0 0)
+(lseq-find-tail even? '(3 1 37 -5)) => #f
+
+;; equivalent to (lseq-member elt lseq)
+(lseq-find-tail (lambda (elt) (equal? x elt)) lseq)
+\end{verbatim}
+
+\href{}{} \texttt{lseq-take-while\ } pred lseq -\textgreater{} lseq
+
+Lazily returns the longest initial prefix of lseq whose elements all
+satisfy the predicate pred.
+
+\begin{verbatim}
+(lseq-take-while even? '(2 18 3 10 22 9)) => (2 18)
+\end{verbatim}
+
+\href{}{} \texttt{lseq-drop-while} pred lseq -\textgreater{} lseq
+
+Drops the longest initial prefix of lseq whose elements all satisfy the
+predicate pred, and returns the rest of the lseq.
+
+\begin{verbatim}
+(lseq-drop-while even? '(2 18 3 10 22 9)) => (3 10 22 9)
+\end{verbatim}
+
+Note that \texttt{lseq-drop-while} is essentially
+\texttt{lseq-find-tail} where the sense of the predicate is inverted:
+\texttt{lseq-find-tail} searches until it finds an element satisfying
+the predicate; \texttt{lseq-drop-while} searches until it finds an
+element that \emph{doesn't} satisfy the predicate.
+
+\href{}{} \texttt{lseq-any} pred lseq\textsubscript{1}
+lseq\textsubscript{2} \ldots{} -\textgreater{} value
+
+Applies pred to successive elements of the lseqs, returning true if pred
+returns true on any application. If an application returns a true value,
+\texttt{lseq-any} immediately returns that value. Otherwise, it iterates
+until a true value is produced or one of the lseqs runs out of values;
+in the latter case, \texttt{lseq-any} returns \texttt{\#f}. It is an
+error if \emph{pred} does not accept the same number of arguments as
+there are \emph{lseqs} and return a boolean result.
+
+Note the difference between \texttt{lseq-find} and \texttt{lseq-any} ---
+\texttt{lseq-find} returns the element that satisfied the predicate;
+\texttt{lseq-any} returns the true value that the predicate produced.
+
+Like \texttt{lseq-every}, \texttt{lseq-any}'s name does not end with a
+question mark --- this is to indicate that it does not return a simple
+boolean (\texttt{\#t} or \texttt{\#f}), but a general value.
+
+\begin{verbatim}
+(lseq-any integer? '(a 3 b 2.7))   => #t
+(lseq-any integer? '(a 3.1 b 2.7)) => #f
+(lseq-any < '(3 1 4 1 5)
+       '(2 7 1 8 2)) => #t
+\end{verbatim}
+
+\begin{verbatim}
+(define (factorial n)
+  (cond
+    ((< n 0) #f)
+    ((= n 0) 1)
+    (else (* n (factorial (- n 1))))))
+(lseq-any factorial '(-1 -2 3 4))
+        => 6
+\end{verbatim}
+
+\href{}{} \texttt{lseq-every} pred lseq\textsubscript{1}
+lseq\textsubscript{2} \ldots{} -\textgreater{} value
+
+Applies pred to successive elements of the lseqs, returning true if the
+predicate returns true on every application. If an application returns a
+false value, \texttt{lseq-every} immediately returns that value.
+Otherwise, it iterates until a false value is produced or one of the
+lseqs runs out of values; in the latter case, \texttt{lseq-every}
+returns the last value returned by pred, or \texttt{\#t} if pred was
+never invoked. It is an error if \emph{pred} does not accept the same
+number of arguments as there are \emph{lseqs} and return a boolean
+result.
+
+Like \texttt{lseq-any}, \texttt{lseq-every}'s name does not end with a
+question mark --- this is to indicate that it does not return a simple
+boolean (\texttt{\#t} or \texttt{\#f}), but a general value.
+
+\begin{verbatim}
+(lseq-every factorial '(1 2 3 4))
+        => 24
+\end{verbatim}
+
+\href{}{} \texttt{lseq-index} pred lseq\textsubscript{1}
+lseq\textsubscript{2} \ldots{} -\textgreater{} integer or \texttt{\#f}
+
+Return the index of the leftmost element that satisfies pred.
+
+Applies pred to successive elements of the lseqs, returning an index
+usable with \texttt{lseq-ref} if the predicate returns true. Otherwise,
+it iterates until one of the lseqs runs out of values, in which case
+\texttt{\#f} is returned.
+
+It is an error if \emph{pred} does not accept the same number of
+arguments as there are \emph{lseqs} and return a boolean result.
+
+The iteration stops when one of the lseqs runs out of values; in this
+case, \texttt{lseq-index} returns \texttt{\#f}.
+
+\begin{verbatim}
+(lseq-index even? '(3 1 4 1 5 9)) => 2
+(lseq-index < '(3 1 4 1 5 9 2 5 6) '(2 7 1 8 2)) => 1
+(lseq-index = '(3 1 4 1 5 9 2 5 6) '(2 7 1 8 2)) => #f
+\end{verbatim}
+
+\href{}{} \texttt{lseq-member} x lseq {[} pred {]} -\textgreater{} lseq
+
+\href{}{} \texttt{lseq-memq} x lseq -\textgreater{} lseq
+
+\href{}{} \texttt{lseq-memv} x lseq -\textgreater{} lseq
+
+These procedures return the longest tail of lseq whose first element is
+x, where the tails of lseq are the non-empty lseqs returned by
+\texttt{(lseq-drop\ lseq\ i)} for i less than the length of lseq. If x
+does not occur in lseq, then \texttt{\#f} is returned.
+\texttt{lseq-memq} uses \texttt{eq?} to compare x with the elements of
+lseq, while \texttt{lseq-memv} uses \texttt{eqv?}, and
+\texttt{lseq-member} uses pred, which defaults to \texttt{equal?}.
+
+\begin{verbatim}
+    (lseq-memq 'a '(a b c))           =>  (a b c)
+    (lseq-memq 'b '(a b c))           =>  (b c)
+    (lseq-memq 'a '(b c d))           =>  #f
+    (lseq-memq (list 'a) '(b (a) c)) =>  #f
+    (lseq-member (list 'a)
+            '(b (a) c))           =>  ((a) c)
+    (lseq-memq 101 '(100 101 102))    =>  *unspecified*
+    (lseq-memv 101 '(100 101 102))    =>  (101 102)
+\end{verbatim}
+
+The equality procedure is used to compare the elements
+e\textsubscript{i} of lseq to the key x in this way: the first argument
+is always x, and the second argument is one of the lseq elements. Thus
+one can reliably find the first element of lseq that is greater than
+five with \texttt{(lseq-member\ 5\ lseq\ \textless{})}
+
+Note that fully general lseq searching may be performed with the
+\texttt{lseq-find-tail} procedure, \emph{e.g.}
+
+\begin{verbatim}
+(lseq-find-tail even? lseq) ; Find the first elt with an even key.
+\end{verbatim}
+
+\section{\texorpdfstring{\href{}{Sample
+Implementation}}{Sample Implementation}}\label{sample-implementation}
+
+The files in the implementation are in the SRFI 127 repository, and are
+as follows:
+
+\begin{itemize}
+\tightlist
+\item
+  \texttt{lseq.sld} - an R7RS library
+\item
+  \texttt{lseq.scm} - a Chicken library
+\item
+  \texttt{lseq-impl.scm} - portable implementation code
+\item
+  \texttt{lseq-test.scm} - a Chicken test-egg file
+\end{itemize}
+
+\section{\texorpdfstring{\href{}{Acknowledgements}}{Acknowledgements}}\label{acknowledgements}
+
+Without the work of Olin Shivers on
+\href{http://srfi.schemers.org/srfi-1/srfi-1.html}{SRFI 1}, this SRFI
+would not exist. Everyone acknowledged there is transitively
+acknowledged here. This is not to imply that either Olin or anyone else
+necessarily endorses the final results, of course.
+
+Special thanks to Shiro Kawai, whose Gauche implementation of lazy
+sequences inspired this one, and to Kragen Javier Sitaker, who did a
+thorough review.
+
+\section{Copyright}\label{copyright}
+
+Copyright (C) John Cowan (2015). All Rights Reserved.
+
+Permission is hereby granted, free of charge, to any person obtaining a
+copy of this software and associated documentation files (the
+``Software''), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be included
+in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED ``AS IS'', WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+\begin{center}\rule{0.5\linewidth}{\linethickness}\end{center}

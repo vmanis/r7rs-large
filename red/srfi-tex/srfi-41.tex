@@ -1,0 +1,2954 @@
+\section{Title}\label{title}
+
+Streams
+
+\section{Author}\label{author}
+
+Philip L. Bewig
+
+\section{Status}\label{status}
+
+This SRFI is currently in ``final'' status. To see an explanation of
+each status that a SRFI can hold, see
+\href{http://srfi.schemers.org/srfi-process.html}{here}. To comment on
+this SRFI, please
+\texttt{\ mailto:srfi\ minus\ 41\ at\ srfi\ dot\ schemers\ dot\ org}.
+See
+\href{http://srfi.schemers.org/srfi-list-subscribe.html}{instructions
+here} to subscribe to the list. You can access the discussion via
+\href{http://srfi.schemers.org/srfi-41/mail-archive/maillist.html}{the
+archive of the mailing list}. You can access post-finalization messages
+via
+\href{http://srfi.schemers.org/srfi-41/post-mail-archive/maillist.html}{the
+archive of the mailing list}.
+
+\begin{itemize}
+\tightlist
+\item
+  Received:
+  \href{http://srfi.schemers.org/srfi-41/srfi-41-1.2.html}{2007/10/24}
+\item
+  Revised:
+  \href{http://srfi.schemers.org/srfi-41/srfi-41-1.3.html}{2007/11/14}
+\item
+  Revised:
+  \href{http://srfi.schemers.org/srfi-41/srfi-41-1.5.html}{2007/11/14}
+\item
+  Revised:
+  \href{http://srfi.schemers.org/srfi-41/srfi-41-1.6.html}{2007/12/17}
+\item
+  Final:
+  \href{http://srfi.schemers.org/srfi-41/srfi-41-1.7.html}{2008/01/24}
+\item
+  Post-finalization improvement to \texttt{stream-constant}:
+  \href{http://srfi-email.schemers.org/srfi-41/dates/2015/10}{2015/11/2}
+\item
+  Draft: 2007/10/21 - 2007/12/22
+\end{itemize}
+
+\section{Abstract}\label{abstract}
+
+Streams, sometimes called lazy lists, are a sequential data structure
+containing elements computed only on demand. A stream is either null or
+is a pair with a stream in its cdr. Since elements of a stream are
+computed only when accessed, streams can be infinite. Once computed, the
+value of a stream element is cached in case it is needed again.
+
+Streams without memoization were first described by Peter Landin in
+1965. Memoization became accepted as an essential feature of streams
+about a decade later. Today, streams are the signature data type of
+functional programming languages such as Haskell.
+
+This Scheme Request for Implementation describes two libraries for
+operating on streams: a canonical set of stream primitives and a set of
+procedures and syntax derived from those primitives that permits
+convenient expression of stream operations. They rely on facilities
+provided by R6RS, including libraries, records, and error reporting. To
+load both stream libraries, say:
+
+(import (streams))
+
+\section{Rationale}\label{rationale}
+
+Harold Abelson and Gerald Jay Sussman discuss streams at length, giving
+a strong justification for their use. The streams they provide are
+represented as a cons pair with a promise to return a stream in its cdr;
+for instance, a stream with elements the first three counting numbers is
+represented conceptually as (cons 1 (delay (cons 2 (delay (cons 3 (delay
+'())))))). Philip Wadler, Walid Taha and David MacQueen describe such
+streams as \emph{odd} because, regardless of their length, the parity of
+the number of constructors (delay, cons, '()) in the stream is odd.
+
+The streams provided here differ from those of Abelson and Sussman,
+being represented as promises that contain a cons pair with a stream in
+its cdr; for instance, the stream with elements the first three counting
+numbers is represented conceptually as (delay (cons 1 (delay (cons 2
+(delay (cons 3 (delay '()))))))); this is an \emph{even} stream because
+the parity of the number of constructors in the stream is even.
+
+Even streams are more complex than odd streams in both definition and
+usage, but they offer a strong benefit: they fix the off-by-one error of
+odd streams. Wadler, Taha and MacQueen show, for instance, that an
+expression like (stream-\textgreater{}list 4 (stream-map / (stream-from
+4 -1))) evaluates to (1/4 1/3 1/2 1) using even streams but fails with a
+divide-by-zero error using odd streams, because the next element in the
+stream, which will be 1/0, is evaluated before it is accessed. This
+extra bit of laziness is not just an interesting oddity; it is vitally
+critical in many circumstances, as will become apparent below.
+
+When used effectively, the primary benefit of streams is improved
+modularity. Consider a process that takes a sequence of items, operating
+on each in turn. If the operation is complex, it may be useful to split
+it into two or more procedures in which the partially-processed sequence
+is an intermediate result. If that sequence is stored as a list, the
+entire intermediate result must reside in memory all at once; however,
+if the intermediate result is stored as a stream, it can be generated
+piecemeal, using only as much memory as required by a single item. This
+leads to a programming style that uses many small operators, each
+operating on the sequence of items as a whole, similar to a pipeline of
+unix commands.
+
+In addition to improved modularity, streams permit a clear exposition of
+backtracking algorithms using the ``stream of successes'' technique, and
+they can be used to model generators and co-routines. The implicit
+memoization of streams makes them useful for building persistent data
+structures, and the laziness of streams permits some multi-pass
+algorithms to be executed in a single pass. Savvy programmers use
+streams to enhance their programs in countless ways.
+
+There is an obvious space/time trade-off between lists and streams;
+lists take more space, but streams take more time (to see why, look at
+all the type conversions in the implementation of the stream
+primitives). Streams are appropriate when the sequence is truly
+infinite, when the space savings are needed, or when they offer a
+clearer exposition of the algorithms that operate on the sequence.
+
+\section{Specification}\label{specification}
+
+\subsection{The (streams primitive)
+library}\label{the-streams-primitive-library}
+
+The (streams primitive) library provides two mutually-recursive abstract
+data types: An object of the stream abstract data type is a promise
+that, when forced, is either stream-null or is an object of type
+stream-pair. An object of the stream-pair abstract data type contains a
+stream-car and a stream-cdr, which must be a stream. The essential
+feature of streams is the systematic suspensions of the recursive
+promises between the two data types.
+
+\begin{verbatim}
+α stream
+  :: (promise stream-null)
+  |  (promise (α stream-pair))
+\end{verbatim}
+
+\begin{verbatim}
+α stream-pair
+  :: (promise α) × (promise (α stream))
+\end{verbatim}
+
+The object stored in the stream-car of a stream-pair is a promise that
+is forced the first time the stream-car is accessed; its value is cached
+in case it is needed again. The object may have any type, and different
+stream elements may have different types. If the stream-car is never
+accessed, the object stored there is never evaluated. Likewise, the
+stream-cdr is a promise to return a stream, and is only forced on
+demand.
+
+This library provides eight operators: constructors for stream-null and
+stream-pairs, type recognizers for streams and the two kinds of streams,
+accessors for both fields of a stream-pair, and a lambda that creates
+procedures that return streams.
+
+\textbf{constructor:} \textbf{stream-null}\\
+Stream-null is a promise that, when forced, is a single object,
+distinguishable from all other objects, that represents the null stream.
+Stream-null is immutable and unique.
+
+\textbf{constructor:} \textbf{(stream-cons} \textbf{\emph{object}}
+\textbf{} \textbf{\emph{stream})}\\
+Stream-cons is a macro that accepts an \emph{object} and a \emph{stream}
+and creates a newly-allocated stream containing a promise that, when
+forced, is a stream-pair with the \emph{object} in its stream-car and
+the \emph{stream} in its stream-cdr. Stream-cons must be syntactic, not
+procedural, because neither \emph{object} nor \emph{stream} is evaluated
+when stream-cons is called. Since \emph{stream} is not evaluated, when
+the stream-pair is created, it is not an error to call stream-cons with
+a \emph{stream} that is not of type stream; however, doing so will cause
+an error later when the stream-cdr of the stream-pair is accessed. Once
+created, a stream-pair is immutable; there is no stream-set-car! or
+stream-set-cdr! that modifies an existing stream-pair. There is no
+dotted-pair or improper stream as with lists.
+
+\textbf{recognizer:} \textbf{(stream?} \textbf{\emph{object})}\\
+Stream? is a procedure that takes an \emph{object} and returns \#t if
+the \emph{object} is a stream and \#f otherwise. If \emph{object} is a
+stream, stream? does not force its promise. If (stream? obj) is \#t,
+then one of (stream-null? obj) and (stream-pair? obj) will be \#t and
+the other will be \#f; if (stream? obj) is \#f, both (stream-null? obj)
+and (stream-pair? obj) will be \#f.
+
+\textbf{recognizer:} \textbf{(stream-null?} \textbf{\emph{object})}\\
+Stream-null? is a procedure that takes an \emph{object} and returns \#t
+if the \emph{object} is the distinguished null stream and \#f otherwise.
+If \emph{object} is a stream, stream-null? must force its promise in
+order to distinguish stream-null from stream-pair.
+
+\textbf{recognizer:} \textbf{(stream-pair?} \textbf{\emph{object})}\\
+Stream-pair? is a procedure that takes an \emph{object} and returns \#t
+if the \emph{object} is a stream-pair constructed by stream-cons and \#f
+otherwise. If \emph{object} is a stream, stream-pair? must force its
+promise in order to distinguish stream-null from stream-pair.
+
+\textbf{accessor:} \textbf{(stream-car} \textbf{\emph{stream})}\\
+Stream-car is a procedure that takes a \emph{stream} and returns the
+object stored in the stream-car of the \emph{stream}. Stream-car signals
+an error if the object passed to it is not a stream-pair. Calling
+stream-car causes the object stored there to be evaluated if it has not
+yet been; the object's value is cached in case it is needed again.
+
+\textbf{accessor:} \textbf{(stream-cdr} \textbf{\emph{stream})}\\
+Stream-cdr is a procedure that takes a \emph{stream} and returns the
+stream stored in the stream-cdr of the \emph{stream}. Stream-cdr signals
+an error if the object passed to it is not a stream-pair. Calling
+stream-cdr does not force the promise containing the stream stored in
+the stream-cdr of the \emph{stream}.
+
+\textbf{lambda:} \textbf{(stream-lambda} \textbf{\emph{args}} \textbf{}
+\textbf{\emph{body})}\\
+Stream-lambda creates a procedure that returns a promise to evaluate the
+\emph{body} of the procedure. The last \emph{body} expression to be
+evaluated must yield a stream. As with normal lambda, \emph{args} may be
+a single variable name, in which case all the formal arguments are
+collected into a single list, or a list of variable names, which may be
+null if there are no arguments, proper if there are an exact number of
+arguments, or dotted if a fixed number of arguments is to be followed by
+zero or more arguments collected into a list. \emph{Body} must contain
+at least one expression, and may contain internal definitions preceding
+any expressions to be evaluated.
+
+\begin{verbatim}
+(define strm123
+  (stream-cons 1
+    (stream-cons 2
+      (stream-cons 3
+        stream-null))))
+\end{verbatim}
+
+(stream-car strm123) ⇒ 1
+
+(stream-car (stream-cdr strm123) ⇒ 2
+
+\begin{verbatim}
+(stream-pair?
+  (stream-cdr
+    (stream-cons (/ 1 0) stream-null))) ⇒ #f
+\end{verbatim}
+
+(stream? (list 1 2 3)) ⇒ \#f
+
+\begin{verbatim}
+(define iter
+  (stream-lambda (f x)
+    (stream-cons x (iter f (f x)))))
+\end{verbatim}
+
+(define nats (iter (lambda (x) (+ x 1)) 0))
+
+(stream-car (stream-cdr nats)) ⇒ 1
+
+\begin{verbatim}
+(define stream-add
+  (stream-lambda (s1 s2)
+    (stream-cons
+      (+ (stream-car s1) (stream-car s2))
+      (stream-add (stream-cdr s1)
+                  (stream-cdr s2)))))
+\end{verbatim}
+
+(define evens (stream-add nats nats))
+
+(stream-car evens) ⇒ 0
+
+(stream-car (stream-cdr evens)) ⇒ 2
+
+(stream-car (stream-cdr (stream-cdr evens))) ⇒ 4
+
+\subsection{The (streams derived)
+library}\label{the-streams-derived-library}
+
+The (streams derived) library provides useful procedures and syntax that
+depend on the primitives defined above. In the operator templates given
+below, an ellipsis \ldots{} indicates zero or more repetitions of the
+preceding subexpression and square brackets {[}\ldots{}{]} indicate
+optional elements. In the type annotations given below, square brackets
+{[}\ldots{}{]} refer to lists, curly braces \{\ldots{}\} refer to
+streams, and nat refers to exact non-negative integers.
+
+\textbf{syntax:} \textbf{(define-stream (\emph{name}} \textbf{}
+\textbf{\emph{args})} \textbf{\emph{body})}\\
+Define-stream creates a procedure that returns a stream, and may appear
+anywhere a normal define may appear, including as an internal
+definition, and may have internal definitions of its own, including
+other define-streams. The defined procedure takes arguments in the same
+way as stream-lambda. Define-stream is syntactic sugar on stream-lambda;
+see also stream-let, which is also a sugaring of stream-lambda.
+
+A simple version of stream-map that takes only a single input stream
+calls itself recursively:
+
+\begin{verbatim}
+(define-stream (stream-map proc strm)
+  (if (stream-null? strm)
+      stream-null
+      (stream-cons
+        (proc (stream-car strm))
+        (stream-map proc (stream-cdr strm))))))
+\end{verbatim}
+
+\textbf{procedure:} \textbf{(list-\textgreater{}stream}
+\textbf{\emph{list-of-objects})}\\
+{[}α{]} → \{α\}\\
+List-\textgreater{}stream takes a list of objects and returns a
+newly-allocated stream containing in its elements the objects in the
+list. Since the objects are given in a list, they are evaluated when
+list-\textgreater{}stream is called, before the stream is created. If
+the list of objects is null, as in (list-\textgreater{}stream '()), the
+null stream is returned. See also stream.
+
+(define strm123 (list-\textgreater{}stream '(1 2 3)))
+
+\begin{verbatim}
+; fails with divide-by-zero error
+(define s (list->stream (list 1 (/ 1 0) -1)))
+\end{verbatim}
+
+\textbf{procedure:} \textbf{(port-\textgreater{}stream
+{[}\emph{port}{]})}\\
+port → \{char\}\\
+Port-\textgreater{}stream takes a \emph{port} and returns a
+newly-allocated stream containing in its elements the characters on the
+port. If \emph{port} is not given it defaults to the current input port.
+The returned stream has finite length and is terminated by stream-null.
+
+It looks like one use of port-\textgreater{}stream would be this:
+
+\begin{verbatim}
+(define s ;wrong!
+  (with-input-from-file filename
+    (lambda () (port->stream))))
+\end{verbatim}
+
+But that fails, because with-input-from-file is eager, and closes the
+input port prematurely, before the first character is read. To read a
+file into a stream, say:
+
+\begin{verbatim}
+(define-stream (file->stream filename)
+  (let ((p (open-input-file filename)))
+    (stream-let loop ((c (read-char p)))
+      (if (eof-object? c)
+          (begin (close-input-port p)
+                 stream-null)
+          (stream-cons c
+            (loop (read-char p)))))))
+\end{verbatim}
+
+\textbf{syntax:} \textbf{(stream} \textbf{\emph{object}}
+\textbf{\ldots{})}\\
+Stream is syntax that takes zero or more \emph{object}s and creates a
+newly-allocated stream containing in its elements the \emph{object}s, in
+order. Since stream is syntactic, the \emph{object}s are evaluated when
+they are accessed, not when the stream is created. If no \emph{object}s
+are given, as in (stream), the null stream is returned. See also
+list-\textgreater{}stream.
+
+(define strm123 (stream 1 2 3))
+
+\begin{verbatim}
+; (/ 1 0) not evaluated when stream is created
+(define s (stream 1 (/ 1 0) -1))
+\end{verbatim}
+
+\textbf{procedure:} \textbf{(stream-\textgreater{}list {[}\emph{n}{]}}
+\textbf{\emph{stream})}\\
+nat × \{α\} → {[}α{]}\\
+Stream-\textgreater{}list takes a natural number \emph{n} and a
+\emph{stream} and returns a newly-allocated list containing in its
+elements the first \emph{n} items in the \emph{stream}. If the
+\emph{stream} has less than \emph{n} items all the items in the
+\emph{stream} will be included in the returned list. If \emph{n} is not
+given it defaults to infinity, which means that unless \emph{stream} is
+finite stream-\textgreater{}list will never return.
+
+\begin{verbatim}
+(stream->list 10
+  (stream-map (lambda (x) (* x x))
+    (stream-from 0)))
+  ⇒ (0 1 4 9 16 25 36 49 64 81)
+\end{verbatim}
+
+\textbf{procedure:} \textbf{(stream-append} \textbf{\emph{stream}}
+\textbf{\ldots{})}\\
+\{α\} \ldots{} → \{α\}\\
+Stream-append returns a newly-allocated stream containing in its
+elements those elements contained in its input \emph{stream}s, in order
+of input. If any of the input \emph{stream}s is infinite, no elements of
+any of the succeeding input \emph{stream}s will appear in the output
+stream; thus, if x is infinite, (stream-append x y) ≡ x. See also
+stream-concat.
+
+Quicksort can be used to sort a stream, using stream-append to build the
+output; the sort is lazy; so if only the beginning of the output stream
+is needed, the end of the stream is never sorted.
+
+\begin{verbatim}
+(define-stream (qsort lt? strm)
+  (if (stream-null? strm)
+      stream-null
+      (let ((x (stream-car strm))
+            (xs (stream-cdr strm)))
+        (stream-append
+          (qsort lt?
+            (stream-filter
+              (lambda (u) (lt? u x))
+              xs))
+          (stream x)
+          (qsort lt?
+            (stream-filter
+              (lambda (u) (not (lt? u x)))
+              xs))))))
+\end{verbatim}
+
+Note also that, when used in tail position as in qsort, stream-append
+does not suffer the poor performance of append on lists. The list
+version of append requires re-traversal of all its list arguments except
+the last each time it is called. But stream-append is different. Each
+recursive call to stream-append is suspended; when it is later forced,
+the preceding elements of the result have already been traversed, so
+tail-recursive loops that produce streams are efficient even when each
+element is appended to the end of the result stream. This also implies
+that during traversal of the result only one promise needs to be kept in
+memory at a time.
+
+\textbf{procedure:} \textbf{(stream-concat} \textbf{\emph{stream})}\\
+\{\{α\}\} \ldots{} → \{α\}\\
+Stream-concat takes a \emph{stream} consisting of one or more streams
+and returns a newly-allocated stream containing all the elements of the
+input streams. If any of the streams in the input \emph{stream} is
+infinite, any remaining streams in the input \emph{stream} will never
+appear in the output stream. See also stream-append.
+
+\begin{verbatim}
+(stream->list
+  (stream-concat
+    (stream
+      (stream 1 2) (stream) (stream 3 2 1))))
+  ⇒ (1 2 3 2 1)
+\end{verbatim}
+
+The permutations of a finite stream can be determined by interleaving
+each element of the stream in all possible positions within each
+permutation of the other elements of the stream. Interleave returns a
+stream of streams with \emph{x} inserted in each possible position of
+\emph{yy}:
+
+\begin{verbatim}
+(define-stream (interleave x yy)
+  (stream-match yy
+    (() (stream (stream x)))
+    ((y . ys)
+      (stream-append
+        (stream (stream-cons x yy))
+        (stream-map
+          (lambda (z) (stream-cons y z))
+          (interleave x ys))))))
+\end{verbatim}
+
+\begin{verbatim}
+(define-stream (perms xs)
+  (if (stream-null? xs)
+      (stream (stream))
+      (stream-concat
+        (stream-map
+          (lambda (ys)
+            (interleave (stream-car xs) ys))
+          (perms (stream-cdr xs))))))
+\end{verbatim}
+
+\textbf{procedure:} \textbf{(stream-constant} \textbf{\emph{object}}
+\textbf{\ldots{})}\\
+α \ldots{} → \{α\}\\
+Stream-constant takes one or more \emph{object}s and returns a
+newly-allocated stream containing in its elements the \emph{object}s,
+repeating the \emph{object}s in succession forever.
+
+(stream-constant 1) ⇒ 1 1 1 \ldots{}
+
+(stream-constant \#t \#f) ⇒ \#t \#f \#t \#f \#t \#f \ldots{}
+
+\textbf{procedure:} \textbf{(stream-drop} \textbf{\emph{n}} \textbf{}
+\textbf{\emph{stream})} \textbf{procedure}\\
+nat × \{α\} → \{α\}\\
+Stream-drop returns the suffix of the input \emph{stream} that starts at
+the next element after the first \emph{n} elements. The output stream
+shares structure with the input \emph{stream}; thus, promises forced in
+one instance of the stream are also forced in the other instance of the
+stream. If the input \emph{stream} has less than \emph{n} elements,
+stream-drop returns the null stream. See also stream-take.
+
+\begin{verbatim}
+(define (stream-split n strm)
+  (values (stream-take n strm)
+          (stream-drop n strm)))
+\end{verbatim}
+
+\textbf{procedure:} \textbf{(stream-drop-while} \textbf{\emph{pred?}}
+\textbf{} \textbf{\emph{stream})}\\
+(α → boolean) × \{α\} → \{α\}\\
+Stream-drop-while returns the suffix of the input \emph{stream} that
+starts at the first element \emph{x} for which (pred? \emph{x}) is \#f.
+The output stream shares structure with the input \emph{stream}. See
+also stream-take-while.
+
+Stream-unique creates a new stream that retains only the first of any
+sub-sequences of repeated elements.
+
+\begin{verbatim}
+(define-stream (stream-unique eql? strm)
+  (if (stream-null? strm)
+      stream-null
+      (stream-cons (stream-car strm)
+        (stream-unique eql?
+          (stream-drop-while
+            (lambda (x)
+              (eql? (stream-car strm) x))
+            strm)))))
+\end{verbatim}
+
+\textbf{procedure:} \textbf{(stream-filter} \textbf{\emph{pred?}}
+\textbf{} \textbf{\emph{stream})}\\
+(α → boolean) × \{α\} → \{α\}\\
+Stream-filter returns a newly-allocated stream that contains only those
+elements \emph{x} of the input \emph{stream} for which (\emph{pred?}
+\emph{x}) is non-\#f.
+
+\begin{verbatim}
+(stream-filter odd? (stream-from 0))
+   ⇒ 1 3 5 7 9 ...
+\end{verbatim}
+
+\textbf{procedure:} \textbf{(stream-fold} \textbf{\emph{proc}} \textbf{}
+\textbf{\emph{base}} \textbf{} \textbf{\emph{stream})}\\
+(α × β → α) × α × \{β\} → α\\
+Stream-fold applies a binary \emph{proc}edure to \emph{base} and the
+first element of \emph{stream} to compute a new \emph{base}, then
+applies the \emph{proc}edure to the new \emph{base} and the next element
+of \emph{stream} to compute a succeeding \emph{base}, and so on,
+accumulating a value that is finally returned as the value of
+stream-fold when the end of the \emph{stream} is reached. \emph{Stream}
+must be finite, or stream-fold will enter an infinite loop. See also
+stream-scan, which is similar to stream-fold, but useful for infinite
+streams. For readers familiar with other functional languages, this is a
+left-fold; there is no corresponding right-fold, since right-fold relies
+on finite streams that are fully-evaluated, at which time they may as
+well be converted to a list.
+
+Stream-fold is often used to summarize a stream in a single value, for
+instance, to compute the maximum element of a stream.
+
+\begin{verbatim}
+(define (stream-maximum lt? strm)
+  (stream-fold
+    (lambda (x y) (if (lt? x y) y x))
+    (stream-car strm)
+    (stream-cdr strm)))
+\end{verbatim}
+
+Sometimes, it is useful to have stream-fold defined only on non-null
+streams:
+
+\begin{verbatim}
+(define (stream-fold-one proc strm)
+  (stream-fold proc
+    (stream-car strm)
+    (stream-cdr strm)))
+\end{verbatim}
+
+Stream-minimum can then be defined as:
+
+\begin{verbatim}
+(define (stream-minimum lt? strm)
+  (stream-fold-one
+    (lambda (x y) (if (lt? x y) x y))
+    strm))
+\end{verbatim}
+
+Stream-fold can also be used to build a stream:
+
+\begin{verbatim}
+(define-stream (isort lt? strm)
+    (define-stream (insert strm x)
+      (stream-match strm
+        (() (stream x))
+        ((y . ys)
+          (if (lt? y x)
+              (stream-cons y (insert ys x))
+              (stream-cons x strm)))))
+    (stream-fold insert stream-null strm))
+\end{verbatim}
+
+\textbf{procedure:} \textbf{(stream-for-each} \textbf{\emph{proc}}
+\textbf{} \textbf{\emph{stream}} \textbf{\ldots{})}\\
+(α × β × \ldots{}) × \{α\} × \{β\} \ldots{}\\
+Stream-for-each applies a \emph{proc}edure element-wise to corresponding
+elements of the input \emph{stream}s for its side-effects; it returns
+nothing. Stream-for-each stops as soon as any of its input
+\emph{stream}s is exhausted.
+
+The following procedure displays the contents of a file:
+
+\begin{verbatim}
+(define (display-file filename)
+  (stream-for-each display
+    (file->stream filename)))
+\end{verbatim}
+
+\textbf{procedure:} \textbf{(stream-from} \textbf{\emph{first}}
+\textbf{{[}\emph{step}{]})}\\
+number × number → \{number\}\\
+Stream-from creates a newly-allocated stream that contains \emph{first}
+as its first element and increments each succeeding element by
+\emph{step}. If \emph{step} is not given it defaults to 1. \emph{First}
+and \emph{step} may be of any numeric type. Stream-from is frequently
+useful as a generator in stream-of expressions. See also stream-range
+for a similar procedure that creates finite streams.
+
+Stream-from could be implemented as (stream-iterate (lambda (x) (+ x
+\emph{step})) \emph{first}).
+
+(define nats (stream-from 0)) ⇒ 0 1 2 \ldots{}
+
+(define odds (stream-from 1 2)) ⇒ 1 3 5 \ldots{}
+
+\textbf{procedure:} \textbf{(stream-iterate proc base)}\\
+(α → α) × α → \{α\}\\
+Stream-iterate creates a newly-allocated stream containing \emph{base}
+in its first element and applies \emph{proc} to each element in turn to
+determine the succeeding element. See also stream-unfold and
+stream-unfolds.
+
+\begin{verbatim}
+(stream-iterate (lambda (x) (+ x 1)) 0)
+  ⇒ 0 1 2 3 4 ...
+\end{verbatim}
+
+\begin{verbatim}
+(stream-iterate (lambda (x) (* x 2)) 1)
+  ⇒ 1 2 4 8 16 ...
+\end{verbatim}
+
+Given a \emph{seed} between 0 and 2\textsuperscript{32}, exclusive, the
+following expression creates a stream of pseudo-random integers between
+0 and 2\textsuperscript{32}, exclusive, beginning with \emph{seed},
+using the method described by Stephen Park and Keith Miller:
+
+\begin{verbatim}
+(stream-iterate
+  (lambda (x) (modulo (* x 16807) 2147483647))
+  seed)
+\end{verbatim}
+
+Successive values of the continued fraction shown below approach the
+value of the ``golden ratio'' φ ≈ 1.618:
+
+\includegraphics[width=1.36458in,height=1.31250in]{streams1.jpg}
+
+The fractions can be calculated by the stream
+
+(stream-iterate (lambda (x) (+ 1 (/ x))) 1)
+
+\textbf{procedure:} \textbf{(stream-length} \textbf{\emph{stream})}\\
+\{α\} → nat\\
+Stream-length takes an input \emph{stream} and returns the number of
+elements in the \emph{stream}; it does not evaluate its elements.
+Stream-length may only be used on finite streams; it enters an infinite
+loop with infinite streams.
+
+(stream-length strm123) ⇒ 3
+
+\textbf{syntax:} \textbf{(stream-let} \textbf{\emph{tag}}
+\textbf{((\emph{var}} \textbf{} \textbf{\emph{expr}) \ldots{})}
+\textbf{\emph{body})}\\
+Stream-let creates a local scope that binds each \emph{var}iable \emph{}
+to the value of its corresponding \emph{expr}ession. It additionally
+binds \emph{tag} to a procedure which takes the bound \emph{var}iables
+as arguments and \emph{body} as its defining expressions, binding the
+\emph{tag} with stream-lambda. \emph{Tag} is in scope within
+\emph{body}, and may be called recursively. When the expanded expression
+defined by the stream-let is evaluated, stream-let evaluates the
+expressions in its \emph{body} in an environment containing the
+newly-bound \emph{var}iables, returning the value of the last expression
+evaluated, which must yield a stream.
+
+Stream-let provides syntactic sugar on stream-lambda, in the same manner
+as normal let provides syntactic sugar on normal lambda. However, unlike
+normal let, the \emph{tag} is required, not optional, because unnamed
+stream-let is meaningless.
+
+Stream-member returns the first stream-pair of the input strm with a
+stream-car \emph{x} that satisfies (eql? obj \emph{x}), or the null
+stream if \emph{x} is not present in strm.
+
+\begin{verbatim}
+(define-stream (stream-member eql? obj strm)
+  (stream-let loop ((strm strm))
+    (cond ((stream-null? strm) strm)
+          ((eql? obj (stream-car strm)) strm)
+          (else (loop (stream-cdr strm))))))
+\end{verbatim}
+
+\textbf{procedure:} \textbf{(stream-map} \textbf{\emph{proc stream}}
+\textbf{\ldots{})}\\
+(α × β \ldots{} → ω) × \{α\} × \{β\} \ldots{} → \{ω\}\\
+Stream-map applies a \emph{proc}edure element-wise to corresponding
+elements of the input \emph{stream}s, returning a newly-allocated stream
+containing elements that are the results of those \emph{proc}edure
+applications. The output stream has as many elements as the
+minimum-length input \emph{stream}, and may be infinite.
+
+(define (square x) (* x x))
+
+(stream-map square (stream 9 3)) ⇒ 81 9
+
+\begin{verbatim}
+(define (sigma f m n)
+  (stream-fold + 0
+    (stream-map f (stream-range m (+ n 1)))))
+\end{verbatim}
+
+(sigma square 1 100) ⇒ 338350
+
+In some functional languages, stream-map takes only a single input
+stream, and stream-zipwith provides a companion function that takes
+multiple input streams.
+
+\textbf{syntax:} \textbf{(stream-match} \textbf{\emph{stream}} \textbf{}
+\textbf{\emph{clause}} \textbf{\ldots{})}\\
+Stream-match provides the syntax of pattern-matching for streams. The
+input \emph{stream} is an expression that evaluates to a stream. Clauses
+are of the form (\emph{pattern} {[}\emph{fender}{]} \emph{expr}),
+consisting of a \emph{pattern} that matches a stream of a particular
+shape, an optional \emph{fender} that must succeed if the pattern is to
+match, and an \emph{expr}ession that is evaluated if the \emph{pattern}
+matches. There are four types of \emph{pattern}s:
+
+\begin{itemize}
+\tightlist
+\item
+  () --- Matches the null stream.
+\item
+  (\emph{pat}\textsubscript{\emph{0}} \emph{pat}\textsubscript{\emph{1}}
+  \ldots{}) --- Matches a finite stream with length exactly equal to the
+  number of pattern elements.
+\item
+  (\emph{pat}\textsubscript{\emph{0}} \emph{pat}\textsubscript{\emph{1}}
+  \ldots{} . \emph{pat}\textsubscript{\emph{rest}}) --- Matches an
+  infinite stream, or a finite stream with length at least as great as
+  the number of pattern elements before the literal dot.
+\item
+  \emph{pat} --- Matches an entire stream. Should always appear last in
+  the list of clauses; it's not an error to appear elsewhere, but
+  subsequent clauses could never match.
+\end{itemize}
+
+Each pattern element \emph{pat}\textsubscript{\emph{i}} may be either:
+
+\begin{itemize}
+\tightlist
+\item
+  An identifier --- Matches any stream element. Additionally, the value
+  of the stream element is bound to the variable named by the
+  identifier, which is in scope in the \emph{fender} and
+  \emph{expr}ession of the corresponding \emph{clause}. Each identifier
+  in a single pattern must be unique.
+\item
+  A literal underscore --- Matches any stream element, but creates no
+  bindings.
+\end{itemize}
+
+The \emph{pattern}s are tested in order, left-to-right, until a matching
+pattern is found; if \emph{fender} is present, it must evaluate as
+non-\#f for the match to be successful. Pattern variables are bound in
+the corresponding \emph{fender} and \emph{expr}ession. Once the matching
+pattern is found, the corresponding \emph{expr}ession is evaluated and
+returned as the result of the match. An error is signaled if no pattern
+matches the input \emph{stream}.
+
+Stream-match is often used to distinguish null streams from non-null
+streams, binding head and tail:
+
+\begin{verbatim}
+(define (len strm)
+  (stream-match strm
+    (() 0)
+    ((head . tail) (+ 1 (len tail)))))
+\end{verbatim}
+
+Fenders can test the common case where two stream elements must be
+identical; the else pattern is an identifier bound to the entire stream,
+not a keyword as in cond.
+
+\begin{verbatim}
+(stream-match strm
+  ((x y . _) (equal? x y) 'ok)
+  (else 'error))
+\end{verbatim}
+
+A more complex example uses two nested matchers to match two different
+stream arguments; (stream-merge lt? . \emph{strms}) stably merges two or
+more streams ordered by the lt? predicate:
+
+\begin{verbatim}
+(define-stream (stream-merge lt? . strms)
+  (define-stream (merge xx yy)
+    (stream-match xx (() yy) ((x . xs)
+      (stream-match yy (() xx) ((y . ys)
+        (if (lt? y x)
+            (stream-cons y (merge xx ys))
+            (stream-cons x (merge xs yy))))))))
+  (stream-let loop ((strms strms))
+    (cond ((null? strms) stream-null)
+          ((null? (cdr strms)) (car strms))
+          (else (merge (car strms)
+                       (apply stream-merge lt?
+                         (cdr strms)))))))
+\end{verbatim}
+
+\textbf{syntax:} \textbf{(stream-of} \textbf{\emph{expr}} \textbf{}
+\textbf{\emph{clause}} \textbf{\ldots{})}\\
+Stream-of provides the syntax of stream comprehensions, which generate
+streams by means of looping expressions. The result is a stream of
+objects of the type returned by \emph{expr}. There are four types of
+clauses:
+
+\begin{itemize}
+\tightlist
+\item
+  (\emph{var} in \emph{stream-expr}) --- Loop over the elements of
+  \emph{stream-expr}, in order from the start of the stream, binding
+  each element of the stream in turn to \emph{var}. Stream-from and
+  stream-range are frequently useful as generators for
+  \emph{stream-expr}.
+\item
+  (\emph{var} is \emph{expr}) --- Bind \emph{var} to the value obtained
+  by evaluating \emph{expr}.
+\item
+  (pred? \emph{expr}) --- Include in the output stream only those
+  elements \emph{x} for which (pred? \emph{x}) is non-\#f.
+\end{itemize}
+
+The scope of \emph{var}iables bound in the stream comprehension is the
+clauses to the right of the binding clause (but not the binding clause
+itself) plus the result expression.
+
+When two or more generators are present, the loops are processed as if
+they are nested from left to right; that is, the rightmost generator
+varies fastest. A consequence of this is that only the first generator
+may be infinite and all subsequent generators must be finite. If no
+generators are present, the result of a stream comprehension is a stream
+containing the result expression; thus, (stream-of 1) produces a finite
+stream containing only the element 1.
+
+\begin{verbatim}
+(stream-of (* x x)
+  (x in (stream-range 0 10))
+  (even? x))
+  ⇒ 0 4 16 36 64
+\end{verbatim}
+
+\begin{verbatim}
+(stream-of (list a b)
+  (a in (stream-range 1 4))
+  (b in (stream-range 1 3))) 
+  ⇒ (1 1) (1 2) (2 1) (2 2) (3 1) (3 2)
+\end{verbatim}
+
+\begin{verbatim}
+(stream-of (list i j)
+  (i in (stream-range 1 5))
+  (j in (stream-range (+ i 1) 5)))
+  ⇒ (1 2) (1 3) (1 4) (2 3) (2 4) (3 4)
+\end{verbatim}
+
+\textbf{procedure:} \textbf{(stream-range} \textbf{\emph{first}}
+\textbf{} \textbf{\emph{past}} \textbf{{[}\emph{step}{]})}\\
+number × number × number → \{number\}\\
+Stream-range creates a newly-allocated stream that contains \emph{first}
+as its first element and increments each succeeding element by
+\emph{step}. The stream is finite and ends before \emph{past}, which is
+not an element of the stream. If \emph{step} is not given it defaults to
+1 if \emph{first} is less than \emph{past} and -1 otherwise.
+\emph{First}, \emph{past} and \emph{step} may be of any numeric type.
+Stream-range is frequently useful as a generator in stream-of
+expressions. See also stream-from for a similar procedure that creates
+infinite streams.
+
+(stream-range 0 10) ⇒ 0 1 2 3 4 5 6 7 8 9
+
+(stream-range 0 10 2) → 0 2 4 6 8
+
+Successive elements of the stream are calculated by adding \emph{step}
+to \emph{first}, so if any of \emph{first}, \emph{past} or \emph{step}
+are inexact, the length of the output stream may differ from (ceiling (-
+(/ (- \emph{past} \emph{first}) \emph{step}) 1).
+
+\textbf{procedure:} \textbf{(stream-ref} \textbf{\emph{stream}}
+\textbf{} \textbf{\emph{n})}\\
+\{α\} × nat → α\\
+Stream-ref returns the \emph{n}th element of \emph{stream}, counting
+from zero. An error is signaled if \emph{n} is greater than or equal to
+the length of \emph{stream}.
+
+\begin{verbatim}
+(define (fact n)
+  (stream-ref
+    (stream-scan * 1 (stream-from 1))
+    n))
+\end{verbatim}
+
+\textbf{procedure:} \textbf{(stream-reverse} \textbf{\emph{stream})}\\
+\{α\} → \{α\}\\
+Stream-reverse returns a newly-allocated stream containing the elements
+of the input \emph{stream} but in reverse order. Stream-reverse may only
+be used with finite streams; it enters an infinite loop with infinite
+streams. Stream-reverse does not force evaluation of the elements of the
+stream.
+
+\begin{verbatim}
+> (define s (stream 1 (/ 1 0) -1))
+> (define r (stream-reverse s))
+> (stream-ref r 0)
+> (stream-ref r 2)
+1
+> (stream-ref r 1)
+error: division by zero
+\end{verbatim}
+
+\textbf{procedure:} \textbf{(stream-scan} \textbf{\emph{proc}} \textbf{}
+\textbf{\emph{base}} \textbf{} \textbf{\emph{stream})}\\
+(α × β → α) × α × \{β\} → \{α\}\\
+Stream-scan accumulates the partial folds of an input \emph{stream} into
+a newly-allocated output stream. The output stream is the \emph{base}
+followed by (stream-fold proc base (stream-take \emph{i} stream)) for
+each of the first \emph{i} elements of \emph{stream}.
+
+\begin{verbatim}
+(stream-scan + 0 (stream-from 1))
+  ⇒ (stream 0 1 3 6 10 15 ...)
+\end{verbatim}
+
+\begin{verbatim}
+(stream-scan * 1 (stream-from 1))
+  ⇒ (stream 1 1 2 6 24 120 ...)
+\end{verbatim}
+
+\textbf{procedure:} \textbf{(stream-take} \textbf{\emph{n}} \textbf{}
+\textbf{\emph{stream})}\\
+nat × \{α\} → \{α\}\\
+Stream-take takes a non-negative integer \emph{n} and a \emph{stream}
+and returns a newly-allocated stream containing the first \emph{n}
+elements of the input \emph{stream}. If the input \emph{stream} has less
+than \emph{n} elements, so does the output stream. See also stream-drop.
+
+Mergesort splits a stream into two equal-length pieces, sorts them
+recursively and merges the results:
+
+\begin{verbatim}
+(define-stream (msort lt? strm)
+  (let* ((n (quotient (stream-length strm) 2))
+         (ts (stream-take n strm))
+         (ds (stream-drop n strm)))
+    (if (zero? n)
+        strm
+        (stream-merge lt?
+          (msort < ts) (msort < ds)))))
+\end{verbatim}
+
+\textbf{procedure:} \textbf{(stream-take-while} \textbf{\emph{pred?}}
+\textbf{} \textbf{\emph{stream})}\\
+(α → boolean) × \{α\} → \{α\}\\
+Stream-take-while takes a predicate and a \emph{stream} and returns a
+newly-allocated stream containing those elements \emph{x} that form the
+maximal prefix of the input \emph{stream} for which (pred? \emph{x}) is
+non-\#f. See also stream-drop-while.
+
+\begin{verbatim}
+(stream-car
+  (stream-reverse
+    (stream-take-while
+      (lambda (x) (< x 1000))
+        primes))) ⇒ 997
+\end{verbatim}
+
+\textbf{procedure:} \textbf{(stream-unfold} \textbf{\emph{map}}
+\textbf{} \textbf{\emph{pred?}} \textbf{} \textbf{\emph{gen}} \textbf{}
+\textbf{\emph{base})}\\
+(α → β) × (α → boolean) × (α → α) × α → \{β\}\\
+Stream-unfold is the fundamental recursive stream constructor. It
+constructs a stream by repeatedly applying \emph{gen} to successive
+values of \emph{base}, in the manner of stream-iterate, then applying
+\emph{map} to each of the values so generated, appending each of the
+mapped values to the output stream as long as (\emph{pred?} \emph{base})
+is non-\#f. See also stream-iterate and stream-unfolds.
+
+The expression below creates the finite stream 0 1 4 9 16 25 36 49 64
+81. Initially the base is 0, which is less than 10, so \emph{map}
+squares the \emph{base} and the mapped value becomes the first element
+of the output stream. Then \emph{gen} increments the \emph{base} by 1,
+so it becomes 1; this is less than 10, so \emph{map} squares the new
+base and 1 becomes the second element of the output stream. And so on,
+until the \emph{base} becomes 10, when \emph{pred?} stops the recursion
+and stream-null ends the output stream.
+
+\begin{verbatim}
+(stream-unfold
+  (lambda (x) (expt x 2)) ; map
+  (lambda (x) (< x 10))   ; pred?
+  (lambda (x) (+ x 1))    ; gen
+  0)                      ; base
+\end{verbatim}
+
+\textbf{procedure:} \textbf{(stream-unfolds} \textbf{\emph{proc}}
+\textbf{} \textbf{\emph{seed})}\\
+(α → (values α × β \ldots{})) × α → (values \{β\} \ldots{})\\
+Stream-unfolds returns \emph{n} newly-allocated streams containing those
+elements produced by successive calls to the generator \emph{proc},
+which takes the current \emph{seed} as its argument and returns
+\emph{n}+1 values
+
+(\emph{proc} \emph{seed} → \emph{seed}
+\emph{result}\textsubscript{\emph{0}} \ldots{}
+\emph{result}\textsubscript{\emph{n-1}}
+
+where the returned \emph{seed} is the input \emph{seed} to the next call
+to the generator and \emph{result}\textsubscript{\emph{i}} indicates how
+to produce the next element of the \emph{i}\textsuperscript{\emph{th}}
+result stream:
+
+\begin{itemize}
+\tightlist
+\item
+  (\emph{value}) --- \emph{value} is the next car of the result stream
+\item
+  \#f --- no value produced by this iteration of the generator
+  \emph{proc} for the result stream
+\item
+  () --- the end of the result stream
+\end{itemize}
+
+It may require multiple calls of \emph{proc} to produce the next element
+of any particular result stream. See also stream-iterate and
+stream-unfold.
+
+Stream-unfolds is especially useful when writing expressions that return
+multiple streams. For instance, (stream-partition \emph{pred?}
+\emph{strm}) is equivalent to
+
+\begin{verbatim}
+(values
+  (stream-filter pred? strm)
+  (stream-filter
+    (lambda (x) (not (pred? x))) strm))
+\end{verbatim}
+
+but only tests \emph{pred?} once for each element of \emph{strm}.
+
+\begin{verbatim}
+(define (stream-partition pred? strm)
+  (stream-unfolds
+    (lambda (s)
+      (if (stream-null? s)
+          (values s '() '())
+          (let ((a (stream-car s))
+                (d (stream-cdr s)))
+            (if (pred? a)
+                (values d (list a) #f)
+                (values d #f (list a))))))
+    strm))
+\end{verbatim}
+
+\begin{verbatim}
+(call-with-values
+  (lambda ()
+    (stream-partition odd?
+      (stream-range 1 6)))
+  (lambda (odds evens)
+    (list (stream->list odds)
+          (stream->list evens))))
+  ⇒ ((1 3 5) (2 4))
+\end{verbatim}
+
+\textbf{procedure:} \textbf{(stream-zip} \textbf{\emph{stream}}
+\textbf{\ldots{})}\\
+\{α\} × \{β\} × \ldots{} → \{{[}α β \ldots{}{]}\}\\
+Stream-zip takes one or more input \emph{stream}s and returns a
+newly-allocated stream in which each element is a list (not a stream) of
+the corresponding elements of the input \emph{stream}s. The output
+stream is as long as the shortest input \emph{stream}, if any of the
+input \emph{stream}s is finite, or is infinite if all the input
+\emph{stream}s are infinite.
+
+A common use of stream-zip is to add an index to a stream, as in
+(stream-finds \emph{eql?} \emph{obj} \emph{strm}), which returns all the
+zero-based indices in \emph{strm} at which \emph{obj} appears;
+(stream-find \emph{eql?} \emph{obj} \emph{strm}) returns the first such
+index, or \#f if \emph{obj} is not in \emph{strm}.
+
+\begin{verbatim}
+(define-stream (stream-finds eql? obj strm)
+  (stream-of (car x)
+    (x in (stream-zip (stream-from 0) strm))
+    (eql? obj (cadr x))))
+\end{verbatim}
+
+\begin{verbatim}
+(define (stream-find eql? obj strm)
+  (stream-car
+    (stream-append
+      (stream-finds eql? obj strm)
+      (stream #f))))
+\end{verbatim}
+
+\begin{verbatim}
+(stream-find char=? #\l
+  (list->stream
+    (string->list "hello"))) ⇒ 2
+\end{verbatim}
+
+\begin{verbatim}
+(stream-find char=? #\l
+  (list->stream
+    (string->list "goodbye"))) ⇒ #f
+\end{verbatim}
+
+Stream-find is not as inefficient as it looks; although it calls
+stream-finds, which finds all matching indices, the matches are computed
+lazily, and only the first match is needed for stream-find.
+
+\section{Utilities}\label{utilities}
+
+Streams, being the signature structured data type of functional
+programming languages, find useful expression in conjunction with
+higher-order functions. Some of these higher-order functions, and their
+relationship to streams, are described below.
+
+The identity and constant procedures are frequently useful as the
+recursive base for maps and folds; \textbf{(identity}
+\textbf{\emph{obj})} always returns \emph{obj}, and \textbf{(const}
+\textbf{\emph{obj})} creates a procedure that takes any number of
+arguments and always returns the same \emph{obj}, no matter its
+arguments:
+
+(define (identity obj) obj)
+
+(define (const obj) (lambda x obj))
+
+Many of the stream procedures take a unary predicate that accepts an
+element of a stream and returns a boolean. Procedure \textbf{(negate}
+\textbf{\emph{pred?})} takes a unary predicate and returns a new unary
+predicate that, when called, returns the opposite boolean value as the
+original predicate.
+
+\begin{verbatim}
+(define (negate pred?)
+  (lambda (x) (not (pred? x))))
+\end{verbatim}
+
+Negate is useful for procedures like stream-take-while that take a
+predicate, allowing them to be used in the opposite direction from which
+they were written; for instance, with the predicate reversed,
+stream-take-while becomes stream-take-until. Stream-remove is the
+opposite of stream-filter:
+
+\begin{verbatim}
+(define-stream (stream-remove pred? strm)
+  (stream-filter (negate pred?) strm))
+\end{verbatim}
+
+A section is a procedure which has been partially applied to some of its
+arguments; for instance, (double \emph{x}), which returns twice its
+argument, is a partial application of the multiply operator to the
+number 2. Sections come in two kinds: left sections partially apply
+arguments starting from the left, and right sections partially apply
+arguments starting from the right. Procedure \textbf{(lsec}
+\textbf{\emph{proc}} \textbf{} \textbf{\emph{args}} \textbf{\ldots{})}
+takes a \emph{proc}edure and some prefix of its arguments and returns a
+new procedure in which those arguments are partially applied. Procedure
+\textbf{(rsec} \textbf{\emph{proc}} \textbf{} \textbf{\emph{args}}
+\textbf{\ldots{})} takes a \emph{proc}edure and some reversed suffix of
+its arguments and returns a new procedure in which those arguments are
+partially applied.
+
+\begin{verbatim}
+(define (lsec proc . args)
+  (lambda x (apply proc (append args x))))
+\end{verbatim}
+
+\begin{verbatim}
+(define (rsec proc . args)
+  (lambda x (apply proc (reverse
+    (append (reverse args) (reverse x))))))
+\end{verbatim}
+
+Since most of the stream procedures take a stream as their last
+(right-most) argument, left sections are particularly useful in
+conjunction with streams.
+
+(define stream-sum (lsec stream-fold + 0))
+
+Function composition creates a new function by partially applying
+multiple functions, one after the other. In the simplest case there are
+only two functions, f and g, composed as ((compose f g) ≡ \emph{x}));
+the composition can be bound to create a new function, as in (define fg
+(compose f g)). Procedure \textbf{(compose} \textbf{\emph{proc}}
+\textbf{\ldots{})} takes one or more \emph{proc}edures and returns a new
+procedure that performs the same action as the individual procedures
+would if called in succession.
+
+\begin{verbatim}
+(define (compose . fns)
+  (let comp ((fns fns))
+    (cond
+      ((null? fns) 'error)
+      ((null? (cdr fns)) (car fns))
+      (else
+        (lambda args
+          (call-with-values
+            (lambda ()
+              (apply
+                (comp (cdr fns))
+                args))
+            (car fns)))))))
+\end{verbatim}
+
+Compose works with sections to create succinct but highly expressive
+procedure definitions. The expression to compute the squares of the
+integers from 1 to 10 given above at stream-unfold could be written by
+composing stream-map, stream-take-while, and stream-iterate:
+
+\begin{verbatim}
+((compose
+  (lsec stream-map (rsec expt 2))
+  (lsec stream-take-while (negate (rsec > 10)))
+  (lsec stream-iterate (rsec + 1)))
+ 1)
+\end{verbatim}
+
+\section{Examples}\label{examples}
+
+The examples below show a few of the myriad ways streams can be
+exploited, as well as a few ways they can trip the unwary user. All the
+examples are drawn from published sources; it is instructive to compare
+the Scheme versions to the originals in other languages.
+
+\subsection{Infinite streams}\label{infinite-streams}
+
+As a simple illustration of infinite streams, consider this definition
+of the natural numbers:
+
+\begin{verbatim}
+(define nats
+  (stream-cons 0
+    (stream-map add1 nats)))
+\end{verbatim}
+
+The recursion works because it is offset by one from the initial
+stream-cons. Another sequence that uses the offset trick is this
+definition of the fibonacci numbers:
+
+\begin{verbatim}
+(define fibs
+  (stream-cons 1
+    (stream-cons 1
+      (stream-map +
+        fibs
+        (stream-cdr fibs)))))
+\end{verbatim}
+
+Yet another sequence that uses the same offset trick is the Hamming
+numbers, named for the mathematician and computer scientist Richard
+Hamming, defined as all numbers that have no prime factors greater than
+5; in other words, Hamming numbers are all numbers expressible as
+2\textsuperscript{\emph{i}}·3\textsuperscript{\emph{j}}·5\textsuperscript{\emph{k}},
+where \emph{i}, \emph{j} and \emph{k} are non-negative integers. The
+Hamming sequence starts with 1 2 3 4 5 6 8 9 10 12 and is computed
+starting with 1, taking 2, 3 and 5 times all the previous elements with
+stream-map, then merging sub-streams and eliminating duplicates.
+
+\begin{verbatim}
+(define hamming
+  (stream-cons 1
+    (stream-unique =
+      (stream-merge <
+        (stream-map (lsec * 2) hamming)
+        (stream-map (lsec * 3) hamming)
+        (stream-map (lsec * 5) hamming)))))
+\end{verbatim}
+
+It is possible to have an infinite stream of infinite streams. Consider
+the definition of power-table:
+
+\begin{verbatim}
+(define power-table
+  (stream-of
+    (stream-of (expt m n)
+      (m in (stream-from 1)))
+      (n in (stream-from 2))))
+\end{verbatim}
+
+which evaluates to an infinite stream of infinite streams:
+
+\begin{verbatim}
+(stream
+  (stream 1 4 9 16 25 ...)
+  (stream 1 8 27 64 125 ...)
+  (stream 1 16 81 256 625 ...)
+  ...)
+\end{verbatim}
+
+But even though it is impossible to display power-table in its entirety,
+it is possible to select just part of it:
+
+\begin{verbatim}
+(stream->list 10 (stream-ref power-table 1))
+  ⇒ (1 8 27 64 125 216 343 512 729 1000)
+\end{verbatim}
+
+This example clearly shows that the elements of a stream are computed
+lazily, as they are needed; (stream-ref power-table 0) is not computed,
+even when its successor is displayed, since computing it would enter an
+infinite loop.
+
+Chris Reade shows how to calculate the stream of prime numbers according
+to the sieve of Eratosthenes, using a method that eliminates multiples
+of the sifting base with addition rather than division:
+
+\begin{verbatim}
+(define primes (let ()
+  (define-stream (next base mult strm)
+    (let ((first (stream-car strm))
+          (rest (stream-cdr strm)))
+      (cond ((< first mult)
+              (stream-cons first
+                (next base mult rest)))
+            ((< mult first)
+              (next base (+ base mult) strm))
+            (else (next base
+                    (+ base mult) rest)))))
+  (define-stream (sift base strm)
+    (next base (+ base base) strm))
+  (define-stream (sieve strm)
+    (let ((first (stream-car strm))>
+          (rest (stream-cdr strm)))
+      (stream-cons first
+        (sieve (sift first rest)))))
+  (sieve (stream-from 2))))
+\end{verbatim}
+
+A final example of infinite streams is a functional pearl from Jeremy
+Gibbons, David Lester and Richard Bird that enumerates the positive
+rational numbers without duplicates:
+
+\begin{verbatim}
+(define rats
+  (stream-iterate
+    (lambda (x)
+      (let* ((n (floor x)) (y (- x n)))
+        (/ (- n -1 y))))
+    1))
+\end{verbatim}
+
+\subsection{Backtracking via the stream of
+successes}\label{backtracking-via-the-stream-of-successes}
+
+Philip Wadler describes the \emph{stream of successes} technique that
+uses streams to perform backtracking search. The basic idea is that each
+procedure returns a stream of possible results, so that its caller can
+decide which result it wants; an empty stream signals failure, and
+causes backtracking to a previous choice point. The stream of successes
+technique is useful because the program is written as if to simply
+enumerate all possible solutions; no backtracking is explicit in the
+code.
+
+The Eight Queens puzzle, which asks for a placement of eight queens on a
+chessboard so that none of them attack any other, is an example of a
+problem that can be solved using the stream of successes technique. The
+algorithm is to place a queen in the first column of a chessboard; any
+column is satisfactory. Then a queen is placed in the second column, in
+any position not held in check by the queen in the first column. Then a
+queen is placed in the third column, in any position not held in check
+by the queens in the first two columns. And so on, until all eight
+queens have been placed. If at any point there is no legal placement for
+the next queen, backtrack to a different legal position for the previous
+queens, and try again.
+
+The chessboard is represented as a stream of length \emph{m}, where
+there are queens in the first \emph{m} columns, each position in the
+stream representing the rank on which the queen appears in that column.
+For example, stream 4 6 1 5 2 8 3 7 represents the following chessboard:
+
+\includegraphics[width=2.03125in,height=2.13542in]{streams2.jpg}
+
+Two queens at column \emph{i} row \emph{j} and column \emph{m} row
+\emph{n} check each other if their columns \emph{i} and \emph{m} are the
+same, or if their rows \emph{j} and \emph{n} are the same, or if they
+are on the same diagonal with \emph{i} + \emph{j} = \emph{m} + \emph{n}
+or \emph{i} -- \emph{j} = \emph{m} -- \emph{n}. There is no need to test
+the columns, because the placement algorithm enforces that they differ,
+so the check? procedure tests if two queens hold each other in check.
+
+\begin{verbatim}
+(define (check? i j m n)
+  (or (= j n)
+      (= (+ i j) (+ m n))
+      (= (- i j) (- m n))))
+\end{verbatim}
+
+The algorithm walks through the columns, extending position \emph{p} by
+adding a new queen in row \emph{n} with (stream-append \emph{p} (stream
+\emph{n})). Safe? tests if it is safe to do so, using the utility
+procedure stream-and.
+
+\begin{verbatim}
+(define (stream-and strm)
+  (let loop ((strm strm))
+    (cond ((stream-null? strm) #t)
+          ((not (stream-car strm)) #f)
+          (else (loop (stream-cdr strm))))))
+\end{verbatim}
+
+\begin{verbatim}
+(define (safe? p n)
+  (let* ((len (stream-length p))
+         (m (+ len 1)))
+    (stream-and
+      (stream-of
+        (not (check? (car ij) (cadr ij) m n))
+          (ij in (stream-zip
+                   (stream-range 1 m)
+                   p))))))
+\end{verbatim}
+
+Procedure (queens \emph{m}) returns all the ways that queens can safely
+be placed in the first \emph{m} columns.
+
+\begin{verbatim}
+(define (queens m)
+  (if (zero? m)
+      (stream (stream))
+      (stream-of (stream-append p (stream n))
+        (p in (queens (- m 1)))
+        (n in (stream-range 1 9))
+        (safe? p n))))
+\end{verbatim}
+
+To see the first solution to the Eight Queens problem, say
+
+(stream-\textgreater{}list (stream-car (queens 8)))
+
+To see all 92 solutions, say
+
+\begin{verbatim}
+(stream->list
+  (stream-map stream->list
+    (queens 8)))
+\end{verbatim}
+
+There is no explicit backtracking in the code. The stream-of expression
+in queens returns all possible streams that satisfy safe?; implicit
+backtracking occurs in the recursive call to queens.
+
+\subsection{Generators and
+co-routines}\label{generators-and-co-routines}
+
+It is possible to model generators and co-routines using streams.
+Consider the task, due to Carl Hewitt, of determining if two trees have
+the same sequence of leaves:
+
+(same-fringe? = `(1 (2 3)) '((1 2) 3)) ⇒ \#t
+
+(same-fringe? = `(1 2 3) '(1 (3 2))) ⇒ \#f
+
+The simplest solution is to flatten both trees into lists and compare
+them element-by-element:
+
+\begin{verbatim}
+(define (flatten tree)
+  (cond ((null? tree) '())
+        ((pair? (car tree))
+          (append (flatten (car tree))
+                  (flatten (cdr tree))))
+        (else (cons (car tree)
+                    (flatten (cdr tree))))))
+\end{verbatim}
+
+\begin{verbatim}
+(define (same-fringe? eql? tree1 tree2)
+  (let loop ((t1 (flatten tree1))
+             (t2 (flatten tree2)))
+    (cond ((and (null? t1) (null? t2)) #t)
+          ((or (null? t1) (null? t2)) #f)
+          ((not (eql? (car t1) (car t2))) #f)
+          (else (loop (cdr t1) (cdr t2))))))
+\end{verbatim}
+
+That works, but requires time to flatten both trees and space to store
+the flattened versions; if the trees are large, that can be a lot of
+time and space, and if the fringes differ, much of that time and space
+is wasted.
+
+Hewitt used a generator to flatten the trees one element at a time,
+storing only the current elements of the trees and the machines needed
+to continue flattening them, so same-fringe? could stop early if the
+trees differ. Dorai Sitaram presents both the generator solution and a
+co-routine solution, which both involve tricky calls to
+call-with-current-continuation and careful coding to keep them
+synchronized.
+
+An alternate solution flattens the two trees to streams instead of
+lists, which accomplishes the same savings of time and space, and
+involves code that looks little different than the list solution
+presented above:
+
+\begin{verbatim}
+(define-stream (flatten tree)
+  (cond ((null? tree) stream-null)
+        ((pair? (car tree))
+          (stream-append
+            (flatten (car tree))
+            (flatten (cdr tree))))
+        (else (stream-cons
+                (car tree)
+                (flatten (cdr tree))))))
+\end{verbatim}
+
+\begin{verbatim}
+(define (same-fringe? eql? tree1 tree2)
+  (let loop ((t1 (flatten tree1))
+             (t2 (flatten tree2)))
+    (cond ((and (stream-null? t1)
+                (stream-null? t2)) #t)
+          ((or  (stream-null? t1)
+                (stream-null? t2)) #f)
+          ((not (eql? (stream-car t1)
+                      (stream-car t2))) #f)
+          (else (loop (stream-cdr t1)
+                      (stream-cdr t2))))))
+\end{verbatim}
+
+Note that streams, a data structure, replace generators or co-routines,
+which are control structures, providing a fine example of how lazy
+streams enhance modularity.
+
+\subsection{A pipeline of procedures}\label{a-pipeline-of-procedures}
+
+Another way in which streams promote modularity is enabling the use of
+many small procedures that are easily composed into larger programs, in
+the style of unix pipelines, where streams are important because they
+allow a large dataset to be processed one item at a time. Bird and
+Wadler provide the example of a text formatter. Their example uses
+right-folds:
+
+\begin{verbatim}
+(define (stream-fold-right f base strm) 
+  (if (stream-null? strm)
+      base
+      (f (stream-car strm)
+         (stream-fold-right f base
+           (stream-cdr strm)))))
+\end{verbatim}
+
+\begin{verbatim}
+(define (stream-fold-right-one f strm)
+  (stream-match strm
+  ((x) x)
+  ((x . xs)
+    (f x (stream-fold-right-one f xs)))))
+\end{verbatim}
+
+Bird and Wadler define text as a stream of characters, and develop a
+standard package for operating on text, which they derive mathematically
+(this assumes the line-separator character is a single
+\#\textbackslash{}newline):
+
+\begin{verbatim}
+(define (breakon a)
+  (stream-lambda (x xss)
+    (if (equal? a x)
+        (stream-append (stream (stream)) xss)
+        (stream-append
+          (stream (stream-append
+              (stream x) (stream-car xss)))
+          (stream-cdr xss)))))
+\end{verbatim}
+
+\begin{verbatim}
+(define-stream (lines strm) 
+  (stream-fold-right
+    (breakon #\newline)
+    (stream (stream))
+    strm))
+\end{verbatim}
+
+\begin{verbatim}
+(define-stream (words strm)
+  (stream-filter stream-pair?
+    (stream-fold-right
+      (breakon #\space)
+      (stream (stream))
+      strm)))
+\end{verbatim}
+
+\begin{verbatim}
+(define-stream (paras strm)
+  (stream-filter stream-pair?
+    (stream-fold-right
+      (breakon stream-null)
+      (stream (stream))
+      strm)))
+\end{verbatim}
+
+\begin{verbatim}
+(define (insert a)
+  (stream-lambda (xs ys)
+    (stream-append xs (stream a) ys)))
+\end{verbatim}
+
+\begin{verbatim}
+(define unlines
+  (lsec stream-fold-right-one
+    (insert #\newline)))
+\end{verbatim}
+
+\begin{verbatim}
+(define unwords
+  (lsec stream-fold-right-one
+    (insert #\space)))
+\end{verbatim}
+
+\begin{verbatim}
+(define unparas
+  (lsec stream-fold-right-one
+    (insert stream-null)))
+\end{verbatim}
+
+These versatile procedures can be composed to count words, lines and
+paragraphs; the normalize procedure squeezes out multiple spaces and
+blank lines:
+
+\begin{verbatim}
+(define countlines
+  (compose stream-length lines))
+\end{verbatim}
+
+\begin{verbatim}
+(define countwords
+  (compose stream-length
+           stream-concat
+           (lsec stream-map words)
+           lines))
+\end{verbatim}
+
+\begin{verbatim}
+(define countparas
+  (compose stream-length paras lines))
+\end{verbatim}
+
+\begin{verbatim}
+(define parse
+  (compose (lsec stream-map
+             (lsec stream-map words))
+           paras
+           lines))
+\end{verbatim}
+
+\begin{verbatim}
+(define unparse
+  (compose unlines
+           unparas
+           (lsec stream-map
+             (lsec stream-map unwords))))
+\end{verbatim}
+
+\begin{verbatim}
+(define normalize (compose unparse parse))
+\end{verbatim}
+
+More useful than normalization is text-filling, which packs as many
+words onto each line as will fit.
+
+\begin{verbatim}
+(define (greedy m ws)
+  (- (stream-length
+       (stream-take-while (rsec <= m)
+         (stream-scan
+           (lambda (n word)
+             (+ n (stream-length word) 1))
+           -1
+           ws))) 1))
+\end{verbatim}
+
+\begin{verbatim}
+(define-stream (fill m ws)
+  (if (stream-null? ws)
+      stream-null
+      (let* ((n (greedy m ws))
+             (fstline (stream-take n ws))
+             (rstwrds (stream-drop n ws)))
+        (stream-append
+          (stream fstline)
+          (fill m rstwrds)))))
+\end{verbatim}
+
+\begin{verbatim}
+(define linewords
+  (compose stream-concat
+           (lsec stream-map words)))
+\end{verbatim}
+
+\begin{verbatim}
+(define textparas
+  (compose (lsec stream-map linewords)
+           paras
+           lines))
+\end{verbatim}
+
+\begin{verbatim}
+(define (filltext m strm)
+  (unparse (stream-map (lsec fill m) (textparas strm))))
+\end{verbatim}
+
+To display \emph{filename} in lines of \emph{n} characters, say:
+
+\begin{verbatim}
+(stream-for-each display
+  (filltext n (file->stream filename)))
+\end{verbatim}
+
+Though each operator performs only a single task, they can be composed
+powerfully and expressively. The alternative is to build a single
+monolithic procedure for each task, which would be harder and involve
+repetitive code. Streams ensure procedures are called as needed.
+
+\subsection{Persistent data}\label{persistent-data}
+
+Queues are one of the fundamental data structures of computer science.
+In functional languages, queues are commonly implemented using two
+lists, with the front half of the queue in one list, where the head of
+the queue can be accessed easily, and the rear half of the queue in
+reverse order in another list, where new items can easily be added to
+the end of a queue. The standard form of such a queue holds that the
+front list can only be null if the rear list is also null:
+
+(define queue-null (cons `() '())
+
+\begin{verbatim}
+(define (queue-null? obj)
+  (and (pair? obj) (null? (car obj))))
+\end{verbatim}
+
+\begin{verbatim}
+(define (queue-check f r)
+  (if (null? f)
+      (cons (reverse r) '())
+      (cons f r)))
+\end{verbatim}
+
+\begin{verbatim}
+(define (queue-snoc q x)
+  (queue-check (car q) (cons x (cdr q))))
+\end{verbatim}
+
+\begin{verbatim}
+(define (queue-head q)
+  (if (null? (car q))
+      (error "empty queue: head")
+      (car (car q))))
+\end{verbatim}
+
+\begin{verbatim}
+(define (queue-tail q)
+  (if (null? (car q))
+      (error "empty-head: tail")
+      (queue-check (cdr (car q)) (cdr q))))
+\end{verbatim}
+
+This queue operates in amortized constant time per operation, with two
+conses per element, one when it is added to the rear list, and another
+when the rear list is reversed to become the front list. Queue-snoc and
+queue-head operate in constant time; queue-tail operates in worst-case
+linear time when the front list is empty.
+
+Chris Okasaki points out that, if the queue is used persistently, its
+time-complexity rises from linear to quadratic since each persistent
+copy of the queue requires its own linear-time access. The problem can
+be fixed by implementing the front and rear parts of the queue as
+streams, rather than lists, and rotating one element from rear to front
+whenever the rear list is larger than the front list:
+
+\begin{verbatim}
+(define queue-null
+  (cons stream-null stream-null))
+\end{verbatim}
+
+\begin{verbatim}
+(define (queue-null? x)
+  (and (pair? x) (stream-null (car x))))
+\end{verbatim}
+
+\begin{verbatim}
+(define (queue-check f r)
+  (if (< (stream-length r) (stream-length f))
+      (cons f r)
+      (cons (stream-append f (stream-reverse r))
+            stream-null)))
+\end{verbatim}
+
+\begin{verbatim}
+(define (queue-snoc q x)
+  (queue-check (car q) (stream-cons x (cdr q))))
+\end{verbatim}
+
+\begin{verbatim}
+(define (queue-head q)
+  (if (stream-null? (car q))
+      (error "empty queue: head")
+      (stream-car (car q))))
+\end{verbatim}
+
+\begin{verbatim}
+(define (queue-tail q)
+  (if (stream-null? (car q))
+      (error "empty queue: tail")
+      (queue-check (stream-cdr (car q))
+                   (cdr q))))
+\end{verbatim}
+
+Memoization solves the persistence problem; once a queue element has
+moved from rear to front, it need never be moved again in subsequent
+traversals of the queue. Thus, the linear time-complexity to access all
+elements in the queue, persistently, is restored.
+
+\subsection{Reducing two passes to
+one}\label{reducing-two-passes-to-one}
+
+The final example is a lazy dictionary, where definitions and uses may
+occur in any order; in particular, uses may precede their corresponding
+definitions. This is a common problem. Many programming languages allow
+procedures to be used before they are defined. Macro processors must
+collect definitions and emit uses of text in order. An assembler needs
+to know the address that a linker will subsequently give to variables.
+The usual method is to make two passes over the data, collecting the
+definitions on the first pass and emitting the uses on the second pass.
+But Chris Reade shows how streams allow the dictionary to be built
+lazily, so that only a single pass is needed. Consider a stream of
+requests:
+
+\begin{verbatim}
+(define requests
+  (stream
+    '(get 3)
+    '(put 1 "a")    ; use follows definition
+    '(put 3 "c")    ; use precedes definition
+    '(get 1)
+    '(get 2)
+    '(put 2 "b")    ; use precedes definition
+    '(put 4 "d")))  ; unused definition
+\end{verbatim}
+
+We want a procedure that will display cab, which is the result of (get
+3), (get 1), and (get 2), in order. We first separate the request stream
+into gets and puts:
+
+\begin{verbatim}
+(define (get? obj) (eq? (car obj) 'get))
+\end{verbatim}
+
+\begin{verbatim}
+(define-stream (gets strm)
+  (stream-map cadr (stream-filter get? strm)))
+\end{verbatim}
+
+\begin{verbatim}
+(define-stream (puts strm)
+  (stream-map cdr  (stream-remove get? strm)))
+\end{verbatim}
+
+Now, run-dict inserts each element of the puts stream into a lazy
+dictionary, represented as a stream of key/value pairs (an association
+stream), then looks up each element of the gets stream with
+stream-assoc:
+
+\begin{verbatim}
+(define-stream (run-dict requests)
+  (let ((dict (build-dict (puts requests))))
+    (stream-map (rsec stream-assoc dict)
+      (gets requests))))
+\end{verbatim}
+
+\begin{verbatim}
+(define (stream-assoc key dict)
+    (cond ((stream-null? dict) #f)
+          ((equal? key (car (stream-car dict)))
+            (stream-car dict))
+          (else (stream-assoc key
+                  (stream-cdr dict)))))
+\end{verbatim}
+
+Dict is created in the let, but nothing is initially added to it. Each
+time stream-assoc performs a lookup, enough of dict is built to satisfy
+the lookup, but no more. We are assuming that each item is defined once
+and only once. All that is left is to define the procedure that inserts
+new items into the dictionary, lazily:
+
+\begin{verbatim}
+(define-stream (build-dict puts)
+  (if (stream-null? puts)
+      stream-null
+      (stream-cons
+        (stream-car puts)
+        (build-dict (stream-cdr puts)))))
+\end{verbatim}
+
+Now we can run the requests and print the result:
+
+\begin{verbatim}
+(stream-for-each display
+  (stream-map cadr (run-dict requests)))
+\end{verbatim}
+
+The (put 4 ``d'') definition is never added to the dictionary because it
+is never needed.
+
+\subsection{Pitfalls}\label{pitfalls}
+
+Programming with streams, or any lazy evaluator, can be tricky, even for
+programmers experienced in the genre. Programming with streams is even
+worse in Scheme than in a purely functional language, because, though
+the streams are lazy, the surrounding Scheme expressions in which they
+are embedded are eager. The impedance between lazy and eager can
+occasionally lead to astonishing results. Thirty-two years ago, William
+Burge warned:
+
+For example, a simple version of stream-map that returns a stream built
+by applying a unary procedure to the elements of an input stream could
+be defined like this:
+
+\begin{verbatim}
+(define-stream (stream-map proc strm) ;wrong!
+  (let loop ((strm strm))
+    (if (stream-null? strm)
+        stream-null
+        (stream-cons
+          (proc (stream-car strm))
+          (loop (stream-cdr strm))))))
+\end{verbatim}
+
+That looks right. It properly wraps the procedure in stream-lambda, and
+the two legs of the if both return streams, so it type-checks. But it
+fails because the named let binds loop to a procedure using normal
+lambda rather than stream-lambda, so even though the first element of
+the result stream is lazy, subsequent elements are eager. Stream-map can
+be written using stream-let:
+
+\begin{verbatim}
+(define-stream (stream-map proc strm)
+  (stream-let loop ((strm strm))
+    (if (stream-null? strm)
+        stream-null
+        (stream-cons
+          (proc (stream-car strm))
+          (loop (stream-cdr strm))))))
+\end{verbatim}
+
+Here, stream-let assures that each element of the result stream is
+properly delayed, because each is subject to the stream-lambda that is
+implicit in stream-let, so the result is truly a stream, not a ``list in
+disguise.'' Another version of this procedure was given previously at
+the description of define-stream.
+
+Another common problem occurs when a stream-valued procedure requires
+the next stream element in its definition. Consider this definition of
+stream-unique:
+
+\begin{verbatim}
+(define-stream (stream-unique eql? strm) ;wrong!
+  (stream-match strm
+    (() strm)
+    ((_) strm)
+    ((a b . _)
+      (if (eql? a b)
+          (stream-unique eql?
+            (stream-cdr strm))
+          (stream-cons a
+            (stream-unique eql?
+              (stream-cdr strm)))))))
+\end{verbatim}
+
+The (a b . \_) pattern requires the value of the next stream element
+after the one being considered. Thus, to compute the
+\emph{n}\textsuperscript{th} element of the stream, one must know the
+\emph{n}+1\textsuperscript{st} element, and to compute the
+\emph{n}+1\textsuperscript{st} element, one must know the
+\emph{n}+2\textsuperscript{nd} element, and to compute\ldots{}. The
+correct version, given above in the description of stream-drop-while,
+only needs the current stream element.
+
+A similar problem occurs when the stream expression uses the previous
+element to compute the current element:
+
+\begin{verbatim}
+(define (nat n)
+  (stream-ref
+    (stream-let loop ((s (stream 0)))
+      (stream-cons (stream-car s)
+        (loop (stream (add1 (stream-car s))))))
+    n))
+\end{verbatim}
+
+This program traverses the stream of natural numbers, building the
+stream as it goes. The definition is correct; (nat 15) evaluates to 15.
+But it needlessly uses unbounded space because each stream element holds
+the value of the prior stream element in the binding to s.
+
+When traversing a stream, it is easy to write the expression in such a
+way that evaluation requires unbounded space, even when that is not
+strictly necessary. During the discussion of SRFI-40, Joe Marshall
+created this infamous procedure:
+
+\begin{verbatim}
+(define (times3 n)
+  (stream-ref
+    (stream-filter
+      (lambda (x)
+        (zero? (modulo x n)))
+      (stream-from 0))
+    3))
+\end{verbatim}
+
+(times3 5) evaluates to 15 and (times3 \#e1e9) evaluates to three
+billion, though it takes a while. In either case, times3 should operate
+in bounded space, since each iteration mutates the promise that holds
+the next value. But it is easy to write times3 so that it does not
+operate in bounded space, as the follies of SRFI-40 showed. The common
+problem is that some element of the stream (often the first element) is
+bound outside the expression that is computing the stream, so it holds
+the head of the stream, which holds the second element, and so on. In
+addition to testing the programmer, this procedure tests the stream
+primitives (it caught several errors during development) and also tests
+the underlying Scheme system (it found a bug in one implementation).
+
+Laziness is no defense against an infinite loop; for instance, the
+expression below never returns, because the odd? predicate never finds
+an odd stream element.
+
+\begin{verbatim}
+(stream-null?
+  (stream-filter odd?
+    (stream-from 0 2)))
+\end{verbatim}
+
+Ultimately, streams are defined as promises, which are implemented as
+thunks (lambda with no arguments). Since a stream is a procedure,
+comparisons such as eq?, eqv? and equal? are not meaningful when applied
+to streams. For instance, the expression (define s ((stream-lambda ()
+stream-null))) defines s as the null stream, and (stream-null? s) is
+\#t, but (eq? s stream-null) is \#f. To determine if two streams are
+equal, it is necessary to evaluate the elements in their common
+prefixes, reporting \#f if two elements ever differ and \#t if both
+streams are exhausted at the same time.
+
+\begin{verbatim}
+(define (stream-equal? eql? xs ys)
+  (cond ((and (stream-null? xs)
+              (stream-null? ys)) #t)
+        ((or (stream-null? xs)
+             (stream-null? ys)) #f)
+        ((not (eql? (stream-car xs)
+                    (stream-car ys))) #f)
+        (else (stream-equal? eql?
+                (stream-cdr xs)
+                (stream-cdr ys)))))
+\end{verbatim}
+
+It is generally not a good idea to mix lazy streams with eager
+side-effects, because the order in which stream elements are evaluated
+determines the order in which the side-effects occur. For a simple
+example, consider this side-effecting version of strm123:
+
+\begin{verbatim}
+(define strm123-with-side-effects
+  (stream-cons (begin (display "one") 1)
+    (stream-cons (begin (display "two") 2)
+      (stream-cons (begin (display "three") 3)
+        stream-null))))
+\end{verbatim}
+
+The stream has elements 1 2 3. But depending on the order in which
+stream elements are accessed, ``one'', ``two'' and ``three'' could be
+printed in any order.
+
+Since the performance of streams can be very poor, normal (eager) lists
+should be preferred to streams unless there is some compelling reason to
+the contrary. For instance, computing pythagorean triples with streams
+
+\begin{verbatim}
+(stream-ref
+  (stream-of (list a b c)
+    (n in (stream-from 1))
+    (a in (stream-range 1 n))
+    (b in (stream-range a n))
+    (c is (- n a b))
+    (= (+ (* a a) (* b b)) (* c c)))
+  50)
+\end{verbatim}
+
+is about two orders of magnitude slower than the equivalent expression
+using loops.
+
+\begin{verbatim}
+(do ((n 1 (+ n 1))) ((> n 228))
+  (do ((a 1 (+ a 1))) ((> a n))
+    (do ((b a (+ b 1))) ((> b n))
+      (let ((c (- n a b)))
+        (if (= (+ (* a a) (* b b)) (* c c))
+            (display (list a b c)))))))
+\end{verbatim}
+
+\section{Implementation}\label{implementation}
+
+Bird and Wadler describe streams as either null or a pair with a stream
+in the tail:
+
+α list :: null \textbar{} α * α list
+
+That works in a purely functional language such as Miranda or Haskell
+because the entire language is lazy. In an eager language like ML or
+Scheme, of course, it's just a normal, eager list.
+
+Using ML, Wadler, Taha and MacQueen give the type of even streams as:
+
+\begin{verbatim}
+datatype 'a stream_
+  = Nil_
+  | Cons_ of 'a * 'a stream
+withtype 'a stream
+  = 'a stream_ susp;
+\end{verbatim}
+
+Their susp type is similar to Scheme's promise type. Since Scheme
+conflates the notions of record and type (the only way to create a new
+type disjoint from all other types is to create a record), it is
+necessary to distribute the suspension through the two constructors of
+the stream data type:
+
+\begin{verbatim}
+α stream
+  :: (promise stream-null)
+  |  (promise (α stream-pair))
+\end{verbatim}
+
+\begin{verbatim}
+α stream-pair
+  :: α × (α stream)
+\end{verbatim}
+
+That type captures the systematic suspension of recursive promises that
+is the essence of ``streamness.'' But it doesn't quite work, because
+Scheme is eager rather than lazy, and both the car and the cdr of the
+stream are evaluated too early. So the final type of streams delays both
+the car and the cdr of the stream-pair:
+
+\begin{verbatim}
+α stream
+  :: (promise stream-null)
+  |  (promise (α stream-pair))
+\end{verbatim}
+
+\begin{verbatim}
+α stream-pair
+  :: (promise α) × (promise (α stream))
+\end{verbatim}
+
+The two outer promises, in the stream type, provide streams without
+memoization. The two inner promises, in the stream-pair type, add the
+memoization that is characteristic of streams in modern functional
+languages.
+
+Lists provide seven primitive operations: the two constructors '() and
+cons, the type predicates list?, null? and pair?, and the accessors car
+and cdr for pairs. All other list operations can be derived from those
+primitives.
+
+It would seem that the same set of primitives could apply to streams,
+but in fact one additional primitive is required. André van Tonder
+describes the reason in his discussion of the promise data type. The
+promises of R6RS are inadequate to support iterative algorithms because
+each time a promise is called iteratively it binds the old promise in
+the closure that defines the new promise (so the old promise can be
+forced later, if requested). However, in the case of iteration, the old
+promise becomes unreachable, so instead of creating a new promise that
+binds the old promise within, it is better to mutate the promise; that
+way, no space is wasted by the old promise.
+
+Van Tonder describes this new promise type, and provides a recipe for
+its use: all constructors are wrapped with delay, all accessors are
+wrapped with force, and all function bodies are wrapped with lazy. Given
+the seven primitives above, the first two parts of van Tonder's recipe
+are simple: the two constructors stream-null and stream-pair hide delay,
+and the two accessors stream-car and stream-cdr hide force (stream-null?
+and stream-pair? also hide force, so they can distinguish the two
+constructors of the stream type).
+
+Although the new promise type prevents a space leak, it creates a new
+problem: there is no place to hide the lazy that is the third part of
+van Tonder's recipe. SRFI-40 solved this problem by exposing it
+(actually, it exposed delay, which was incorrect). But that violates
+good software engineering by preventing the stream data type from being
+fully abstract. The solution of SRFI-41 is to create a new primitive,
+stream-lambda, that returns a function that hides lazy.
+
+Besides hiding lazy and making the types work out correctly,
+stream-lambda is obvious and easy-to-use for competent Scheme
+programmers, especially when augmented with the syntactic sugar of
+define-stream and named stream-let. The alternative of exposing
+stream-lazy would be less clear and harder to use.
+
+One of the hardest tasks when writing any program library is to decide
+what to include and, more importantly, what to exclude. One important
+guideline is minimalism, since once an operator enters a library it must
+remain forever: \emph{Il semble que la perfection soit atteinte non
+quand il n'y a plus rien à ajouter, mais quand il n'y a plus rien à
+retrancher}.
+
+Since streams are substantially slower than lists (the stream primitives
+require numerous type conversions, and list operations in most Scheme
+implementations are heavily optimized), most programmers will use
+streams only when the sequence of elements is truly infinite (such as
+mathematical series) or when there is some clear advantage of laziness
+(such as reducing the number of passes though a large data set). Thus,
+the library is biased toward functions that work with infinite streams
+left-to-right. In particular, there is no right-fold; if you need to
+materialize an entire stream, it's best to use a list.
+
+\subsection{Implementation of (streams
+primitive)}\label{implementation-of-streams-primitive}
+
+(library (streams primitive)
+
+\begin{verbatim}
+  (export stream-null stream-cons stream? stream-null? stream-pair?
+          stream-car stream-cdr stream-lambda)
+\end{verbatim}
+
+\begin{verbatim}
+  (import (rnrs) (rnrs mutable-pairs))
+\end{verbatim}
+
+\begin{verbatim}
+  (define-record-type (stream-type make-stream stream?)
+    (fields (mutable box stream-promise stream-promise!)))
+\end{verbatim}
+
+\begin{verbatim}
+  (define-syntax stream-lazy
+    (syntax-rules ()
+      ((stream-lazy expr)
+        (make-stream
+          (cons 'lazy (lambda () expr))))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define (stream-eager expr)
+    (make-stream
+      (cons 'eager expr)))
+\end{verbatim}
+
+\begin{verbatim}
+  (define-syntax stream-delay
+    (syntax-rules ()
+      ((stream-delay expr)
+        (stream-lazy (stream-eager expr)))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define (stream-force promise)
+    (let ((content (stream-promise promise)))
+      (case (car content)
+        ((eager) (cdr content))
+        ((lazy)  (let* ((promise* ((cdr content)))
+                        (content  (stream-promise promise)))
+                   (if (not (eqv? (car content) 'eager))
+                       (begin (set-car! content (car (stream-promise promise*)))
+                              (set-cdr! content (cdr (stream-promise promise*)))
+                              (stream-promise! promise* content)))
+                   (stream-force promise))))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define stream-null (stream-delay (cons 'stream 'null)))
+\end{verbatim}
+
+\begin{verbatim}
+  (define-record-type (stream-pare-type make-stream-pare stream-pare?)
+    (fields (immutable kar stream-kar) (immutable kdr stream-kdr)))
+\end{verbatim}
+
+\begin{verbatim}
+  (define (stream-pair? obj)
+    (and (stream? obj) (stream-pare? (stream-force obj))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define (stream-null? obj)
+    (and (stream? obj)
+         (eqv? (stream-force obj)
+               (stream-force stream-null))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define-syntax stream-cons
+    (syntax-rules ()
+      ((stream-cons obj strm)
+        (stream-eager (make-stream-pare (stream-delay obj) (stream-lazy strm))))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define (stream-car strm)
+    (cond ((not (stream? strm)) (error 'stream-car "non-stream"))
+          ((stream-null? strm) (error 'stream-car "null stream"))
+          (else (stream-force (stream-kar (stream-force strm))))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define (stream-cdr strm)
+    (cond ((not (stream? strm)) (error 'stream-cdr "non-stream"))
+          ((stream-null? strm) (error 'stream-cdr "null stream"))
+          (else (stream-kdr (stream-force strm)))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define-syntax stream-lambda
+    (syntax-rules ()
+      ((stream-lambda formals body0 body1 ...)
+        (lambda formals (stream-lazy (let () body0 body1 ...)))))))
+\end{verbatim}
+
+\subsection{Implementation of (streams
+derived)}\label{implementation-of-streams-derived}
+
+(library (streams derived)
+
+\begin{verbatim}
+  (export stream-null stream-cons stream? stream-null? stream-pair? stream-car
+          stream-cdr stream-lambda define-stream list->stream port->stream stream
+          stream->list stream-append stream-concat stream-constant stream-drop
+          stream-drop-while stream-filter stream-fold stream-for-each stream-from
+          stream-iterate stream-length stream-let stream-map stream-match _
+          stream-of stream-range stream-ref stream-reverse stream-scan stream-take
+          stream-take-while stream-unfold stream-unfolds stream-zip)
+\end{verbatim}
+
+\begin{verbatim}
+  (import (rnrs) (streams primitive))
+\end{verbatim}
+
+\begin{verbatim}
+  (define-syntax define-stream
+    (syntax-rules ()
+      ((define-stream (name . formal) body0 body1 ...)
+        (define name (stream-lambda formal body0 body1 ...)))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define (list->stream objs)
+    (define list->stream
+      (stream-lambda (objs)
+        (if (null? objs)
+            stream-null
+            (stream-cons (car objs) (list->stream (cdr objs))))))
+    (if (not (list? objs))
+        (error 'list->stream "non-list argument")
+        (list->stream objs)))
+\end{verbatim}
+
+\begin{verbatim}
+  (define (port->stream . port)
+    (define port->stream
+      (stream-lambda (p)
+        (let ((c (read-char p)))
+          (if (eof-object? c)
+              stream-null
+              (stream-cons c (port->stream p))))))
+    (let ((p (if (null? port) (current-input-port) (car port))))
+      (if (not (input-port? p))
+          (error 'port->stream "non-input-port argument")
+          (port->stream p))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define-syntax stream
+    (syntax-rules ()
+      ((stream) stream-null)
+      ((stream x y ...) (stream-cons x (stream y ...)))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define (stream->list . args)
+    (let ((n (if (= 1 (length args)) #f (car args)))
+          (strm (if (= 1 (length args)) (car args) (cadr args))))
+      (cond ((not (stream? strm)) (error 'stream->list "non-stream argument"))
+            ((and n (not (integer? n))) (error 'stream->list "non-integer count"))
+            ((and n (negative? n)) (error 'stream->list "negative count"))
+            (else (let loop ((n (if n n -1)) (strm strm))
+                    (if (or (zero? n) (stream-null? strm))
+                        '()
+                        (cons (stream-car strm) (loop (- n 1) (stream-cdr strm)))))))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define (stream-append . strms)
+    (define stream-append
+      (stream-lambda (strms)
+        (cond ((null? (cdr strms)) (car strms))
+              ((stream-null? (car strms)) (stream-append (cdr strms)))
+              (else (stream-cons (stream-car (car strms))
+                                 (stream-append (cons (stream-cdr (car strms)) (cdr strms))))))))
+    (cond ((null? strms) stream-null)
+          ((exists (lambda (x) (not (stream? x))) strms)
+            (error 'stream-append "non-stream argument"))
+          (else (stream-append strms))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define (stream-concat strms)
+    (define stream-concat
+      (stream-lambda (strms)
+        (cond ((stream-null? strms) stream-null)
+              ((not (stream? (stream-car strms)))
+                (error 'stream-concat "non-stream object in input stream"))
+              ((stream-null? (stream-car strms))
+                (stream-concat (stream-cdr strms)))
+              (else (stream-cons
+                      (stream-car (stream-car strms))
+                      (stream-concat
+                        (stream-cons (stream-cdr (stream-car strms)) (stream-cdr strms))))))))
+    (if (not (stream? strms))
+        (error 'stream-concat "non-stream argument")
+        (stream-concat strms)))
+\end{verbatim}
+
+\begin{verbatim}
+  (define stream-constant
+    (stream-lambda objs
+      (cond ((null? objs) stream-null)
+            ((null? (cdr objs)) (stream-cons (car objs) (stream-constant (car objs))))
+            (else (stream-cons (car objs)
+                               (apply stream-constant (append (cdr objs) (list (car objs)))))))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define (stream-drop n strm)
+    (define stream-drop
+      (stream-lambda (n strm)
+        (if (or (zero? n) (stream-null? strm))
+            strm
+            (stream-drop (- n 1) (stream-cdr strm)))))
+    (cond ((not (integer? n)) (error 'stream-drop "non-integer argument"))
+          ((negative? n) (error 'stream-drop "negative argument"))
+          ((not (stream? strm)) (error 'stream-drop "non-stream argument"))
+          (else (stream-drop n strm))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define (stream-drop-while pred? strm)
+    (define stream-drop-while
+      (stream-lambda (strm)
+        (if (and (stream-pair? strm) (pred? (stream-car strm)))
+            (stream-drop-while (stream-cdr strm))
+            strm)))
+    (cond ((not (procedure? pred?)) (error 'stream-drop-while "non-procedural argument"))
+          ((not (stream? strm)) (error 'stream-drop-while "non-stream argument"))
+          (else (stream-drop-while strm))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define (stream-filter pred? strm)
+    (define stream-filter
+      (stream-lambda (strm)
+        (cond ((stream-null? strm) stream-null)
+              ((pred? (stream-car strm))
+                (stream-cons (stream-car strm) (stream-filter (stream-cdr strm))))
+              (else (stream-filter (stream-cdr strm))))))
+    (cond ((not (procedure? pred?)) (error 'stream-filter "non-procedural argument"))
+          ((not (stream? strm)) (error 'stream-filter "non-stream argument"))
+          (else (stream-filter strm))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define (stream-fold proc base strm)
+    (cond ((not (procedure? proc)) (error 'stream-fold "non-procedural argument"))
+          ((not (stream? strm)) (error 'stream-fold "non-stream argument"))
+          (else (let loop ((base base) (strm strm))
+                  (if (stream-null? strm)
+                      base
+                      (loop (proc base (stream-car strm)) (stream-cdr strm)))))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define (stream-for-each proc . strms)
+    (define (stream-for-each strms)
+      (if (not (exists stream-null? strms))
+          (begin (apply proc (map stream-car strms))
+                 (stream-for-each (map stream-cdr strms)))))
+    (cond ((not (procedure? proc)) (error 'stream-for-each "non-procedural argument"))
+          ((null? strms) (error 'stream-for-each "no stream arguments"))
+          ((exists (lambda (x) (not (stream? x))) strms)
+            (error 'stream-for-each "non-stream argument"))
+          (else (stream-for-each strms))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define (stream-from first . step)
+    (define stream-from
+      (stream-lambda (first delta)
+        (stream-cons first (stream-from (+ first delta) delta))))
+    (let ((delta (if (null? step) 1 (car step))))
+      (cond ((not (number? first)) (error 'stream-from "non-numeric starting number"))
+            ((not (number? delta)) (error 'stream-from "non-numeric step size"))
+            (else (stream-from first delta)))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define (stream-iterate proc base)
+    (define stream-iterate
+      (stream-lambda (base)
+        (stream-cons base (stream-iterate (proc base)))))
+    (if (not (procedure? proc))
+        (error 'stream-iterate "non-procedural argument")
+        (stream-iterate base)))
+\end{verbatim}
+
+\begin{verbatim}
+  (define (stream-length strm)
+    (if (not (stream? strm))
+        (error 'stream-length "non-stream argument")
+        (let loop ((len 0) (strm strm))
+          (if (stream-null? strm)
+              len
+              (loop (+ len 1) (stream-cdr strm))))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define-syntax stream-let
+    (syntax-rules ()
+      ((stream-let tag ((name val) ...) body1 body2 ...)
+       ((letrec ((tag (stream-lambda (name ...) body1 body2 ...))) tag) val ...))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define (stream-map proc . strms)
+    (define stream-map
+      (stream-lambda (strms)
+        (if (exists stream-null? strms)
+            stream-null
+            (stream-cons (apply proc (map stream-car strms))
+                         (stream-map (map stream-cdr strms))))))
+    (cond ((not (procedure? proc)) (error 'stream-map "non-procedural argument"))
+          ((null? strms) (error 'stream-map "no stream arguments"))
+          ((exists (lambda (x) (not (stream? x))) strms)
+            (error 'stream-map "non-stream argument"))
+          (else (stream-map strms))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define-syntax stream-match
+    (syntax-rules ()
+      ((stream-match strm-expr clause ...)
+        (let ((strm strm-expr))
+          (cond
+            ((not (stream? strm)) (error 'stream-match "non-stream argument"))
+            ((stream-match-test strm clause) => car) ...
+            (else (error 'stream-match "pattern failure")))))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define-syntax stream-match-test
+    (syntax-rules ()
+      ((stream-match-test strm (pattern fender expr))
+        (stream-match-pattern strm pattern () (and fender (list expr))))
+      ((stream-match-test strm (pattern expr))
+        (stream-match-pattern strm pattern () (list expr)))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define-syntax stream-match-pattern 
+    (lambda (x)
+      (define (wildcard? x)
+        (and (identifier? x)
+             (free-identifier=? x (syntax _))))
+      (syntax-case x () 
+        ((stream-match-pattern strm () (binding ...) body)
+          (syntax (and (stream-null? strm) (let (binding ...) body))))
+        ((stream-match-pattern strm (w? . rest) (binding ...) body)
+          (wildcard? #'w?) 
+          (syntax (and (stream-pair? strm)
+                       (let ((strm (stream-cdr strm)))
+                         (stream-match-pattern strm rest (binding ...) body)))))
+        ((stream-match-pattern strm (var . rest) (binding ...) body)
+          (syntax (and (stream-pair? strm)
+                       (let ((temp (stream-car strm)) (strm (stream-cdr strm))) 
+                         (stream-match-pattern strm rest ((var temp) binding ...) body)))))
+        ((stream-match-pattern strm w? (binding ...) body)
+          (wildcard? #'w?)
+          (syntax (let (binding ...) body)))
+        ((stream-match-pattern strm var (binding ...) body) 
+          (syntax (let ((var strm) binding ...) body))))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define-syntax stream-of
+    (syntax-rules ()
+      ((_ expr rest ...)
+        (stream-of-aux expr stream-null rest ...))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define-syntax stream-of-aux
+    (syntax-rules (in is)
+      ((stream-of-aux expr base)
+        (stream-cons expr base))
+      ((stream-of-aux expr base (var in stream) rest ...)
+        (stream-let loop ((strm stream))
+          (if (stream-null? strm)
+              base
+              (let ((var (stream-car strm)))
+                (stream-of-aux expr (loop (stream-cdr strm)) rest ...)))))
+      ((stream-of-aux expr base (var is exp) rest ...)
+        (let ((var exp)) (stream-of-aux expr base rest ...)))
+      ((stream-of-aux expr base pred? rest ...)
+        (if pred? (stream-of-aux expr base rest ...) base))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define (stream-range first past . step)
+    (define stream-range
+      (stream-lambda (first past delta lt?)
+        (if (lt? first past)
+            (stream-cons first (stream-range (+ first delta) past delta lt?))
+            stream-null)))
+    (cond ((not (number? first)) (error 'stream-range "non-numeric starting number"))
+          ((not (number? past)) (error 'stream-range "non-numeric ending number"))
+          (else (let ((delta (cond ((pair? step) (car step)) ((< first past) 1) (else -1))))
+                  (if (not (number? delta))
+                      (error 'stream-range "non-numeric step size")
+                      (let ((lt? (if (< 0 delta) < >)))
+                        (stream-range first past delta lt?)))))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define (stream-ref strm n)
+    (cond ((not (stream? strm)) (error 'stream-ref "non-stream argument"))
+          ((not (integer? n)) (error 'stream-ref "non-integer argument"))
+          ((negative? n) (error 'stream-ref "negative argument"))
+          (else (let loop ((strm strm) (n n))
+                  (cond ((stream-null? strm) (error 'stream-ref "beyond end of stream"))
+                        ((zero? n) (stream-car strm))
+                        (else (loop (stream-cdr strm) (- n 1))))))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define (stream-reverse strm)
+    (define stream-reverse
+      (stream-lambda (strm rev)
+        (if (stream-null? strm)
+            rev
+            (stream-reverse (stream-cdr strm) (stream-cons (stream-car strm) rev)))))
+    (if (not (stream? strm))
+        (error 'stream-reverse "non-stream argument")
+        (stream-reverse strm stream-null)))
+\end{verbatim}
+
+\begin{verbatim}
+  (define (stream-scan proc base strm)
+    (define stream-scan
+      (stream-lambda (base strm)
+        (if (stream-null? strm)
+            (stream base)
+            (stream-cons base (stream-scan (proc base (stream-car strm)) (stream-cdr strm))))))
+    (cond ((not (procedure? proc)) (error 'stream-scan "non-procedural argument"))
+          ((not (stream? strm)) (error 'stream-scan "non-stream argument"))
+          (else (stream-scan base strm))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define (stream-take n strm)
+    (define stream-take
+      (stream-lambda (n strm)
+        (if (or (stream-null? strm) (zero? n))
+            stream-null
+            (stream-cons (stream-car strm) (stream-take (- n 1) (stream-cdr strm))))))
+    (cond ((not (stream? strm)) (error 'stream-take "non-stream argument"))
+          ((not (integer? n)) (error 'stream-take "non-integer argument"))
+          ((negative? n) (error 'stream-take "negative argument"))
+          (else (stream-take n strm))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define (stream-take-while pred? strm)
+    (define stream-take-while
+      (stream-lambda (strm)
+        (cond ((stream-null? strm) stream-null)
+              ((pred? (stream-car strm))
+                (stream-cons (stream-car strm) (stream-take-while (stream-cdr strm))))
+              (else stream-null))))
+    (cond ((not (stream? strm)) (error 'stream-take-while "non-stream argument"))
+          ((not (procedure? pred?)) (error 'stream-take-while "non-procedural argument"))
+          (else (stream-take-while strm))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define (stream-unfold mapper pred? generator base)
+    (define stream-unfold
+      (stream-lambda (base)
+        (if (pred? base)
+            (stream-cons (mapper base) (stream-unfold (generator base)))
+            stream-null)))
+    (cond ((not (procedure? mapper)) (error 'stream-unfold "non-procedural mapper"))
+          ((not (procedure? pred?)) (error 'stream-unfold "non-procedural pred?"))
+          ((not (procedure? generator)) (error 'stream-unfold "non-procedural generator"))
+          (else (stream-unfold base))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define (stream-unfolds gen seed)
+    (define (len-values gen seed)
+      (call-with-values
+        (lambda () (gen seed))
+        (lambda vs (- (length vs) 1))))
+    (define unfold-result-stream
+      (stream-lambda (gen seed)
+        (call-with-values
+          (lambda () (gen seed))
+          (lambda (next . results)
+            (stream-cons results (unfold-result-stream gen next))))))
+    (define result-stream->output-stream
+      (stream-lambda (result-stream i)
+        (let ((result (list-ref (stream-car result-stream) (- i 1))))
+          (cond ((pair? result)
+                  (stream-cons
+                    (car result)
+                    (result-stream->output-stream (stream-cdr result-stream) i)))
+                ((not result)
+                  (result-stream->output-stream (stream-cdr result-stream) i))
+                ((null? result) stream-null)
+                (else (error 'stream-unfolds "can't happen"))))))
+    (define (result-stream->output-streams result-stream)
+      (let loop ((i (len-values gen seed)) (outputs '()))
+        (if (zero? i)
+            (apply values outputs)
+            (loop (- i 1) (cons (result-stream->output-stream result-stream i) outputs)))))
+    (if (not (procedure? gen))
+        (error 'stream-unfolds "non-procedural argument")
+        (result-stream->output-streams (unfold-result-stream gen seed))))
+\end{verbatim}
+
+\begin{verbatim}
+  (define (stream-zip . strms)
+    (define stream-zip
+      (stream-lambda (strms)
+        (if (exists stream-null? strms)
+            stream-null
+            (stream-cons (map stream-car strms) (stream-zip (map stream-cdr strms))))))
+    (cond ((null? strms) (error 'stream-zip "no stream arguments"))
+          ((exists (lambda (x) (not (stream? x))) strms)
+            (error 'stream-zip "non-stream argument"))
+          (else (stream-zip strms)))))
+\end{verbatim}
+
+\subsection{Implementation of
+(streams)}\label{implementation-of-streams}
+
+(library (streams)
+
+\begin{verbatim}
+  (export stream-null stream-cons stream? stream-null? stream-pair? stream-car
+          stream-cdr stream-lambda define-stream list->stream port->stream stream
+          stream->list stream-append stream-concat stream-constant stream-drop
+          stream-drop-while stream-filter stream-fold stream-for-each stream-from
+          stream-iterate stream-length stream-let stream-map stream-match _
+          stream-of stream-range stream-ref stream-reverse stream-scan stream-take
+          stream-take-while stream-unfold stream-unfolds stream-zip)
+\end{verbatim}
+
+\begin{verbatim}
+  (import (streams primitive) (streams derived)))
+\end{verbatim}
+
+\section{Acknowledgements}\label{acknowledgements}
+
+Jos Koot sharpened my thinking during many e-mail discussions, suggested
+several discussion points in the text, and contributed the final version
+of stream-match. Michael Sperber and Abdulaziz Ghuloum gave advice on
+R6RS.
+
+\section{References}\label{references}
+
+Harold Abelson and Gerald Jay Sussman with Julie Sussman.
+\emph{Structure and Interpretation of Computer Programs}. MIT Press,
+Cambridge, Massachusetts. Second edition, 1996.
+\href{http://mitpress.mit.edu/sicp}{mitpress.mit.edu/sicp}. The classic
+text on computer science. Section 3.5 includes extensive discussion of
+odd streams.
+
+Anne L. Bewig. ``Golden Ratio'' (personal communication). Homework for
+the high school course \emph{Calculus}. Teaching my daughter how to
+calculate the 200\textsuperscript{th} element of a continued fraction
+was a moment of sheer joy in the development of the stream libraries.
+
+Philip L. Bewig. \emph{Scheme Request for Implementation 40: A Library
+of Streams}. August, 2004.
+\href{http://srfi.schemers.org/srfi-40}{srfi.schemers.org/srfi-40}.
+Describes an implementation of the stream data type.
+
+Richard Bird and Philip Wadler. \emph{Introduction to Functional
+Programming}. Prentice Hall, 1988. The classic text on functional
+programming. Even streams are discussed in the context of purely
+functional programming.
+
+William H. Burge. \emph{Recursive Programming Techniques}.
+Addison-Wesley, 1975. An early text on functional programming, and still
+one of the best, though the terminology is dated. Discusses even streams
+in Section 3.10.
+
+Jeremy Gibbons, David Lester and Richard Bird, ``Functional Pearl:
+Enumerating the Rationals,'' under consideration for publication in
+\emph{Journal of Functional Programming}.
+\url{http://web.comlab.ox.ac.uk/oucl/work/jeremy.gibbons/publications/rationals.pdf}.
+Discusses a series of expressions that enumerate the rational numbers
+without duplicates.
+
+Carl Hewitt. ``Viewing control structures as patterns of passing
+messages,'' in \emph{Journal of Artificial Intelligence}, Volume 8,
+Number 3 (June, 1977), pp 323-364. Also published as Artificial
+Intelligence Memo 410 by the Massachusetts Institute of Technology,
+\url{ftp://publications.ai.mit.edu/ai-publications/pdf/AIM-410.pdf}.
+Describes the Actor message-passing system; one of the examples used is
+the same-fringe? problem.
+
+Peter J. Landin. ``A correspondence between ALGOL 60 and Church's
+lambda-notation: Part I,'' \emph{Communications of the ACM}, Volume 8,
+Number 2, February 1965., pages 89--101. The seminal description of
+streams.
+
+Joe Marshall. ``Stream problem redux'', from \emph{Usenet
+comp.lang.scheme}, June 28, 2002.
+\href{http://groups.google.com/group/comp.lang.scheme/msg/db4b4a1f33e3eea8}{groups.google.com/group/comp.lang.scheme/msg/db4b4a1f33e3eea8}.
+The original post on comp.lang.scheme that describes the times3 problem.
+
+Chris Okasaki. \emph{Purely Functional Data Structures}. Cambridge
+University Press, 2003. Revised version of Okasaki's thesis \emph{Purely
+Functional Data Structures}, Carnegie-Mellon University, 1996,
+\href{http://www.cs.cmu.edu/~rwh/theses/okasaki.pdf}{www.cs.cmu.edu/\textasciitilde{}rwh/theses/okasaki.pdf}.
+Provides a strong defense of laziness, and describes several data
+structures that exploit laziness, including streams and queues.
+
+Stephen K. Park and Keith W. Miller. ``Random number generators: good
+ones are hard to find,'' \emph{Communications of the ACM}, Volume 31,
+Issue 10 (October 1988), pages 1192--1201. Describes a minimal standard
+random number generator.
+
+Simon Peyton-Jones, et al, editors. \emph{Haskell 98: Haskell 98
+Language and Libraries: The Revised Report}. December 2002.
+\href{http://www.haskell.org/onlinereport}{www.haskell.org/onlinereport}.
+Haskell is the prototypical purely functional language, and includes
+even streams, which it calls lists, as its fundamental structured data
+type.
+
+Chris Reade. \emph{Elements of Functional Programming}. Addison-Wesley,
+April 1989. A textbook on functional programming.
+
+Antoine de Saint-Exupéry. Chapter III ``L'Avion'' of \emph{Terre des
+Hommes}. 1939. ``Perfection is achieved, not when there is nothing more
+to add, but when there is nothing left to take away.''
+
+Dorai Sitaram. \emph{Teach Yourself Scheme in Fixnum Days}.
+\href{http://www.ccs.neu.edu/home/dorai/t-y-scheme/t-y-scheme.html}{www.ccs.neu.edu/home/dorai/t-y-scheme/t-y-scheme.html}.
+A useful introduction to Scheme; includes generator and co-routine
+solutions to the same-fringe? problem.
+
+Michael Sperber, R. Kent Dybvig, Matthew Flatt, and Anton von Straaten,
+editors. \emph{Revised}\textsuperscript{\emph{6}} \emph{Report on the
+Algorithmic Language Scheme}. September 26, 2007.
+\href{http://www.r6rs.org}{www.r6rs.org}. The standard definition of the
+Scheme programming language.
+
+André van Tonder. \emph{Scheme Request for Implementation 45: Primitives
+for Expressing Iterative Lazy Algorithms}.
+\href{http://srfi.schemers.org/srfi-45}{srfi.schemers.org/srfi-45}.
+April, 2004. Describes the problems inherent in the promise data type of
+R5RS (also present in R6RS), and provides the alternate promise data
+type used in the stream primitives.
+
+Philip Wadler. ``How to replace failure by a list of successes,'' in
+\emph{Proceedings of the conference on functional programming languages
+and computer architecture}, Nancy, France, 1985, pages 113--128.
+Describes the ``list of successes'' technique for implementing
+backtracking algorithms using streams.
+
+Philip Wadler, Walid Taha, and David MacQueen, ``How to add laziness to
+a strict language without even being odd.'' 1998 ACM SIGPLAN Workshop on
+ML, pp. 24ff.
+\href{http://homepages.inf.ed.ac.uk/wadler/papers/lazyinstrict/lazyinstrict.ps}{homepages.inf.ed.ac.uk/wadler/papers/lazyinstrict/lazyinstrict.ps}.
+Describes odd and even styles of lazy evaluation, and shows how to add
+lazy evaluation to the strict functional language SML.
+
+All cited web pages visited during September 2007.
+
+\section{Copyright}\label{copyright}
+
+Copyright (C) Philip L. Bewig (2007). All Rights Reserved.
+
+Permission is hereby granted, free of charge, to any person obtaining a
+copy of this software and associated documentation files (the
+``Software''), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be included
+in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED ``AS IS'', WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+Several files related to this document are available from
+srfi.schemers.org/srfi-41: A version of this document suitable for
+printing is available at streams.pdf. The complete source corresponding
+to the three Appendices is available in files streams.ss, primitive.ss,
+and derived.ss. Samples from the text are available at samples.ss, and a
+test suite is available at r6rs-test.ss. Source code and tests for R5RS
+are available at r5rs.ss, and r5rs-test.ss.
+
+\begin{center}\rule{0.5\linewidth}{\linethickness}\end{center}
+
+Editor:
+\href{mailto:srfi-editors\%20at\%20srfi\%20dot\%20schemers\%20dot\%20org}{Michael
+Sperber}

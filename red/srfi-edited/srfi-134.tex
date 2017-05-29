@@ -1,0 +1,403 @@
+\section{Deques}
+\redno{10} What immutable deque library should R7RS-large provide?
+
+\begin{quote}
+SRFI 134 is a library for immutable double-ended queues, with O(1)
+addition and removal time at both ends.
+\end{quote}
+
+This SRFI defines immutable deques. A deque is a double-ended queue, a
+sequence which allows elements to be added or removed efficiently from
+either end. A structure is immutable when all its operations leave the
+structure unchanged. Note that none of the \TODO{names of the}
+procedures specified here ends with an exclamation point.
+
+\setlibname{ideque}
+
+\subsection{Procedure index}\label{procedure-index}
+
+\protect\hyperlink{Constructors}{Constructors}:
+\texttt{ideque,\ ideque-tabulate,\ ideque-unfold,\ ideque-unfold-right}
+
+\protect\hyperlink{Predicates}{Predicates}:
+\texttt{ideque?,\ ideque-empty?,\ ideque=,\ ideque-any,\ ideque-every}
+
+\protect\hyperlink{Queueoperations}{Queue operations}:
+\texttt{ideque-front,\ ideque-back,\ ideque-remove-front,\ ideque-remove-back,\ ideque-add-front,\ ideque-add-back}
+
+\protect\hyperlink{Otheraccessors}{Other accessors}:
+\texttt{ideque-ref,\ ideque-take,\ ideque-take-right,\ ideque-drop,\ ideque-drop-right,\ ideque-split-at}
+
+\protect\hyperlink{Thewholedeque}{The whole ideque}:
+\texttt{ideque-length,\ ideque-append,\ ideque-reverse,\ ideque-count,\ ideque-zip}
+
+\protect\hyperlink{Mapping}{Mapping}:
+\texttt{ideque-map,\ ideque-filter-map,\ ideque-for-each,\ ideque-for-each-right,\ ideque-fold,\ ideque-fold-right,\ ideque-append-map}
+
+\protect\hyperlink{Filtering}{Filtering}:
+\texttt{ideque-filter,\ ideque-remove,\ ideque-partition}
+
+\protect\hyperlink{Searching}{Searching}:
+\texttt{ideque-find,\ ideque-find-right,\ ideque-take-while,\ ideque-take-while-right,\ ideque-drop-while,\ ideque-drop-while-right,\ ideque-span,\ ideque-break}
+
+\protect\hyperlink{Conversion}{Conversion}:
+\texttt{list-\textgreater{}ideque,\ ideque-\textgreater{}list,\ generator-\textgreater{}ideque,\ ideque-\textgreater{}generator}
+
+
+We specify required time efficiency upper bounds using big-O notation.
+We note when, in some cases, there is ``slack'' between the required
+bound and the theoretically optimal bound for an operation.
+Implementations may use data structures with amortized time bounds, but
+should document which bounds hold in only an amortized sense.
+
+Deques are disjoint from all other Scheme types.
+
+\subsubsection{Constructors}
+
+\begin{entry}{%
+  \Proto{ideque}{ element \ldots}{procedure}{ideque???}}
+
+  Returns an ideque containing the \emph{elements}. The first element
+  (if any) will be at the front of the ideque and the last element (if
+  any) will be at the back. Takes $O(n)$ time, where $n$ is the
+  number of elements.
+\end{entry}
+
+\begin{entry}{%
+  \Proto{ideque-tabulate}{ n proc}{procedure}{ideque???}}
+
+  Invokes the predicate \emph{proc} on every exact integer from 0
+  (inclusive) to \emph{n} (exclusive). Returns an ideque containing
+  the results in order of generation. Takes $O(n)$ time.
+\end{entry}
+
+\begin{entry}{%
+  \Proto{ideque-unfold}{ stop? mapper successor seed}{procedure}{ideque???}}
+
+  Invokes the predicate \emph{stop?} on \emph{seed}. If it returns
+  false, generate the next result by applying \emph{mapper} to
+  \emph{seed}, generate the next seed by applying \emph{successor} to
+  \emph{seed}, and repeat this algorithm with the new seed. If
+  \emph{stop?} returns true, return an ideque containing the results
+  in order of accumulation. Takes $O(n)$ time.
+\end{entry}
+
+\begin{entry}{%
+  \Proto{ideque-unfold-right}{ stop? mapper successor seed}{procedure}{ideque???}}
+
+  Invokes the predicate \emph{stop?} on \emph{seed}. If it returns
+  false, generate the next result by applying \emph{mapper} to
+  \emph{seed}, generate the next seed by applying \emph{successor} to
+  \emph{seed}, and repeat the algorithm with the new seed. If
+  \emph{stop?} returns true, return an ideque containing the results
+  in reverse order of accumulation. Takes $O(n)$ time.
+\end{entry}
+
+\subsubsection{Predicates}
+
+\begin{entry}{%
+  \Proto{ideque?}{ x}{procedure}{boolean???}}
+
+  Returns \texttt{\#t} if \emph{x} is an ideque, and \texttt{\#f}
+  otherwise. Takes $O(1)$ time.
+\end{entry}
+
+\begin{entry}{%
+  \Proto{ideque-empty?}{ ideque}{procedure}{boolean???}}
+
+  Returns \texttt{\#t} if \emph{ideque} contains zero elements, and
+  \texttt{\#f} otherwise. Takes $O(1)$ time.
+\end{entry}
+
+
+\begin{entry}{%
+  \Proto{ideque=}{ elt= ideque \ldots}{procedure}{boolean???}}
+
+  Determines ideque equality, given an element-equality
+  procedure. Ideque A equals ideque B if they are of the same length,
+  and their corresponding elements are equal, as determined by
+  \emph{elt=}. If the element-comparison procedure's first argument is
+  from \emph{ideque\textsubscript{i}}, then its second argument is
+  from \emph{ideque\textsubscript{i+1}}, i.e. it is always called as
+  \texttt{(}\emph{elt= a b}\texttt{)} for \emph{a} an element of
+  ideque A, and \emph{b} an element of ideque B.
+
+  In the n-ary case, every \emph{ideque\textsubscript{i}} is compared
+  to \emph{ideque\textsubscript{i+1}} (as opposed, for example, to
+  comparing \emph{ideque$_1$} to every
+  \emph{ideque\textsubscript{i}}, for i \textgreater{} 1). If there
+  are zero or one ideque arguments, \texttt{ideque=} simply returns
+  true. The name does not end in a question mark for compatibility
+  with the SRFI-1 procedure \texttt{list=}.
+
+  Note that the dynamic order in which the \emph{elt=} procedure is
+  applied to pairs of elements is not specified. For example, if
+  \texttt{ideque=} is applied to three ideques, A, B, and C, it may
+  first completely compare A to B, then compare B to C, or it may
+  compare the first elements of A and B, then the first elements of B
+  and C, then the second elements of A and B, and so forth.
+
+  The equality procedure must be consistent with \texttt{eq?}. Note
+  that this implies that two ideques which are \texttt{eq?} are always
+  \texttt{ideque=}, as well; implementations may exploit this fact to
+  ``short-cut'' the element-by-element comparisons.
+\end{entry}
+
+\begin{entry}{%
+  \Proto{ideque-any}{ pred ideque}{procedure}{value \textrm{or} boolean???}
+  \Proto{ideque-every}{ pred ideque}{procedure}{ideque???}}
+
+  Invokes \emph{pred} on the elements of the \emph{ideque} in order
+  until one call returns a true/false value, which is then
+  returned. If there are no elements, returns
+  \texttt{\#f}/\texttt{\#t}. Takes $O(n)$ time.
+\end{entry}
+
+\subsubsection{Queue operations}
+
+\begin{entry}{%
+  \Proto{ideque-front}{ ideque}{procedure}{value???}
+  \Proto{ideque-back}{ ideque}{procedure}{value???}}
+
+  Returns the front/back element of \emph{ideque}. It is an error for
+  \emph{ideque} to be empty. Takes $O(1)$ time.
+\end{entry}
+
+\begin{entry}{%
+  \Proto{ideque-remove-front}{ ideque}{procedure}{ideque???}
+  \Proto{ideque-remove-back}{ ideque}{procedure}{ideque???}}
+
+  Returns an ideque with the front/back element of \emph{ideque}
+  removed.  It is an error for \emph{ideque} to be empty. Takes $O(1)$
+  time.
+\end{entry}
+
+\begin{entry}{%
+  \Proto{ideque-add-front}{ ideque obj}{procedure}{ideque???}
+  \Proto{ideque-add-back}{ ideque obj}{procedure}{ideque???}}
+
+  Returns an ideque with \emph{obj} pushed to the front/back of
+  \emph{ideque}. Takes $O(1)$ time.
+\end{entry}
+
+\subsubsection{Other accessors}
+
+\begin{entry}{%
+  \Proto{ideque-ref}{ ideque n}{procedure}{value???}}
+
+  Returns the \emph{nth} element of \emph{ideque}. It is an error
+  unless \emph{n} is less than the length of \emph{ideque}. Takes $O(n)$
+  time.
+\end{entry}
+
+\begin{entry}{%
+  \Proto{ideque-take}{ ideque n}{procedure}{ideque???}
+  \Proto{ideque-take-right}{ ideque n}{procedure}{ideque???}}
+
+  Returns an ideque containing the first/last \emph{n} elements of
+  \emph{ideque}. It is an error if \emph{n} is greater than the length
+  of \emph{ideque}. Takes $O(n)$ time.
+\end{entry}
+
+\begin{entry}{%
+  \Proto{ideque-drop}{ ideque n}{procedure}{ideque???}
+  \Proto{ideque-drop-right}{ ideque n}{procedure}{ideque???}}
+
+  Returns an ideque containing all but the first/last \emph{n}
+  elements of \emph{ideque}. It is an error if \emph{n} is greater
+  than the length of \emph{ideque}. Takes $O(n)$ time.
+\end{entry}
+
+\begin{entry}{%
+  \Proto{ideque-split-at}{ ideque n}{procedure}{ideque??? ideque???}}
+
+Returns two values, the results of \texttt{(ideque-take}~\emph{ideque
+  n}\texttt{)} and \texttt{(ideque-drop\ }\emph{ideque n}\texttt{)}
+respectively, but may be more efficient. Takes $O(n)$ time.
+\end{entry}
+
+\subsubsection{The whole ideque}
+
+\begin{entry}{%
+  \Proto{ideque-length}{ ideque}{procedure}{integer???}}
+
+  Returns the length of \emph{ideque} as an exact integer. May take
+  $O(n)$ time, though $O(1)$ is optimal. \TODO{“may take $O(1)$ in the
+    best case"??? I thought we were giving average cases.} 
+\end{entry}
+
+\begin{entry}{%
+  \Proto{ideque-append}{ ideque \ldots}{procedure}{ideque???}}
+
+  Returns an ideque with the contents of the \emph{ideque} followed by
+  the others, or an empty ideque if there are none. Takes $O(kn)$ time,
+  where $k$ is the number of ideques and $n$ is the number of elements
+  involved, though \st{$O(k \log n)$ is possible.} some
+    implementations may only require $O(k \log n)$. \TODO{I assume that's
+    “lg”, not that it really matters.}
+\end{entry}
+
+\begin{entry}{%
+  \Proto{ideque-reverse}{ ideque}{procedure}{ideque???}}
+
+  Returns an ideque containing the elements of \emph{ideque} in
+  reverse order. Takes $O(1)$ time.
+\end{entry}
+
+\begin{entry}{%
+  \Proto{ideque-count}{ pred ideque}{procedure}{integer???}}
+
+  \emph{Pred} is a procedure taking a single value and returning a
+  single value. It is applied element-wise to the elements of ideque,
+  and a count is tallied of the number of elements that produce a true
+  value. This count is returned. Takes $O(n)$ time. The dynamic order of
+  calls to pred is unspecified.
+\end{entry}
+
+\begin{entry}{%
+  \Proto{ideque-zip}{ ideque$_1$ ideque$_2$ \ldots}{procedure}{ideque???}}
+
+  Returns an ideque of lists (not ideques) each of which contains the
+  corresponding elements of ideques in the order specified. Terminates
+  when all the elements of any of the ideques have been
+  processed. Takes $O(kn)$ time, where $k$ is the number of ideques
+  and $n$ is the number of elements in the shortest ideque.
+\end{entry}
+
+\subsubsection{Mapping}
+
+\begin{entry}{%
+  \Proto{ideque-map}{ proc ideque}{procedure}{ideque???}}
+
+  Applies \emph{proc} to the elements of \emph{ideque} and returns an
+  ideque containing the results in order. The dynamic order of calls
+  to \emph{proc} is unspecified. Takes $O(n)$ time.
+\end{entry}
+
+\begin{entry}{%
+  \Proto{ideque-filter-map}{ proc ideque}{procedure}{ideque???}}
+
+  Applies \emph{proc} to the elements of \emph{ideque} and returns an
+  ideque containing the true (i.e. non-\texttt{\#f}) results in
+  order. The dynamic order of calls to \emph{proc} is
+  unspecified. Takes $O(n)$ time.
+\end{entry}
+
+\begin{entry}{%{%
+  \Proto{ideque-for-each}{ proc ideque}{procedure}{unspecified???}
+  \Proto{ideque-for-each-right}{ proc ideque}{procedure}{unspecified???}}
+
+  Applies \emph{proc} to the elements of \emph{ideque} in
+  forward/reverse order and returns an unspecified result. Takes $O(n)$
+  time.
+\end{entry}
+
+\begin{entry}{%
+  \Proto{ideque-fold}{ proc nil ideque}{procedure}{value???}
+  \Proto{ideque-fold-right}{ proc nil ideque}{procedure}{value???}}
+
+  Invokes \emph{proc} on the elements of \emph{ideque} in
+  forward/reverse order, passing the result of the previous invocation
+  as a second argument. For the first invocation, \emph{nil} is used
+  as the second argument. Returns the result of the last invocation,
+  or \emph{nil} if there was no invocation. Takes $O(n)$ time.
+\end{entry}
+
+\begin{entry}{%
+  \Proto{ideque-append-map}{ proc ideque}{procedure}{ideque???}}
+
+  Applies \emph{proc} to the elements of \emph{ideque}. It is an error
+  if the result is not a list. Returns an ideque containing the
+  elements of the lists in order. Takes $O(n)$ time, where n is the
+  number of elements in all the lists returned.
+\end{entry}
+
+\subsubsection{Filtering}
+
+\begin{entry}{%
+  \Proto{ideque-filter}{ pred ideque}{procedure}{ideque???}
+  \Proto{ideque-remove}{ pred ideque}{procedure}{ideque???}}
+
+  Returns an ideque containing the elements of \emph{ideque} that
+  do/do not satisfy \emph{pred}. Takes $O(n)$ time.
+
+  \TODO{In the same order?}
+\end{entry}
+
+\begin{entry}{%
+  \Proto{ideque-partition}{ proc ideque}{procedure}{ideque??? ideque???}}
+
+Returns two values, the results of \texttt{(ideque-filter}~\emph{pred
+  ideque}\texttt{)} and \texttt{(ideque-remove\ }\emph{pred
+  ideque}\texttt{)} respectively, but may be more efficient. Takes
+$O(n)$ time.
+\end{entry}
+
+\subsubsection{Searching}
+
+\begin{entry}{%
+  \Proto{ideque-find}{ pred ideque failure}{procedure}{value???}
+  \Rproto{ideque-find}{ pred ideque}{procedure}{value???}
+  \Proto{ideque-find-right}{ pred ideque failure}{procedure}{value???}
+  \Rproto{ideque-find-right}{ pred ideque}{procedure}{value???}}
+
+  Returns the first/last element of \emph{ideque} that satisfies
+  \emph{pred}. If there is no such element, returns the result of
+  invoking the thunk \emph{failure}; the default thunk is
+  \texttt{(lambda\ ()\ \#f)}. Takes $O(n)$ time.
+\end{entry}
+
+\begin{entry}{%
+  \Proto{ideque-take-while}{ pred ideque}{procedure}{ideque???}
+  \Proto{ideque-take-while-right}{ pred ideque}{procedure}{ideque???}}
+
+  Returns an ideque containing the longest initial/final prefix of
+  elements in \emph{ideque} all of which satisfy \emph{pred}. Takes
+  $O(n)$ time.
+\end{entry}
+
+\begin{entry}{%
+  \Proto{ideque-drop-while}{ pred ideque}{procedure}{ideque???}
+  \Proto{ideque-drop-while-right}{ pred ideque}{procedure}{ideque???}}
+
+  Returns an ideque which omits the longest initial/final prefix of
+  elements in \emph{ideque} all of which satisfy \emph{pred}, but
+  includes all other elements of \emph{ideque}. Takes $O(n)$ time.
+\end{entry}
+
+\begin{entry}{%
+  \Proto{ideque-span}{ pred ideque}{procedure}{ideque??? ideque???}
+  \Proto{ideque-break}{ pred ideque}{procedure}{ideque??? ideque???}}
+
+  Returns two values, the initial prefix of the elements of
+  \emph{ideque} which do/do not satisfy \emph{pred}, and the remaining
+  elements. Takes $O(n)$ time.
+
+  \TODO{Explain why the 2 names.}
+\end{entry}
+
+\subsubsection{Conversion}
+
+\begin{entry}{%
+  \Proto{list->ideque}{ list}{procedure}{ideque???}
+  \Proto{ideque->list}{ ideque}{procedure}{list???}}
+
+  Conversion between ideque and list structures. FIFO order is
+  preserved, so the front of a list corresponds to the front of an
+  ideque. Each operation takes $O(n)$ time.
+\end{entry}
+
+\begin{entry}{%
+  \Proto{generator->ideque}{ generator}{procedure}{ideque???}
+  \Proto{ideque->generator}{ ideque}{procedure}{generator???}}
+
+  Conversion between
+  \href{http://srfi.schemers.org/srfi-121/srfi-121.html}{SRFI 121}
+  generators and ideques. Each operation takes $O(n)$ time. A generator
+  is a procedure that is called repeatedly with no arguments to
+  generate consecutive values, and returns an end-of-file object when
+  it has no more values to return.
+\end{entry}
+
+Editor: \href{mailto:srfi-editors+at+srfi+dot+schemers+dot+org}{Arthur
+A. Gleckler}

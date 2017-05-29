@@ -1,0 +1,938 @@
+\section{Title}\label{title}
+
+Intermediate hash tables
+
+\section{Author}\label{author}
+
+John Cowan, Will Clinger
+
+\section{Status}\label{status}
+
+This SRFI is currently in \emph{final} status. Here is
+\href{http://srfi.schemers.org/srfi-process.html}{an explanation} of
+each status that a SRFI can hold. To provide input on this SRFI, please
+send email to \texttt{srfi-125@nospamsrfi.schemers.org}. To subscribe to
+the list, follow
+\href{http://srfi.schemers.org/srfi-list-subscribe.html}{these
+instructions}. You can access previous messages via the mailing list
+\href{http://srfi-email.schemers.org/srfi-125}{archive}.
+
+\begin{itemize}
+\tightlist
+\item
+  Received: 2015/9/7
+\item
+  Draft \#1 published: 2015/9/7
+\item
+  Draft \#2 published: 2015/9/9
+\item
+  Draft \#3 published: 2015/9/13
+\item
+  Draft \#4 published: 2015/12/6
+\item
+  Draft \#5 published: 2015/12/17
+\item
+  Draft \#6 published: 2016/1/20
+\item
+  Draft \#7 published: 2016/5/3
+\item
+  Draft \#8 published: 2016/5/6
+\item
+  Draft \#9 published: 2016/5/7
+\item
+  Draft \#10 published: 2016/5/17
+\item
+  Draft \#11 published: 2016/5/18
+\item
+  Draft \#12 published: 2016/5/19
+\item
+  Finalized: 2015/5/28
+\end{itemize}
+
+\section{Abstract}\label{abstract}
+
+This SRFI defines an interface to hash tables, which are widely
+recognized as a fundamental data structure for a wide variety of
+applications. A hash table is a data structure that:
+
+\begin{itemize}
+\tightlist
+\item
+  Is disjoint from all other types.
+\item
+  Provides a mapping from objects known as \emph{keys} to corresponding
+  objects known as \emph{values}.
+
+  \begin{itemize}
+  \tightlist
+  \item
+    Keys may be any Scheme objects in some kinds of hash tables, but are
+    restricted in other kinds.
+  \item
+    Values may be any Scheme objects.
+  \end{itemize}
+\item
+  Has no intrinsic order for the key-value \emph{associations} it
+  contains.
+\item
+  Provides an \emph{equality predicate} which defines when a proposed
+  key is the same as an existing key. No table may contain more than one
+  value for a given key.
+\item
+  Provides a \emph{hash function} which maps a candidate key into a
+  non-negative exact integer.
+\item
+  Supports mutation as the primary means of setting the contents of a
+  table.
+\item
+  Provides key lookup and destructive update in (expected) amortized
+  constant time, provided a satisfactory hash function is available.
+\item
+  Does not guarantee that whole-table operations work in the presence of
+  concurrent mutation of the whole hash table (values may be safely
+  mutated).
+\end{itemize}
+
+\section{Rationale}\label{rationale}
+
+Hash tables themselves don't really need defending: almost all
+dynamically typed languages, from awk to JavaScript to Lua to Perl to
+Python to Common Lisp, and including many Scheme implementations,
+provide them in some form as a fundamental data structure. Therefore,
+what needs to be defended is not the data structure but the procedures.
+This SRFI is at an intermediate level. It supports a great many
+convenience procedures on top of the basic hash table interfaces
+provided by \href{http://srfi.schemers.org/srfi-69/srfi-69.html}{SRFI
+69} and
+\href{http://www.r6rs.org/final/html/r6rs-lib/r6rs-lib-Z-H-14.html}{R6RS}.
+Nothing in it adds power to what those interfaces provide, but it does
+add convenience in the form of pre-debugged routines to do various
+common things, and even some things not so commonly done but useful.
+
+There is no mandated support for thread safety, immutability, or
+weakness, though there are portable hooks for specifying these features.
+
+This specification accepts separate equality predicates and hash
+functions for backward compatibility, but strongly encourages the use of
+\href{http://srfi.schemers.org/srfi-128/srfi-128.html}{SRFI 128}
+comparators, which package a type test, an equality predicate, and a
+hash function into a single bundle.
+
+\subsubsection{SRFI 69 compatibility}\label{SRFI69compatibility}
+
+This SRFI is downward compatible with SRFI 69. Some procedures have been
+given new preferred names for compatibility with other SRFIs, but in all
+cases the SRFI 69 names have been retained as deprecated synonyms;
+implementations must still provide them, however. They appear in this
+SRFI in small print.
+
+There is one absolute incompatibility with SRFI 69: the reflective
+procedure \texttt{hash-table-hash-function} may return \texttt{\#f},
+which is not permitted by SRFI 69. See the specification for details.
+
+\subsubsection{R6RS compatibility}\label{R6RScompatibility}
+
+The relatively few hash table procedures in R6RS are all available in
+this SRFI under somewhat different names. The only substantive
+difference is that R6RS \texttt{hashtable-values} and
+\texttt{hashtable-entries} return vectors, whereas in this SRFI
+\texttt{hash-table-values} and \texttt{hash-table-entries} return lists.
+This SRFI adopts SRFI 69's term \texttt{hash-table} rather than R6RS's
+\texttt{hashtable}, because of the universal use of ``hash table''
+rather than ``hashtable'' in other computer languages and in technical
+prose generally. Besides, the English word \emph{hashtable} obviously
+means something that can be \ldots{} hashted.
+
+In addition, the \texttt{hashtable-ref} and \texttt{hashtable-update!}
+of R6RS correspond to the \texttt{hash-table-ref/default} and
+\texttt{hash-table-update!/default} of both SRFI 69 and this SRFI.
+
+It would be trivial to provide the R6RS names on top of this SRFI.
+
+\subsubsection{Common Lisp compatibility}\label{CommonLispcompatibility}
+
+As usual, the Common Lisp names are completely different from the Scheme
+names. Common Lisp provides the following capabilities that are not in
+this SRFI:
+
+\begin{itemize}
+\tightlist
+\item
+  The constructor allows specifying the rehash size and rehash threshold
+  of the new hash table. There are also accessors and mutators for these
+  and for the current capacity (as opposed to size).
+\end{itemize}
+
+\begin{itemize}
+\tightlist
+\item
+  There are hash tables based on \texttt{equalp} (which does not exist
+  in Scheme).
+\end{itemize}
+
+\begin{itemize}
+\tightlist
+\item
+  \texttt{With-hash-table-iterator} is a hash table external iterator
+  implemented as a local macro.
+\end{itemize}
+
+\begin{itemize}
+\tightlist
+\item
+  \texttt{Sxhash} is a implementation-specific hash function for the
+  \texttt{equal} predicate. It has the property that objects in
+  different instantiations of the same Lisp implementation that are
+  \href{http://www.lispworks.com/documentation/lw61/CLHS/Body/03_bdbb.htm}{similar},
+  a concept analogous to \texttt{equal} but defined across all
+  instantiations, always return the same value from \texttt{sxhash}; for
+  example, the symbol \texttt{xyz} will have the same \texttt{sxhash}
+  result in all instantiations.
+\end{itemize}
+
+\subsubsection{Sources}\label{Sources}
+
+The procedures in this SRFI are drawn primarily from SRFI 69 and R6RS.
+In addition, the following sources are acknowledged:
+
+\begin{itemize}
+\tightlist
+\item
+  The \texttt{hash-table-mutable?} procedure and the second argument of
+  \texttt{hash-table-copy} (which allows the creation of immutable hash
+  tables) are from R6RS, renamed in the style of this SRFI.
+\end{itemize}
+
+\begin{itemize}
+\tightlist
+\item
+  The \texttt{hash-table-intern!} procedure is from
+  \href{http://docs.racket-lang.org/reference/hashtables.html}{Racket},
+  renamed in the style of this SRFI.
+\end{itemize}
+
+\begin{itemize}
+\tightlist
+\item
+  The \texttt{hash-table-find} procedure is a modified version of
+  \texttt{table-search} in
+  \href{http://www.iro.umontreal.ca/~gambit/doc/gambit-c.html\#Tables}{Gambit}.
+\end{itemize}
+
+\begin{itemize}
+\tightlist
+\item
+  The procedures \texttt{hash-table-unfold} and
+  \texttt{hash-table-count} were suggested by
+  \href{http://srfi.schemers.org/srfi-1/srfi-1.html}{SRFI 1}.
+\end{itemize}
+
+\begin{itemize}
+\tightlist
+\item
+  The procedures \texttt{hash-table=?} and \texttt{hash-table-map} were
+  suggested by
+  \href{http://hackage.haskell.org/packages/archive/containers/0.5.2.1/doc/html/Data-Map-Strict.html}{Haskell's
+  Data.Map.Strict module}.
+\end{itemize}
+
+\begin{itemize}
+\tightlist
+\item
+  The procedure \texttt{hash-table-map-\textgreater{}list} is from
+  \href{http://www.gnu.org/software/guile/manual/html_node/Hash-Table-Reference.html}{Guile}.
+\end{itemize}
+
+The procedures \texttt{hash-table-empty?},
+\texttt{hash-table-empty-copy}, \texttt{hash-table-pop!},
+\texttt{hash-table-map!}, \texttt{hash-table-intersection!},
+\texttt{hash-table-difference!}, and \texttt{hash-table-xor!} were added
+for convenience and completeness.
+
+The native hash tables of
+\href{http://web.mit.edu/scheme_v9.0.1/doc/mit-scheme-ref/Hash-Tables.html}{MIT},
+\href{http://sisc-scheme.org/manual/html/ch09.html\#Hashtables}{SISC},
+\href{http://www-sop.inria.fr/indes/fp/Bigloo/doc/bigloo-7.html\#Hash-Tables}{Bigloo},
+\href{http://s48.org/0.57/manual/s48manual_44.html}{Scheme48},
+\href{http://www.cs.indiana.edu/scheme-repository/SCM/slib_2.html\#SEC13}{SLIB},
+\href{http://www.rscheme.org/rs/b/0.7.3.4/5/html/c2143.html}{RScheme},
+\href{https://ccrma.stanford.edu/software/snd/snd/s7.html\#hashtables}{Scheme
+7},
+\href{https://github.com/barak/scheme9/blob/master/lib/hash-table.scm}{Scheme
+9},
+\href{http://www.fifi.org/cgi-bin/info2www?(librep)Hash+Tables}{Rep},
+and
+\href{https://code.google.com/p/femtolisp/wiki/APIReference}{FemtoLisp}
+were also investigated, but no additional procedures were incorporated.
+
+\subsubsection{Pronunciation}\label{Pronunciation}
+
+The slash in the names of some procedures can be pronounced ``with''.
+
+\section{Specification}\label{specification}
+
+The procedures in this SRFI are in the \texttt{(srfi\ 125)} library (or
+\texttt{(srfi\ :125)} on R6RS).
+
+All references to ``executing in expected amortized constant time''
+presuppose that a satisfactory hash function is available. Arbitrary or
+impure hash functions can make a hash of any implementation.
+
+Hash tables are allowed to cache the results of calling the equality
+predicate and hash function, so programs cannot rely on the hash
+function being called exactly once for every primitive hash table
+operation: it may be called zero, one, or more times.
+
+It is an error if the procedure argument of \texttt{hash-table-find},
+\texttt{hash-table-count}, \texttt{hash-table-map},
+\texttt{hash-table-for-each}, \texttt{hash-table-map!},
+\texttt{hash-table-map-\textgreater{}list}, \texttt{hash-table-fold} or
+\texttt{hash-table-prune!} mutates the hash table being walked.
+
+It is an error to pass two hash tables that have different comparators
+or equality predicates to any of the procedures of this SRFI.
+
+Implementations are permitted to ignore user-specified hash functions in
+certain circumstances. Specifically, if the equality predicate, whether
+passed as part of a comparator or explicitly, is more fine-grained (in
+the sense of R7RS-small section 6.1) than \texttt{equal?}, the
+implementation is free --- indeed, is encouraged --- to ignore the
+user-specified hash function and use something implementation-dependent.
+This allows the use of addresses as hashes, in which case the keys must
+be rehashed if they are moved by the garbage collector. Such a hash
+function is unsafe to use outside the context of implementation-provided
+hash tables. It can of course be exposed by an implementation as an
+extension, with suitable warnings against inappropriate uses.
+
+It is an error to mutate a key during or after its insertion into a hash
+table in such a way that the hash function of the table will return a
+different result when applied to that key.
+
+\subsubsection{Index}\label{Index}
+
+\begin{itemize}
+\tightlist
+\item
+  \href{http://srfi.schemers.org/srfi-125/srfi-125.html\#Constructors}{Constructors}:
+  \texttt{make-hash-table}, \texttt{hash-table},
+  \texttt{hash-table-unfold}, \texttt{alist-\textgreater{}hash-table}
+\end{itemize}
+
+\begin{itemize}
+\tightlist
+\item
+  \href{http://srfi.schemers.org/srfi-125/srfi-125.html\#Predicates}{Predicates}:
+  \texttt{hash-table?}, \texttt{hash-table-contains?},
+  \texttt{hash-table-exists?} (deprecated), \texttt{hash-table-empty?},
+  \texttt{hash-table=?}, \texttt{hash-table-mutable?}
+\end{itemize}
+
+\begin{itemize}
+\tightlist
+\item
+  \href{http://srfi.schemers.org/srfi-125/srfi-125.html\#Accessors}{Accessors}:
+  \texttt{hash-table-ref}, \texttt{hash-table-ref/default}
+\end{itemize}
+
+\begin{itemize}
+\tightlist
+\item
+  \href{http://srfi.schemers.org/srfi-125/srfi-125.html\#Mutators}{Mutators}:
+  \texttt{hash-table-set!}, \texttt{hash-table-delete!},
+  \texttt{hash-table-intern!}, \texttt{hash-table-update!},
+  \texttt{hash-table-update!/default}, \texttt{hash-table-pop!},
+  \texttt{hash-table-clear!}
+\end{itemize}
+
+\begin{itemize}
+\tightlist
+\item
+  \href{http://srfi.schemers.org/srfi-125/srfi-125.html\#Thewholehashtable}{The
+  whole hash table}: \texttt{hash-table-size}, \texttt{hash-table-keys},
+  \texttt{hash-table-values}, \texttt{hash-table-entries},
+  \texttt{hash-table-find}, \texttt{hash-table-count}
+\end{itemize}
+
+\begin{itemize}
+\tightlist
+\item
+  \href{http://srfi.schemers.org/srfi-125/srfi-125.html\#Mappingandfolding}{Mapping
+  and folding}: \texttt{hash-table-map}, \texttt{hash-table-for-each},
+  \texttt{hash-table-walk} (deprecated), \texttt{hash-table-map!},
+  \texttt{hash-table-map-\textgreater{}list}, \texttt{hash-table-fold},
+  \texttt{hash-table-prune!}
+\end{itemize}
+
+\begin{itemize}
+\tightlist
+\item
+  \href{http://srfi.schemers.org/srfi-125/srfi-125.html\#Copyingandconversion}{Copying
+  and conversion}: \texttt{hash-table-copy},
+  \texttt{hash-table-empty-copy},
+  \texttt{hash-table-\textgreater{}alist}
+\end{itemize}
+
+\begin{itemize}
+\tightlist
+\item
+  \href{http://srfi.schemers.org/srfi-125/srfi-125.html\#Hashtablesassets}{Hash
+  tables as sets}: \texttt{hash-table-union!},
+  \texttt{hash-table-merge!} (deprecated),
+  \texttt{hash-table-intersection!}, \texttt{hash-table-difference!},
+  \texttt{hash-table-xor!}
+\end{itemize}
+
+\begin{itemize}
+\tightlist
+\item
+  \href{http://srfi.schemers.org/srfi-125/srfi-125.html\#Hashfunctionsandreflectivity}{Hash
+  functions and reflectivity} (deprecated): \texttt{hash},
+  \texttt{string-hash}, \texttt{string-ci-hash},
+  \texttt{hash-by-identity}, \texttt{hash-table-equivalence-function},
+  \texttt{hash-table-hash-function}
+\end{itemize}
+
+\subsubsection{Constructors}\label{Constructors}
+
+\texttt{(make-hash-table\ }\emph{comparator} {[} \emph{arg} \ldots{}
+{]}\texttt{)}
+
+\texttt{(make-hash-table\ }\emph{equality-predicate} {[}
+\emph{hash-function} {]} {[} \emph{arg} \ldots{} {]}\texttt{)}
+
+Returns a newly allocated hash table whose equality predicate and hash
+function are extracted from \emph{comparator}. Alternatively, for
+backward compatibility with SRFI 69 the equality predicate and hash
+function can be passed as separate arguments; this usage is deprecated.
+
+As mentioned above, implementations are free to use an appropriate
+implementation-dependent hash function instead of the specified hash
+function, provided that the specified equality predicate is a refinement
+of the \texttt{equal?} predicate. This applies whether the hash function
+and equality predicate are passed as separate arguments or packaged up
+into a comparator.
+
+If an equality predicate rather than a comparator is provided, the
+ability to omit the \emph{hash-function} argument is severely limited.
+The implementation must provide hash functions appropriate for use with
+the predicates \texttt{eq?}, \texttt{eqv?}, \texttt{equal?},
+\texttt{string=?}, and \texttt{string-ci=?}, and may extend this list.
+But if any unknown equality predicate is provided without a hash
+function, an error should be signaled. The constraints on equality
+predicates and hash functions are given in
+\href{http://srfi.schemers.org/srfi-128/srfi-128.html}{SRFI 128}.
+
+The meaning of any further arguments is implementation-dependent.
+However, implementations which support the ability to specify the
+initial capacity of a hash table should interpret a non-negative exact
+integer as the specification of that capacity. In addition, if the
+symbols \texttt{thread-safe}, \texttt{weak-keys},
+\texttt{ephemeral-keys}, \texttt{weak-values}, or
+\texttt{ephemeral-values} are present, implementations should create
+thread-safe hash tables, hash tables with weak keys or ephemeral keys,
+or hash tables with weak or ephemeral values respectively.
+Implementations are free to use ephemeral keys or values when weak keys
+or values respectively have been requested. To avoid collision with the
+\emph{hash-function} argument, none of these arguments can be
+procedures.
+
+(R6RS \texttt{make-eq-hashtable}, \texttt{make-eqv-hashtable}, and
+\texttt{make-hashtable}; Common Lisp \texttt{make-hash-table})
+
+\texttt{(hash-table\ }\emph{comparator} {[} \emph{key value} {]}
+\ldots{}\texttt{)}
+
+Returns a newly allocated hash table, created as if by
+\texttt{make-hash-table} using \emph{comparator}. For each pair of
+arguments, an association is added to the new hash table with \emph{key}
+as its key and \emph{value} as its value. If the implementation supports
+immutable hash tables, this procedure returns an immutable hash table.
+If the same key (in the sense of the equality predicate) is specified
+more than once, it is an error.
+
+\texttt{(hash-table-unfold\ }\emph{stop? mapper successor seed
+comparator arg} \ldots{} {]}\texttt{)}
+
+Create a new hash table as if by \texttt{make-hash-table} using
+\emph{comparator} and the \emph{args}. If the result of applying the
+predicate \emph{stop?} to \emph{seed} is true, return the hash table.
+Otherwise, apply the procedure \emph{mapper} to \emph{seed}.
+\emph{Mapper} returns two values, which are inserted into the hash table
+as the key and the value respectively. Then get a new seed by applying
+the procedure \emph{successor} to \emph{seed}, and repeat this
+algorithm.
+
+\texttt{(alist-\textgreater{}hash-table\ }\emph{alist comparator arg}
+\ldots{}\texttt{)}
+
+\texttt{(alist-\textgreater{}hash-table\ }\emph{alist
+equality-predicate} {[} \emph{hash-function} {]} \emph{arg}
+\ldots{}\texttt{)}
+
+Returns a newly allocated hash-table as if by \texttt{make-hash-table}
+using \emph{comparator} and the \emph{args}. It is then initialized from
+the associations of \emph{alist}. Associations earlier in the list take
+precedence over those that come later. The second form is for
+compatibility with SRFI 69, and is deprecated.
+
+\subsubsection{Predicates}\label{Predicates}
+
+\texttt{(hash-table?\ }\emph{obj}\texttt{)}
+
+Returns \texttt{\#t} if \emph{obj} is a hash table, and \texttt{\#f}
+otherwise. (R6RS \texttt{hashtable?}; Common Lisp \texttt{hash-table-p})
+
+\texttt{(hash-table-contains?\ }\emph{hash-table key}\texttt{)}
+
+\texttt{(hash-table-exists?\ }\emph{hash-table key}\texttt{)}
+
+Returns \texttt{\#t} if there is any association to \emph{key} in
+\emph{hash-table}, and \texttt{\#f} otherwise. Must execute in expected
+amortized constant time. The \texttt{hash-table-exists?} procedure is
+the same as \texttt{hash-table-contains?}, is provided for backward
+compatibility with SRFI 69, and is deprecated. (R6RS
+\texttt{hashtable-contains?})
+
+\texttt{(hash-table-empty?\ }\emph{hash-table}\texttt{)}
+
+Returns \texttt{\#t} if \emph{hash-table} contains no associations, and
+\texttt{\#f} otherwise.
+
+\texttt{(hash-table=?\ }\emph{value-comparator
+hash-table\textsubscript{1} hash-table\textsubscript{2}}\texttt{)}
+
+Returns \texttt{\#t} if \emph{hash-table\textsubscript{1}} and
+\emph{hash-table\textsubscript{2}} have the same keys (in the sense of
+their common equality predicate) and each key has the same value (in the
+sense of \emph{value-comparator}), and \texttt{\#f} otherwise.
+
+\texttt{(hash-table-mutable?\ }\emph{hash-table}\texttt{)}
+
+Returns \texttt{\#t} if the hash table is mutable. Implementations may
+or may not support immutable hash tables. (R6RS
+\texttt{hashtable-mutable?})
+
+\subsubsection{Accessors}\label{Accessors}
+
+The following procedures, given a key, return the corresponding value.
+
+\texttt{(hash-table-ref\ }\emph{hash-table key} {[} \emph{failure} {[}
+\emph{success} {]} {]}\texttt{)}
+
+Extracts the value associated to \emph{key} in \emph{hash-table},
+invokes the procedure \emph{success} on it, and returns its result; if
+\emph{success} is not provided, then the value itself is returned. If
+\emph{key} is not contained in \emph{hash-table} and \emph{failure} is
+supplied, then \emph{failure} is invoked on no arguments and its result
+is returned. Otherwise, it is an error. Must execute in expected
+amortized constant time, not counting the time to call the procedures.
+SRFI 69 does not support the \emph{success} procedure.
+
+\texttt{(hash-table-ref/default\ }\emph{hash-table key
+default}\texttt{)}
+
+Semantically equivalent to, but may be more efficient than, the
+following code:
+
+\begin{quote}
+\texttt{(hash-table-ref\ }\emph{hash-table key}
+\texttt{(lambda\ ()\ }\emph{default}\texttt{))}
+\end{quote}
+
+(R6RS \texttt{hashtable-ref}; Common Lisp \texttt{gethash})
+
+\subsubsection{Mutators}\label{Mutators}
+
+The following procedures alter the associations in a hash table either
+unconditionally, or conditionally on the presence or absence of a
+specified key. It is an error to add an association to a hash table
+whose key does not satisfy the type test predicate of the comparator
+used to create the hash table.
+
+\texttt{(hash-table-set!\ }\emph{hash-table} \emph{arg}
+\ldots{}\texttt{)}
+
+Repeatedly mutates \emph{hash-table}, creating new associations in it by
+processing the arguments from left to right. The \emph{args} alternate
+between keys and values. Whenever there is a previous association for a
+key, it is deleted. It is an error if the type check procedure of the
+comparator of \emph{hash-table}, when invoked on a key, does not return
+\texttt{\#t}. Likewise, it is an error if a key is not a valid argument
+to the equality predicate of \emph{hash-table}. Returns an unspecified
+value. Must execute in expected amortized constant time per key. SRFI
+69, R6RS \texttt{hashtable-set!} and Common Lisp
+\texttt{(setf\ gethash)} do not handle multiple associations.
+
+\texttt{(hash-table-delete!\ }\emph{hash-table key} \ldots{}\texttt{)}
+
+Deletes any association to each \emph{key} in \emph{hash-table} and
+returns the number of keys that had associations. Must execute in
+expected amortized constant time per key. SRFI 69, R6RS
+\texttt{hashtable-delete!}, and Common Lisp \texttt{remhash} do not
+handle multiple associations.
+
+\texttt{(hash-table-intern!\ }\emph{hash-table key}
+\emph{failure}\texttt{)}
+
+Effectively invokes \texttt{hash-table-ref} with the given arguments and
+returns what it returns. If \emph{key} was not found in
+\emph{hash-table}, its value is set to the result of calling
+\emph{failure}. Must execute in expected amortized constant time.
+
+\texttt{(hash-table-update!\ }\emph{hash-table key updater} {[}
+\emph{failure} {[} \emph{success {]} {]}\texttt{)}}
+
+Semantically equivalent to, but may be more efficient than, the
+following code:
+
+\begin{quote}
+\texttt{(hash-table-set!\ }\emph{hash-table
+key}\texttt{\ (}\emph{updater}
+\texttt{(hash-table-ref\ }\emph{hash-table key failure
+success}\texttt{)))}
+\end{quote}
+
+Must execute in expected amortized constant time. Returns an unspecified
+value. (SRFI 69 and R6RS \texttt{hashtable-update!} do not support the
+\emph{success} procedure)
+
+\texttt{(hash-table-update!/default\ }\emph{hash-table key updater
+default}\texttt{)}
+
+Semantically equivalent to, but may be more efficient than, the
+following code:
+
+\begin{quote}
+\texttt{(hash-table-set!\ }\emph{hash-table
+key}\texttt{\ (}\emph{updater}
+\texttt{(hash-table-ref/default\ }\emph{hash-table key
+default}\texttt{)))}
+\end{quote}
+
+Must execute in expected amortized constant time. Returns an unspecified
+value.
+
+\texttt{(hash-table-pop!\ }\emph{hash-table}\texttt{)}
+
+Chooses an arbitrary association from \emph{hash-table} and removes it,
+returning the key and value as two values.
+
+\texttt{(hash-table-clear!\ }\emph{hash-table}\texttt{)}
+
+Delete all the associations from \emph{hash-table}. (R6RS
+\texttt{hashtable-clear!}; Common Lisp \texttt{clrhash})
+
+\subsubsection{The whole hash table}\label{Thewholehashtable}
+
+These procedures process the associations of the hash table in an
+unspecified order.
+
+\texttt{(hash-table-size\ }\emph{hash-table}\texttt{)}
+
+Returns the number of associations in \emph{hash-table} as an exact
+integer. Should execute in constant time. (R6RS \texttt{hashtable-size};
+Common Lisp \texttt{hash-table-count}.)
+
+\texttt{(hash-table-keys\ }\emph{hash-table}\texttt{)}
+
+Returns a newly allocated list of all the keys in \emph{hash-table}.
+R6RS \texttt{hashtable-keys} returns a vector.
+
+\texttt{(hash-table-values\ }\emph{hash-table}\texttt{)}
+
+Returns a newly allocated list of all the keys in \emph{hash-table}.
+
+\texttt{(hash-table-entries\ }\emph{hash-table}\texttt{)}
+
+Returns two values, a newly allocated list of all the keys in
+\emph{hash-table} and a newly allocated list of all the values in
+\emph{hash-table} in the corresponding order. R6RS
+\texttt{hash-table-entries} returns vectors.
+
+\texttt{(hash-table-find\ }\emph{proc hash-table failure}\texttt{)}
+
+For each association of \emph{hash-table}, invoke \emph{proc} on its key
+and value. If \emph{proc} returns true, then \texttt{hash-table-find}
+returns what \emph{proc} returns. If all the calls to \emph{proc} return
+\texttt{\#f}, return the result of invoking the thunk \emph{failure}.
+
+\texttt{(hash-table-count\ }\emph{pred hash-table}\texttt{)}
+
+For each association of \emph{hash-table}, invoke \emph{pred} on its key
+and value. Return the number of calls to \emph{pred} which returned
+true.
+
+\subsubsection{Mapping and folding}\label{Mappingandfolding}
+
+These procedures process the associations of the hash table in an
+unspecified order.
+
+\texttt{(hash-table-map\ }\emph{proc comparator hash-table}\texttt{)}
+
+Returns a newly allocated hash table as if by
+\texttt{(make-hash-table\ }\emph{comparator}\texttt{)}. Calls
+\emph{proc} for every association in \emph{hash-table} with the value of
+the association. The key of the association and the result of invoking
+\emph{proc} are entered into the new hash table. Note that this is
+\emph{not} the result of lifting mapping over the domain of hash tables,
+but it is considered more useful.
+
+\texttt{(hash-table-for-each\ }\emph{proc hash-table}\texttt{)}
+
+\texttt{(hash-table-walk\ }\emph{hash-table proc}\texttt{)}
+
+Calls \emph{proc} for every association in \emph{hash-table} with two
+arguments: the key of the association and the value of the association.
+The value returned by \emph{proc} is discarded. Returns an unspecified
+value. The \texttt{hash-table-walk} procedure is equivalent to
+\texttt{hash-table-for-each} with the arguments reversed, is provided
+for backward compatibility with SRFI 69, and is deprecated. (Common Lisp
+\texttt{maphash})
+
+\texttt{(hash-table-map!\ }\emph{proc hash-table}\texttt{)}
+
+Calls \emph{proc} for every association in \emph{hash-table} with two
+arguments: the key of the association and the value of the association.
+The value returned by \emph{proc} is used to update the value of the
+association. Returns an unspecified value.
+
+\texttt{(hash-table-map-\textgreater{}list\ }\emph{proc
+hash-table}\texttt{)}
+
+Calls \emph{proc} for every association in \emph{hash-table} with two
+arguments: the key of the association and the value of the association.
+The values returned by the invocations of \emph{proc} are accumulated
+into a list, which is returned.
+
+\texttt{(hash-table-fold\ }\emph{proc seed hash-table}\texttt{)}
+
+\texttt{(hash-table-fold\ }\emph{hash-table proc seed}\texttt{)}
+
+Calls \emph{proc} for every association in \emph{hash-table} with three
+arguments: the key of the association, the value of the association, and
+an accumulated value \emph{val}. \emph{Val} is \emph{seed} for the first
+invocation of \emph{procedure}, and for subsequent invocations of
+\emph{proc}, the returned value of the previous invocation. The value
+returned by \texttt{hash-table-fold} is the return value of the last
+invocation of \emph{proc}. The order of arguments with \emph{hash-table}
+as the first argument is provided for SRFI 69 compatibility, and is
+deprecated.
+
+\texttt{(hash-table-prune!\ }\emph{proc hash-table}\texttt{)}
+
+Calls \emph{proc} for every association in \emph{hash-table} with two
+arguments, the key and the value of the association, and removes all
+associations from \emph{hash-table} for which \emph{proc} returns true.
+Returns an unspecified value.
+
+\subsubsection{Copying and conversion}\label{Copyingandconversion}
+
+\texttt{(hash-table-copy\ }\emph{hash-table} {[} \emph{mutable?}
+{]}\texttt{)}
+
+Returns a newly allocated hash table with the same properties and
+associations as \emph{hash-table}. If the second argument is present and
+is true, the new hash table is mutable. Otherwise it is immutable
+provided that the implementation supports immutable hash tables. SRFI 69
+\texttt{hash-table-copy} does not support a second argument. (R6RS
+\texttt{hashtable-copy})
+
+\texttt{(hash-table-empty-copy\ }\emph{hash-table}\texttt{)}
+
+Returns a newly allocated mutable hash table with the same properties as
+\emph{hash-table}, but with no associations.
+
+\texttt{(hash-table-\textgreater{}alist\ }\emph{hash-table}\texttt{)}
+
+Returns an alist with the same associations as \emph{hash-table} in an
+unspecified order.
+
+\subsubsection{Hash tables as sets}\label{Hashtablesassets}
+
+\texttt{(hash-table-union!\ }\emph{hash-table\textsubscript{1}
+hash-table\textsubscript{2}}\texttt{)}
+
+\texttt{(hash-table-merge!\ }\emph{hash-table\textsubscript{1}
+hash-table\textsubscript{2}}\texttt{)}
+
+Adds the associations of \emph{hash-table\textsubscript{2}} to
+\emph{hash-table\textsubscript{1}} and returns
+\emph{hash-table\textsubscript{1}}. If a key appears in both hash
+tables, its value is set to the value appearing in
+\emph{hash-table\textsubscript{1}}. Returns
+\emph{hash-table\textsubscript{1}}. The \texttt{hash-table-merge!}
+procedure is the same as \texttt{hash-table-union!}, is provided for
+compatibility with SRFI 69, and is deprecated.
+
+\texttt{(hash-table-intersection!\ }\emph{hash-table\textsubscript{1}
+hash-table\textsubscript{2}}\texttt{)}
+
+Deletes the associations from \emph{hash-table\textsubscript{1}} which
+don't also appear in \emph{hash-table\textsubscript{2}} and returns
+\emph{hash-table\textsubscript{1}}.
+
+\texttt{(hash-table-difference!\ }\emph{hash-table\textsubscript{1}
+hash-table\textsubscript{2}}\texttt{)}
+
+Deletes the associations of \emph{hash-table\textsubscript{1}} whose
+keys are also present in \emph{hash-table\textsubscript{2}} and returns
+\emph{hash-table\textsubscript{1}}.
+
+\texttt{(hash-table-xor!\ }\emph{hash-table\textsubscript{1}
+hash-table\textsubscript{2}}\texttt{)}
+
+Deletes the associations of \emph{hash-table\textsubscript{1}} whose
+keys are also present in \emph{hash-table\textsubscript{2}}, and then
+adds the associations of \emph{hash-table\textsubscript{2}} whose keys
+are not present in \emph{hash-table\textsubscript{1}} to
+\emph{hash-table\textsubscript{1}}. Returns
+\emph{hash-table\textsubscript{1}}.
+
+\subsubsection{Hash functions and
+reflectivity}\label{Hashfunctionsandreflectivity}
+
+These functions are made part of this SRFI solely for compatibility with
+SRFI 69, and are deprecated.
+
+\texttt{(hash\ }\emph{obj}\texttt{)}
+
+The same as SRFI 128's \texttt{default-hash} procedure, except that it
+must accept (and should ignore) an optional second argument.
+
+\texttt{(string-hash\ }\emph{obj}\texttt{)}
+
+Similar to SRFI 128's \texttt{string-hash} procedure, except that it
+must accept (and should ignore) an optional second argument. It is
+incompatible with the procedure of the same name exported by SRFI 128
+and \href{http://srfi.schemers.org/srfi-126/srfi-126.html}{SRFI 126}.
+
+\texttt{(string-ci-hash\ }\emph{obj}\texttt{)}
+
+Similar to SRFI 128's \texttt{string-ci-hash} procedure, except that it
+must accept (and should ignore) an optional second argument. It is
+incompatible with the procedure of the same name exported by SRFI 128
+and \href{http://srfi.schemers.org/srfi-126/srfi-126.html}{SRFI 126}.
+
+\texttt{(hash-by-identity\ }\emph{obj}\texttt{)}
+
+The same as SRFI 128's \texttt{default-hash} procedure, except that it
+must accept (and should ignore) an optional second argument. However, if
+the implementation replaces the hash function associated with the
+\texttt{eq?} predicate with an implementation-dependent alternative, it
+is an error to call this procedure at all.
+
+\texttt{(hash-table-equivalence-function\ }\emph{hash-table}\texttt{)}
+
+Returns the equivalence procedure used to create \emph{hash-table}.
+
+\texttt{(hash-table-hash-function\ }\emph{hash-table}\texttt{)}
+
+Returns the hash function used to create \emph{hash-table}. However, if
+the implementation has replaced the user-specified hash function with an
+implementation-specific alternative, the implementation may return
+\texttt{\#f} instead.
+
+\section{Implementation}\label{implementation}
+
+The current sample implementation is in the code repository of this
+SRFI. It relies upon
+\href{http://srfi.schemers.org/srfi-126/srfi-126.html}{SRFI 126} and
+\href{http://srfi.schemers.org/srfi-128/srfi-128.html}{SRFI 128}, but
+the sample implementation for SRFI 126 is easily layered over any hash
+table implementation that supports either SRFI 69 or R6RS.
+
+The sample implementation of this SRFI never calls any hash function
+with two arguments.
+
+The original intention was to make it possible to implement this SRFI on
+top of all the native hash table systems mentioned in
+\href{http://srfi.schemers.org/srfi-125/srfi-125.html\#Sources}{Sources}
+above as well. However, this turned out not to be practical for the
+following reasons:
+
+\begin{itemize}
+\tightlist
+\item
+  Gauche does not support arbitrary equality predicates, only
+  \texttt{eq?}, \texttt{eqv?}, \texttt{equal?}, and \texttt{string=?}.
+\end{itemize}
+
+\begin{itemize}
+\tightlist
+\item
+  S7 does not support arbitrary equality predicates: the implementation
+  chooses a predicate based on the nature of the keys.
+\end{itemize}
+
+\begin{itemize}
+\tightlist
+\item
+  SISC, Scheme48/scsh, RScheme, Scheme 9, and Rep do not document any
+  way of inspecting a hash table to determine its equality predicates
+  and hash functions so that it can be re-created.
+\end{itemize}
+
+\begin{itemize}
+\tightlist
+\item
+  SLIB hash tables are vectors, not disjoint objects.
+\end{itemize}
+
+\begin{itemize}
+\tightlist
+\item
+  FemtoLisp supports only \texttt{equal?} as the equality predicate.
+\end{itemize}
+
+Native Guile hash tables are a special case. The equivalents of
+\texttt{hash-table-ref/default}, \texttt{hash-table-set!}, and
+\texttt{hash-table-delete} require the equality predicate and hash
+function to be passed to them explicitly (although there are utility
+functions for \texttt{eq?}, \texttt{eqv?}, and \texttt{equal?} hash
+tables). Consequently, hash tables corresponding to this SRFI would have
+to be records containing a Guile hash table, an equality predicate, and
+a hash function, which means they could not interoperate directly with
+native Guile hash tables.
+
+\section{Acknowledgements}\label{Acknowledgements}
+
+Some of the language of this SRFI is copied from SRFI 69 with thanks to
+its author, Panu Kalliokoski. However, he is not responsible for what I
+have done with it. Thanks to Will Clinger for providing the sample
+implementation, and to Taylan Ulrich Bayırlı/Kammer for his spirited
+review.
+
+I also acknowledge the members of the SRFI 125, 126, and 128 mailing
+lists, especially Takashi Kato, Alex Shinn, Shiro Kawai, and Per
+Bothner.
+
+\section{Copyright}\label{copyright}
+
+Copyright (C) John Cowan (2015).
+
+Permission is hereby granted, free of charge, to any person obtaining a
+copy of this software and associated documentation files (the
+``Software''), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be included
+in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED ``AS IS'', WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+\begin{center}\rule{0.5\linewidth}{\linethickness}\end{center}
+
+Editor:
+\href{mailto:srfi-editors\%20at\%20srfi\%20dot\%20schemers\%20dot\%20org}{Arthur
+A. Gleckler}
+
+Last modified: Sat, May 7, 2016 9:57:02 PM

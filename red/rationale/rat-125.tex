@@ -1,0 +1,171 @@
+\section{Hash tables}
+
+Hash tables themselves don't really need defending: almost all
+dynamically typed languages, from awk to JavaScript to Lua to Perl to
+Python to Common Lisp, and including many Scheme implementations,
+provide them in some form as a fundamental data structure. Therefore,
+what needs to be defended is not the data structure but the procedures.
+This SRFI is at an intermediate level. It supports a great many
+convenience procedures on top of the basic hash table interfaces
+provided by \href{http://srfi.schemers.org/srfi-69/srfi-69.html}{SRFI
+69} and
+\href{http://www.r6rs.org/final/html/r6rs-lib/r6rs-lib-Z-H-14.html}{R6RS}.
+Nothing in it adds power to what those interfaces provide, but it does
+add convenience in the form of pre-debugged routines to do various
+common things, and even some things not so commonly done but useful.
+
+There is no mandated support for thread safety, immutability, or
+weakness, though there are portable hooks for specifying these features.
+
+This specification accepts separate equality predicates and hash
+functions for backward compatibility, but strongly encourages the use of
+\href{http://srfi.schemers.org/srfi-128/srfi-128.html}{SRFI 128}
+comparators, which package a type test, an equality predicate, and a
+hash function into a single bundle.
+
+\subsubsection{SRFI 69 compatibility}\label{SRFI69compatibility}
+
+This SRFI is downward compatible with SRFI 69. Some procedures have been
+given new preferred names for compatibility with other SRFIs, but in all
+cases the SRFI 69 names have been retained as deprecated synonyms;
+implementations must still provide them, however. They appear in this
+SRFI in small print.
+
+There is one absolute incompatibility with SRFI 69: the reflective
+procedure \texttt{hash-table-hash-function} may return \texttt{\#f},
+which is not permitted by SRFI 69. See the specification for details.
+
+\subsubsection{R6RS compatibility}\label{R6RScompatibility}
+
+The relatively few hash table procedures in R6RS are all available in
+this SRFI under somewhat different names. The only substantive
+difference is that R6RS \texttt{hashtable-values} and
+\texttt{hashtable-entries} return vectors, whereas in this SRFI
+\texttt{hash-table-values} and \texttt{hash-table-entries} return lists.
+This SRFI adopts SRFI 69's term \texttt{hash-table} rather than R6RS's
+\texttt{hashtable}, because of the universal use of ``hash table''
+rather than ``hashtable'' in other computer languages and in technical
+prose generally. Besides, the English word \emph{hashtable} obviously
+means something that can be \ldots{} hashted.
+
+In addition, the \texttt{hashtable-ref} and \texttt{hashtable-update!}
+of R6RS correspond to the \texttt{hash-table-ref/default} and
+\texttt{hash-table-update!/default} of both SRFI 69 and this SRFI.
+
+It would be trivial to provide the R6RS names on top of this SRFI.
+
+\subsubsection{Common Lisp compatibility}\label{CommonLispcompatibility}
+
+As usual, the Common Lisp names are completely different from the Scheme
+names. Common Lisp provides the following capabilities that are not in
+this SRFI:
+
+\begin{itemize}
+\tightlist
+\item
+  The constructor allows specifying the rehash size and rehash threshold
+  of the new hash table. There are also accessors and mutators for these
+  and for the current capacity (as opposed to size).
+\end{itemize}
+
+\begin{itemize}
+\tightlist
+\item
+  There are hash tables based on \texttt{equalp} (which does not exist
+  in Scheme).
+\end{itemize}
+
+\begin{itemize}
+\tightlist
+\item
+  \texttt{With-hash-table-iterator} is a hash table external iterator
+  implemented as a local macro.
+\end{itemize}
+
+\begin{itemize}
+\tightlist
+\item
+  \texttt{Sxhash} is a implementation-specific hash function for the
+  \texttt{equal} predicate. It has the property that objects in
+  different instantiations of the same Lisp implementation that are
+  \href{http://www.lispworks.com/documentation/lw61/CLHS/Body/03_bdbb.htm}{similar},
+  a concept analogous to \texttt{equal} but defined across all
+  instantiations, always return the same value from \texttt{sxhash}; for
+  example, the symbol \texttt{xyz} will have the same \texttt{sxhash}
+  result in all instantiations.
+\end{itemize}
+
+\subsubsection{Sources}\label{Sources}
+
+The procedures in this SRFI are drawn primarily from SRFI 69 and R6RS.
+In addition, the following sources are acknowledged:
+
+\begin{itemize}
+\tightlist
+\item
+  The \texttt{hash-table-mutable?} procedure and the second argument of
+  \texttt{hash-table-copy} (which allows the creation of immutable hash
+  tables) are from R6RS, renamed in the style of this SRFI.
+\end{itemize}
+
+\begin{itemize}
+\tightlist
+\item
+  The \texttt{hash-table-intern!} procedure is from
+  \href{http://docs.racket-lang.org/reference/hashtables.html}{Racket},
+  renamed in the style of this SRFI.
+\end{itemize}
+
+\begin{itemize}
+\tightlist
+\item
+  The \texttt{hash-table-find} procedure is a modified version of
+  \texttt{table-search} in
+  \href{http://www.iro.umontreal.ca/~gambit/doc/gambit-c.html\#Tables}{Gambit}.
+\end{itemize}
+
+\begin{itemize}
+\tightlist
+\item
+  The procedures \texttt{hash-table-unfold} and
+  \texttt{hash-table-count} were suggested by
+  \href{http://srfi.schemers.org/srfi-1/srfi-1.html}{SRFI 1}.
+\end{itemize}
+
+\begin{itemize}
+\tightlist
+\item
+  The procedures \texttt{hash-table=?} and \texttt{hash-table-map} were
+  suggested by
+  \href{http://hackage.haskell.org/packages/archive/containers/0.5.2.1/doc/html/Data-Map-Strict.html}{Haskell's
+  Data.Map.Strict module}.
+\end{itemize}
+
+\begin{itemize}
+\tightlist
+\item
+  The procedure \texttt{hash-table-map-\textgreater{}list} is from
+  \href{http://www.gnu.org/software/guile/manual/html_node/Hash-Table-Reference.html}{Guile}.
+\end{itemize}
+
+The procedures \texttt{hash-table-empty?},
+\texttt{hash-table-empty-copy}, \texttt{hash-table-pop!},
+\texttt{hash-table-map!}, \texttt{hash-table-intersection!},
+\texttt{hash-table-difference!}, and \texttt{hash-table-xor!} were added
+for convenience and completeness.
+
+The native hash tables of
+\href{http://web.mit.edu/scheme_v9.0.1/doc/mit-scheme-ref/Hash-Tables.html}{MIT},
+\href{http://sisc-scheme.org/manual/html/ch09.html\#Hashtables}{SISC},
+\href{http://www-sop.inria.fr/indes/fp/Bigloo/doc/bigloo-7.html\#Hash-Tables}{Bigloo},
+\href{http://s48.org/0.57/manual/s48manual_44.html}{Scheme48},
+\href{http://www.cs.indiana.edu/scheme-repository/SCM/slib_2.html\#SEC13}{SLIB},
+\href{http://www.rscheme.org/rs/b/0.7.3.4/5/html/c2143.html}{RScheme},
+\href{https://ccrma.stanford.edu/software/snd/snd/s7.html\#hashtables}{Scheme
+7},
+\href{https://github.com/barak/scheme9/blob/master/lib/hash-table.scm}{Scheme
+9},
+\href{http://www.fifi.org/cgi-bin/info2www?(librep)Hash+Tables}{Rep},
+and
+\href{https://code.google.com/p/femtolisp/wiki/APIReference}{FemtoLisp}
+were also investigated, but no additional procedures were incorporated.

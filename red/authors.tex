@@ -1,0 +1,335 @@
+\textbf{Authors}
+
+\TODO{Rework this whole thing. I'm tentatively thinking that the title
+  page should list the editors, followed by “Major Contributions by”,
+  and the SRFI authors, in alphabetical order. Acknowledgements should
+  appear in alphabetical order, in the document, with each person
+  listed once, no matter how many SRFIs they are credited for. Not
+  totally sure what to do about the copyright notices, since many of
+  the original notices say “All Rights Reserved”, and the standard
+  SRFI notice contradicts that, and only talks about “the
+  Software”. Suggest writing to the SRFI authors and asking them if
+  it's permissible to put the derived documentation under the R7RS
+  copyright (R7RS, p3), which is in my non-legal opinion equivalent to
+  public domain.}
+
+\begin{itemize}
+\item SRFI 1: List library. Olin Shivers.
+  \verb|(scheme list)|
+
+Copyright (C) Olin Shivers (1998, 1999). All Rights
+Reserved.
+
+The design of this library benefited greatly from the feedback provided
+during the SRFI discussion phase. Among those contributing thoughtful
+commentary and suggestions, both on the mailing list and by private
+discussion, were Mike Ashley, Darius Bacon, Alan Bawden, Phil Bewig, Jim
+Blandy, Dan Bornstein, Per Bothner, Anthony Carrico, Doug Currie, Kent
+Dybvig, Sergei Egorov, Doug Evans, Marc Feeley, Matthias Felleisen, Will
+Fitzgerald, Matthew Flatt, Dan Friedman, Lars Thomas Hansen, Brian
+Harvey, Erik Hilsdale, Wolfgang Hukriede, Richard Kelsey, Donovan
+Kolbly, Shriram Krishnamurthi, Dave Mason, Jussi Piitulainen, David
+Pokorny, Duncan Smith, Mike Sperber, Maciej Stachowiak, Harvey J. Stein,
+John David Stone, and Joerg F. Wittenberger. I am grateful to them for
+their assistance.
+
+I am also grateful the authors, implementors and documentors of all the
+systems mentioned in the rationale. Aubrey Jaffer and Kent Pitman should
+be noted for their work in producing Web-accessible versions of the R5RS
+and \protect\hyperlink{CommonLisp}{Common Lisp} spec, which was a
+tremendous aid.
+
+This is not to imply that these individuals necessarily endorse the
+final results, of course.
+
+
+\item SRFI 133: Vector Library. John Cowan (based on SRFI 43 by Taylor
+  Campbell). \verb|(scheme vector)|
+
+Copyright (C) Taylor Campbell (2003). All rights reserved.
+(And John Cowan?)
+
+These acknowledgements are copied from SRFI 43.
+
+Thanks to Olin Shivers for his wonderfully complete
+\protect\hyperlink{SRFI-1}{list} and \protect\hyperlink{SRFI-13}{string}
+packages; to all the members of the
+\href{http://scheme-irc.webhop.org/}{\texttt{\#scheme} IRC channel} on
+\href{http://www.freenode.net/}{Freenode} who nitpicked a great deal,
+but also helped quite a lot in general, and helped test the reference
+implementation in various Scheme systems; to Michael Burschik for his
+numerous comments; to Sergei Egorov for helping to narrow down the
+procedures; to Mike Sperber for putting up with an \emph{extremely}
+overdue draft; to Felix Winkelmann for continually bugging me about
+finishing up the SRFI so that it would be only overdue and not
+withdrawn; and to everyone else who gave questions, comments, thoughts,
+or merely attention to the SRFI.
+
+\item SRFI 132: Sort Libraries. John Cowan (based on SRFI 32 by Olin Shivers)
+
+This document is copyright (C) Olin Shivers (1998, 1999). All Rights
+Reserved. (Copyright John Cowan as well?)
+
+Olin thanked the authors of the open source consulted when designing
+this library, particularly Richard O'Keefe, Donovan Kolbly and the MIT
+Scheme Team. John thanks Will Clinger for his detailed comments, and
+both Will Clinger and Alex Shinn for their implementation efforts.
+
+\item SRFI 113: Sets and Bags. John Cowan
+
+Copyright (C) John Cowan 2013. All Rights Reserved.
+
+\item SRFI 14: Character-set Library. Olin Shivers.
+
+Certain portions of this document -- the specific, marked segments of
+text describing the \protect\hyperlink{R5RS}{R5RS} procedures -- were
+adapted with permission from the R5RS report.
+
+All other text is copyright (C) Olin Shivers (1998, 1999, 2000). All
+Rights Reserved.
+
+
+The design of this library benefited greatly from the feedback provided
+during the SRFI discussion phase. Among those contributing thoughtful
+commentary and suggestions, both on the mailing list and by private
+discussion, were Paolo Amoroso, Lars Arvestad, Alan Bawden, Jim Bender,
+Dan Bornstein, Per Bothner, Will Clinger, Brian Denheyer, Kent Dybvig,
+Sergei Egorov, Marc Feeley, Matthias Felleisen, Will Fitzgerald, Matthew
+Flatt, Arthur A. Gleckler, Ben Goetter, Sven Hartrumpf, Erik Hilsdale,
+Shiro Kawai, Richard Kelsey, Oleg Kiselyov, Bengt Kleberg, Donovan
+Kolbly, Bruce Korb, Shriram Krishnamurthi, Bruce Lewis, Tom Lord, Brad
+Lucier, Dave Mason, David Rush, Klaus Schilling, Jonathan Sobel, Mike
+Sperber, Mikael Staldal, Vladimir Tsyshevsky, Donald Welsh, and Mike
+Wilson. I am grateful to them for their assistance.
+
+I am also grateful the authors, implementors and documentors of all the
+systems mentioned in the introduction. Aubrey Jaffer should be noted for
+his work in producing Web-accessible versions of the R5RS spec, which
+was a tremendous aid.
+
+This is not to imply that these individuals necessarily endorse the
+final results, of course.
+
+During this document's long development period, great patience was
+exhibited by Mike Sperber, who is the editor for the SRFI, and by
+Hillary Sullivan, who is not.
+
+\item SRFI 125: Intermediate hash tables. John Cowan, Will Clinger.
+
+Copyright (C) John Cowan (2015).
+
+Some of the language of this SRFI is copied from SRFI 69 with thanks to
+its author, Panu Kalliokoski. However, he is not responsible for what I
+have done with it. Thanks to Will Clinger for providing the sample
+implementation, and to Taylan Ulrich Bayırlı/Kammer for his spirited
+review.
+
+I also acknowledge the members of the SRFI 125, 126, and 128 mailing
+lists, especially Takashi Kato, Alex Shinn, Shiro Kawai, and Per
+Bothner.
+
+\item SRFI 116: Immutable List Library. John Cowan.
+
+Copyright (C) John Cowan 2014. All Rights Reserved.
+
+Without the work of Olin Shivers on
+\href{http://srfi.schemers.org/srfi-1/srfi-1.html}{SRFI 1}, this SRFI
+would not exist. Everyone acknowledged there is transitively
+acknowledged here. This is not to imply that either Olin or anyone else
+necessarily endorses the final results, of course.
+
+\item SRFI 101: Purely Functional Random-Access Pairs and Lists. David Van Horn.
+
+Copyright (C) David Van Horn 2009. All Rights Reserved.
+
+I am grateful to the members of the
+\href{http://www.ccs.neu.edu/research/prl/}{Northeastern University
+Programming Research Laboratory} and \href{http://plt-scheme.org/}{PLT}
+(and their intersection) for discussions during the pre-draft
+development of this SRFI and the library that preceded it. We are all
+indebted to Okasaki for his elegant solution to this problem. Much of
+the specification is adapted from text intended to belong to the Scheme
+community; I thank the editors and authors of the RnRS series
+collectively for their efforts. I am grateful to Donovan Kolbly for
+serving as SRFI editor and to Taylor R Campbell, Robert Bruce Findler,
+Aubrey Jaffer, Shiro Kawai, and Alexey Radul for discussion during the
+draft period. I thank William D Clinger, Robert Bruce Findler, and
+Abdulaziz Ghuloum for help writing the implementations of \texttt{quote}
+specific to Larceny, Ikarus, and PLT, respectively. Support was provided
+by the National Science Foundation under Grant \#0937060 to the
+Computing Research Association for the CIFellow Project.
+
+\item SRFI 134: Immutable Deques. Kevin Wortman, John Cowan.
+
+Copyright (C) John Cowan, Kevin Wortman (2015). All Rights Reserved.
+
+\item SRFI 135: Immutable Texts. William D Clinger.
+
+Copyright (C) William D Clinger (2016). All Rights Reserved.
+
+For three decades, I have been hoping the Scheme standards would either
+make strings immutable or add a new data type of immutable texts; with
+Unicode, that hope became more urgent. During that time, I have
+discussed this with far more people than I can now remember. Most of
+those I do remember are among those acknowledged below by John Cowan or
+Olin Shivers, but I am pleased to add Lars T Hansen, Chris Hanson, Felix
+Klock, and Jonathan Rees to the list of those whose ideas (and
+counter-arguments!) have contributed to this SRFI.
+
+John Cowan, the author of SRFI 130, deserves special thanks for blessing
+my desire to use SRFI 130 as the starting point for this SRFI, for
+designing the spans API whose implementations tested the key ideas of
+this SRFI's sample implementations, for chairing Working Group 2, and
+for a lot more I won't mention here.
+
+To acknowledge all those who contributed to SRFI 130 and to its
+predecessor SRFI 13, written by Olin Shivers, I hereby reproduce John
+Cowan's acknowledgements from SRFI 130:
+
+\begin{quote}
+Thanks to the members of the SRFI 130 mailing list who made this SRFI
+what it now is, including Per Bothner, Arthur Gleckler, Shiro Kawai, Jim
+Rees, and especially Alex Shinn, whose idea it was to make cursors and
+indexes disjoint, and who provided the foof implementation. The
+following acknowledgements by Olin Shivers are taken from SRFI 13:
+
+\begin{quote}
+The design of this library benefited greatly from the feedback provided
+during the SRFI discussion phase. Among those contributing thoughtful
+commentary and suggestions, both on the mailing list and by private
+discussion, were Paolo Amoroso, Lars Arvestad, Alan Bawden, Jim Bender,
+Dan Bornstein, Per Bothner, Will Clinger, Brian Denheyer, Mikael
+Djurfeldt, Kent Dybvig, Sergei Egorov, Marc Feeley, Matthias Felleisen,
+Will Fitzgerald, Matthew Flatt, Arthur A. Gleckler, Ben Goetter, Sven
+Hartrumpf, Erik Hilsdale, Richard Kelsey, Oleg Kiselyov, Bengt Kleberg,
+Donovan Kolbly, Bruce Korb, Shriram Krishnamurthi, Bruce Lewis, Tom
+Lord, Brad Lucier, Dave Mason, David Rush, Klaus Schilling, Jonathan
+Sobel, Mike Sperber, Mikael Staldal, Vladimir Tsyshevsky, Donald Welsh,
+and Mike Wilson. I am grateful to them for their assistance.
+
+I am also grateful to the authors, implementors and documentors of all
+the systems mentioned in the introduction. Aubrey Jaffer and Kent Pitman
+should be noted for their work in producing Web-accessible versions of
+the \protect\hyperlink{R5RS}{R5RS} and Common Lisp spec, which was a
+tremendous aid.
+
+This is not to imply that these individuals necessarily endorse the
+final results, of course.
+
+During this document's long development period, great patience was
+exhibited by Mike Sperber, who is the editor for the SRFI, and by
+Hillary Sullivan, who is not.
+\end{quote}
+\end{quote}
+
+As Olin said, we should not assume any of those individuals endorse this
+SRFI.
+
+\item SRFI 121: Generators. Shiro Kawai, John Cowan, Thomas Gilray.
+
+Copyright (C) Shiro Kawai, John Cowan, Thomas Gilray (2015). All Rights
+Reserved.
+
+These procedures are drawn from the Gauche core and the Gauche module
+\texttt{gauche.generator}, with some renaming to make them more
+systematic, and with a few additions from the Python library
+\href{https://docs.python.org/3/library/itertools.html}{\texttt{itertools}}.
+Consequently, Shiro Kawai, the author of Gauche and its specifications,
+is listed as first author of this SRFI. John Cowan served as editor and
+shepherd. Thomas Gilray provided the sample implementation and a
+valuable critique of the SRFI. Special acknowledgements to Kragen Javier
+Sitaker for his extensive review.
+
+\item SRFI 127: Lazy Sequences. John Cowan.
+
+Copyright (C) John Cowan (2015). All Rights Reserved.
+
+Without the work of Olin Shivers on
+\href{http://srfi.schemers.org/srfi-1/srfi-1.html}{SRFI 1}, this SRFI
+would not exist. Everyone acknowledged there is transitively
+acknowledged here. This is not to imply that either Olin or anyone else
+necessarily endorses the final results, of course.
+
+Special thanks to Shiro Kawai, whose Gauche implementation of lazy
+sequences inspired this one, and to Kragen Javier Sitaker, who did a
+thorough review.
+
+\item SRFI 41: Streams. Philip L. Bewig.
+
+Copyright (C) Philip L. Bewig (2007). All Rights Reserved.
+
+Jos Koot sharpened my thinking during many e-mail discussions, suggested
+several discussion points in the text, and contributed the final version
+of stream-match. Michael Sperber and Abdulaziz Ghuloum gave advice on
+R6RS.
+
+\item SRFI 111: Boxes. John Cowan.
+
+Copyright (C) John Cowan 2013. All Rights Reserved.
+
+\item SRFI 117: Queues based on lists. John Cowan.
+
+Copyright © John Cowan, 2014. All Rights Reserved.
+
+\item SRFI 124: Ephemerons.John Cowan.
+
+Copyright (C) John Cowan (2015).
+
+\item SRFI 128: Comparators (reduced). John Cowan.
+
+Copyright (C) John Cowan (2015). All Rights Reserved.
+
+This SRFI is a simplified and enhanced rewrite of
+\href{http://srfi.schemers.org/srfi-114/srfi-114.html}{SRFI 114}, and
+shares some of its design rationale and all of its acknowledgements. The
+largest change is the replacement of the comparison procedure with the
+ordering procedure. This allowed most of the special-purpose comparators
+to be removed. In addition, many of the more specialized procedures, as
+well as all but one of the syntax forms, have been removed as
+unnecessary.
+
+Special thanks to Taylan Ulrich Bayırlı/Kammer, whose insistence that
+SRFI 114 was unacceptable inspired this redesign. Jörg Wittenberger
+added Chicken-specific type declarations, which I have moved to
+\texttt{comparators.scm}, as it is a Chicken-specific library. He also
+provided Chicken-specific metadata and setup commands. Comments from
+Shiro Kawai, Alex Shinn, and Kevin Wortman guided me to the current
+design for bounds and salt.
+
+
+
+\end{itemize}
+
+Others: WG2 members.
+
+Copyright notice
+
+\TODO{This is really a report, rather than software. I think the
+  statement below should be replaced by the (non-copyright) from the
+  R$^7$RS report: “We intend this report to belong to the entire
+  Scheme com- munity, and so we grant permission to copy it in whole
+  or in part without fee. In particular, we encourage implementers of
+  Scheme to use this report as a starting point for manuals and other
+  documentation, modifying it as necessary.”. The individual SRFI
+  comments can be included as a list, along with a statement that says
+  that each author has explicitly granted permission for free use of
+  their work.}
+
+Permission is hereby granted, free of charge, to any person obtaining a
+copy of this software and associated documentation files (the
+``Software''), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be included
+in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED ``AS IS'', WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.

@@ -1,0 +1,179 @@
+\section{Ephemerons}
+\redno{17}  What ephemeron library should R7RS-large provide?
+
+\begin{quote}
+SRFI 124 provides ephemerons compatible with MIT Scheme except that they
+are immutable. A dummy implementation for systems without GC support is
+also provided.
+\end{quote}
+
+
+An ephemeron is an object with two components called its \emph{key} and
+its \emph{datum}. It differs from an ordinary pair as follows: if the
+garbage collector (GC) can prove that there are no references to the key
+except from the ephemeron itself and possibly from the datum, then it is
+free to \emph{break} the ephemeron, dropping its reference to both key
+and datum. In other words, an ephemeron can be broken when nobody else
+cares about its key. Ephemerons can be used to construct weak vectors or
+lists and (possibly in combination with finalizers) weak hash tables.
+
+Much of this specification is derived with thanks from the MIT Scheme
+Reference Manual.
+
+\setlibname{ephemeron}
+
+\section{Specification}\label{specification}
+
+\begin{entry}{%
+  \Proto{ephemeron?}{ object}{procedure}{boolean}}
+
+  Returns \texttt{\#t} if \emph{object} is an ephemeron; otherwise
+  returns \texttt{\#f}.
+\end{entry}
+
+\begin{entry}{%
+  \Proto{make-ephemeron}{ key datum}{procedure}{ephemeron}}
+
+  Returns a newly allocated ephemeron, with components \emph{key} and
+  \emph{datum}. Note that if \emph{key} and \emph{datum} are the same
+  in the sense of \texttt{eq?}, the ephemeron is effectively a weak
+  reference to the object.
+\end{entry}
+
+\begin{entry}{%
+  \Proto{ephemeron-broken?}{ ephemeron}{procedure}{boolean}}
+
+  Returns \#t if \emph{ephemeron} has been broken; otherwise returns
+  \#f.
+
+  This procedure must be used with care. If it returns \texttt{\#f},
+  that guarantees only that prior evaluations of
+  \texttt{ephemeron-key} or \texttt{ephemeron-datum} yielded the key
+  or datum that was stored in \emph{ephemeron}. However, it makes no
+  guarantees about subsequent calls to \texttt{ephemeron-key} or
+  \texttt{ephemeron-datum}, because the GC may run and break the
+  ephemeron immediately after \texttt{ephemeron-broken?}
+  returns. Thus, the correct idiom to fetch an ephemeron's key and
+  datum and use them if the ephemeron is not broken is:
+
+\begin{verbatim}
+     (let ((key (ephemeron-key ephemeron))
+           (datum (ephemeron-datum ephemeron)))
+       (if (ephemeron-broken? ephemeron)
+           ... broken case ...
+           ... code using key and datum ...))
+\end{verbatim}
+\end{entry}
+
+\begin{entry}{%
+  \Proto{ephemeron-key}{ ephemeron}{procedure}{value}
+  \Proto{ephemeron-datum}{ ephemeron}{procedure}{value}}
+
+  These return the key or datum component, respectively, of
+  \emph{ephemeron}. If \emph{ephemeron} has been broken, these
+  operations return \texttt{\#f}, but they can also return
+  \texttt{\#f} if that is what was stored as the key or datum.
+\end{entry}
+
+\begin{entry}{%
+  \Proto{reference-barrier}{ key}{procedure}{???}}
+
+  \emph{This procedure is optional.}
+
+  This procedure ensures that the garbage collector does not break an
+  ephemeron containing an unreferenced key before a certain point in a
+  program. The program can invoke a \emph{reference barrier} on the
+  key by calling this procedure, which guarantees that even if the
+  program does not use the key, it will be considered strongly
+  reachable until after \texttt{reference-barrier} returns.
+
+  \TODO{What does “optional” mean here? Can a conforming implementation
+    just not export it? Or always generate an error? Is there a
+    cond-expand feature for this?}
+\end{entry}
+
+\section{References}\label{references}
+
+The original paper on ephemerons is Barry Hayes,
+\href{https://static.aminer.org/pdf/PDF/000/522/273/ephemerons_a_new_finalization_mechanism.pdf}{``Ephemerons:
+a New Finalization Mechanism''}, \emph{Object-Oriented Languages,
+Programming, Systems, and Applications}, 1997.
+
+A useful implementation paper is Bruno Haible,
+\href{http://www.haible.de/bruno/papers/cs/weak/WeakDatastructures-writeup.html}{``Weak
+References: Data Types and Implementation''} posted 2005-04-24.
+
+\href{http://www.inf.puc-rio.br/~roberto/docs/ry08-06.pdf}{``Eliminating
+Cycles in Weak Tables''} is about the addition of ephemeron tables to
+Lua 5.2. It explains how Lua's tricolor mark-sweep GC is extended to
+handle them, unfortunately using the O(N\^{}2) algorithm of Hayes 1997.
+
+\href{https://www.cs.hmc.edu/~oneill/papers/Blobs-SPACE.pdf}{``Extending
+Garbage Collection to Complex Data Structures''} extends ephemerons,
+which have a fixed GC strategy, to a new data structure called
+\emph{blobs} that explain to the GC how they are to be processed, thus
+allowing an arbitrary number of key-like and value-like pointers.
+
+\section{Verse}\label{verse}
+
+\TODO{With all respect to gls, does this stay in the final report?}
+
+Reclaimer, spare that tree!\\
+Take not a single bit!\\
+It used to point to me,\\
+Now I'm protecting it.\\
+It was the reader's \texttt{cons}\\
+That made it, paired by dot;\\
+Now, GC, for the nonce,\\
+Thou shalt reclaim it not.
+
+That old familiar tree,\\
+Whose \texttt{cdr}s and whose \texttt{car}s\\
+Are spread o'er memory ---\\
+And wouldst thou it
+\href{http://catb.org/jargon/html/P/parse.html}{unparse}?\\
+GC, cease and desist!\\
+In it no free list store;\\
+Oh spare that \href{http://catb.org/jargon/html/M/moby.html}{moby}
+list\\
+Now pointing throughout core!
+
+It was my parent tree\\
+When it was circular;\\
+It pointed then to me:\\
+I was its \texttt{cadadr}.\\
+My \texttt{cdr} was a list,\\
+My \texttt{car} a dotted pair ---\\
+That tree will sore be missed\\
+If it remains not there.
+
+And now I to thee point,\\
+A saving root, old friend!\\
+Thou shalt remain disjoint\\
+From free lists to the end.\\
+Old tree! The
+\href{https://en.wikipedia.org/wiki/Tracing_garbage_collection\#Na.C3.AFve_mark-and-sweep}{sweep}
+still brave!\\
+And, GC,
+\href{https://en.wikipedia.org/wiki/Tracing_garbage_collection\#Na.C3.AFve_mark-and-sweep}{mark}
+this well:\\
+While I exist to save,\\
+Thou shan't reclaim one cell.
+
+\begin{quote}
+\href{https://en.wikipedia.org/wiki/Guy_L._Steele,_Jr.}{The Great Quux}
+(with \href{http://www.bartleby.com/248/131.html}{apologies} to
+\href{https://en.wikipedia.org/wiki/George_Pope_Morris}{George Pope
+Morris})
+\end{quote}
+
+(Pedantic note: In Scheme, pairs constructed by \texttt{read} are
+officially immutable, so this scenario is technically impossible.)
+
+
+
+\begin{center}\rule{0.5\linewidth}{\linethickness}\end{center}
+
+Editor:
+\href{mailto:srfi-editors\%20at\%20srfi\%20dot\%20schemers\%20dot\%20org}{Arthur
+A. Gleckler}

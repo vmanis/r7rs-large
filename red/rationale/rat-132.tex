@@ -1,0 +1,149 @@
+\section{Rationale}\label{rationale}
+
+\subsection{100 SRFIs later\ldots{}}\label{srfis-later}
+
+This SRFI is based on
+\href{http://srfi.schemers.org/srfi-32/srfi-32.txt}{SRFI 32} by Olin
+Shivers, which was withdrawn twelve years ago.
+
+There are two backward incompatible changes to the API. The most
+important one is that the comparison predicate now precedes the data
+rather than following it. Most of the SRFI 32 commenters thought that
+this is the better order, despite the then-widespread precedent. The
+other change is that the algorithm-specific procedures have been removed
+from the SRFI, though not necessarily from the sample implementation.
+For documentation on them, see SRFI 32 or the source code.
+
+Editorially, the text has been reorganized, removing the massive
+redundancies. As in R5RS and R7RS, procedures that return nothing of
+interest, and in SRFI 32 returned zero or more unspecified values, are
+now specified to return one otherwise unspecified value. The multiple
+packages, most with only a few procedures, into which SRFI 32 is divided
+have been consolidated. References to
+\href{http://srfi.schemers.org/srfi-95/srfi-95.html}{SRFI 95} and
+\href{http://www.r6rs.org/final/html/r6rs-lib/r6rs-lib-Z-H-5.html\#node_chap_4}{R6RS}
+equivalents have been added.
+
+\subsection{What vs. how}\label{Whatvs.how}
+
+In SRFI 32 there were two different interfaces: ``what'' (simple) and
+``how'' (detailed).
+
+\begin{itemize}
+\tightlist
+\item
+  Simple: you specified semantics: datatype (list or vector),
+  mutability, and stability.
+\end{itemize}
+
+\begin{itemize}
+\tightlist
+\item
+  Detailed: you specified the datatype and the actual algorithm (quick,
+  heap, insert, merge).
+\end{itemize}
+
+However, the difficulty with exposing specific algorithms by name is
+that the local optima in the search space of algorithms changes over
+time. For example, the ``qsort'' in the musl C library is actually
+smooth sort, not quick sort; Python and Java have switched from quick
+sort to timsort; some implementations of the C++ STL use introsort
+rather than quick sort. Having procedure names that imply e.g. quick
+sort, that do not actually implement quick sort, is confusing.
+
+Therefore, only the ``what'' interface has been retained. The sample
+implementation uses some of the original SRFI 32 algorithms, but this is
+not a requirement of this SRFI.
+
+\subsection{Consistency across procedure
+signatures}\label{Consistencyacrossproceduresignatures}
+
+Procedures share common signatures wherever possible, to facilitate
+switching a given call from one procedure to another.
+
+\subsection{Ordering parameter before data
+parameter}\label{Orderingparameterbeforedataparameter}
+
+These procedures uniformly observe the following parameter order: the
+ordering, equality, or comparison argument precedes the argument(s)
+denoting the data to be sorted. In SRFI 32, the data-first convention
+was used, because it was consistent with all the implementations
+examined in 2002, with the sole exception of Chez Scheme. However,
+\href{http://www.r6rs.org/final/html/r6rs-lib/r6rs-lib-Z-H-5.html\#node_chap_4}{R6RS}
+adopted the procedure-first convention, which is more consistent with
+other Scheme libraries that put the procedure first --- the ``operation
+currying'' convention, as in \texttt{for-each} or \texttt{map} or
+\texttt{find}. This SRFI uses the R6RS convention throughout.
+
+\subsection{Stability}\label{Stability}
+
+A ``stable'' sort is one that preserves the pre-existing order of equal
+elements. Suppose, for example, that we sort a list of numbers by
+comparing their absolute values using \texttt{abs\textless{}} (defined
+below). If we sort a list that contains both 3 and -3, then a stable
+sort is an algorithm that will not swap the order of these two elements,
+that is, the answer will look like \texttt{...\ 3\ -3\ ...}, not
+\texttt{...\ -3\ 3\ ...}.
+
+A ``stable'' merge is one that reliably favors one of its data sets when
+equal items appear in both data sets. All merge operations specified in
+this SRFI are stable, breaking ties between data sets in favor of the
+first data set --- elements of the first list come before equal elements
+in the second list.
+
+So, if we are merging two lists of numbers ordered by absolute value
+using the stable merge operation \texttt{list-merge} and
+\texttt{abs\textless{}} compares numbers by their absolute values, then
+
+\begin{verbatim}
+(list-merge abs< '(0 -2 4 8 -10) '(-1 3 -4 7))
+\end{verbatim}
+
+reliably places the 4 of the first list before the equal-comparing -4 of
+the second list: \texttt{(0\ -1\ -2\ 4\ -4\ 7\ 8\ -10)}.
+
+Here's a definition of \texttt{abs\textless{}}, introduced just for the
+examples as it is not part of this SRFI:
+
+\begin{verbatim}
+(define (abs< x y) (< (abs x) (abs y))))
+\end{verbatim}
+
+\subsection{All vector operations accept optional subrange
+parameters}\label{Allvectoroperationsacceptoptionalsubrangeparameters}
+
+The vector operations specified below all take optional \emph{start} and
+\emph{end} arguments indicating a selected subrange of a vector's
+elements. This compensates for the absence in most Schemes of shared
+subvectors.
+
+\subsection{Required vs. allowed
+side-effects}\label{Requiredvs.allowedside-effects}
+
+The \texttt{list-sort!} and \texttt{list-stable-sort!} procedures are
+allowed, but not required, to alter their arguments' cons cells to
+construct the result list.
+
+The other procedures ending in \texttt{!}, on the other hand, explicitly
+commit to the use of side-effects on their input lists in order to
+guarantee their key algorithmic properties (e.g., linear-time operation,
+constant-space stack use).
+
+\subsection{Sorting lists}\label{Sortinglists}
+
+Note that sorting lists involves chasing pointers through memory, which
+can be a loser on modern machine architectures because of poor cache and
+page locality. Pointer \emph{writing}, which is what the
+\texttt{set-cdr!}s of a destructive list-sort algorithm do, is even
+worse, especially if your Scheme has a generational GC --- the writes
+will thrash the write-barrier. Sorting vectors has inherently better
+locality.
+
+In particular, all complexity guarantees assume that the basic accessors
+and mutators of standard Scheme have O(1) space and time complexity.
+
+The reference implementation's destructive list merge and merge sort
+implementations are opportunistic --- they avoid redundant
+\texttt{set-cdr!}s, and try to take long already-ordered runs of list
+structure as-is when doing the merges.
+

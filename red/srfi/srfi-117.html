@@ -1,0 +1,270 @@
+<!DOCTYPE HTML PUBLIC "" "-//IETF//DTD HTML//EN">
+<html lang="en-US"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
+
+  <title>SRFI 117: Queues based on lists</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="/srfi.css" type="text/css" /></head><body>
+
+<H1>Title</H1>
+
+Queues based on lists
+
+<H1>Author</H1>
+
+John Cowan &lt;cowan@ccil.org&gt;
+
+<H1>Status</H1>
+
+<p>
+This SRFI is currently in ``final'' status.
+To see an explanation of
+each status that a SRFI can hold, see <a
+href="http://srfi.schemers.org/srfi-process.html">here</a>.
+
+To provide input on this SRFI, please
+<a href="mailto:srfi minus 117 at srfi dot schemers dot org">mail to
+<code>&lt;srfi minus 117 at srfi dot schemers dot org&gt;</code></a>.  See
+<a href="../srfi-list-subscribe.html">instructions here</a> to
+subscribe to the list.  You can access previous messages via
+<a href="mail-archive/maillist.html">the archive of the mailing list</a>.
+</p><ul>
+    <li>Received: <a
+    href="http://srfi.schemers.org/srfi-117/srfi-117-1.1.html">2014/12/02</a></li>
+      <li>Draft: 2014/12/02-2015/02/02</li>
+     <li>Revised: <a
+     href="http://srfi.schemers.org/srfi-117/srfi-117-1.2.html">2014/12/04</a></li>
+     <li>Revised: <a
+     href="http://srfi.schemers.org/srfi-117/srfi-117-1.3.html">2014/12/06</a></li>
+     <li>Revised: <a
+     href="http://srfi.schemers.org/srfi-117/srfi-117-1.4.html">2015/01/11</a></li>
+     <li>Revised: <a
+     href="http://srfi.schemers.org/srfi-117/srfi-117-1.5.html">2015/06/08</a></li>
+     <li>Finalized: 2015/08/25</li>
+     <li>Revised to fix errata: 2015/09/06, 2015/09/10, 2016/7/26</li>
+</ul>
+
+<H1>Abstract</H1>
+
+<p>
+List queues are mutable ordered collections that can contain any Scheme object.  Each list queue is based on an ordinary Scheme list containing the elements of the list queue by maintaining pointers to the first and last pairs of the list.  It's cheap to add or remove elements from the front of the list or to add elements to the back, but not to remove elements from the back.  List queues are disjoint from other types of Scheme objects.
+</p>
+
+<H1>Issues</H1>
+
+<p>No issues at present.</p>
+
+<H1>Rationale</H1>
+
+<p>The list queues described in this SRFI are objects of a disjoint type that provide an ordered sequence of arbitrary Scheme objects.  Like lists, they provide sequential access to their elements; unlike lists, they normally should not share storage with other list queues, unless special precautions have been taken.</p>
+
+<p>Technically, a queue is an object that makes it efficient to remove elements from the front and to add elements to the back.  List queues also make it efficient to add elements to the front, but removing elements from the back is inefficient.  Therefore, because these objects do not provide the normal behavioral guarantees of <a href="http://en.wikipedia.org/wiki/Double-ended_queue">deques</a>, they are not referred to as deques.  True deques will be provided in a future SRFI.</p>
+
+<p>Historically, objects of this form were called "tconc structures" (where "tconc" is short for "tail concatenate"), and Lispers have tended to roll their own using pairs.  This version uses a record to hold the first-pair and last-pair pointers rather than a pair, but uses pairs and the empty list internally.</p>
+
+<p>Because the representation of list queues as lists is exposed by the implementation, it's not necessary to provide a comprehensive API for list queues.  Instead, <a class="ext-link" href="http://srfi.schemers.org/srfi-1/srfi-1.html">SRFI 1</a> and other list APIs can serve the same purpose, using the conversion procedures to convert between list queues and lists fairly cheaply.  Consequently, the API provided here over and above the bare necessities of queueing and dequeueing elements is roughly analogous to the R7RS-small API for lists.  It also subsumes the <a class="ext-link" href="http://wiki.call-cc.org/man/4/Unit%20data-structures#queues">Chicken</a> and <a class="ext-link" href="http://people.csail.mit.edu/jaffer/slib/Queues.html#Queues">​SLIB</a> APIs.</p>
+
+<H1>Specification</H1>
+
+<h2 id="Constructors">Constructors</h2>
+<p>
+<tt>(make-list-queue </tt><var>list</var> [ <var>last</var> ]<tt>)</tt>
+</p>
+<p>
+Returns a newly allocated list queue containing the elements of <var>list</var> in order.  The result shares storage with <var>list</var>.  If the <var>last</var> argument is not provided, this operation is O(n) where n is the length of <var>list</var>.</p>
+
+<p>However, if <var>last</var> is provided, <code>make-list-queue</code> returns a newly allocated list queue containing the elements of the list whose first pair is <var>first</var> and whose last pair is <var>last</var>.  It is an error if the pairs do not belong to the same list.  Alternatively, both <var>first</var> and <var>last</var> can be the empty list.  In either case, the operation is O(1).</p>
+<p>
+Note: To apply a non-destructive list procedure to a list queue and return a new list queue, use <tt>(make-list-queue (</tt><var>proc</var><tt> (list-queue-list </tt><var>list-queue</var><tt>)))</tt>.
+</p>
+
+<p>
+<tt>(list-queue </tt><var>element</var> ...<tt>)</tt>
+</p>
+<p>
+Returns a newly allocated list queue containing the <var>elements</var>.  This operation is O(n) where n is the number of elements.
+</p>
+<p>
+<tt>(list-queue-copy </tt><var>list-queue</var><tt>)</tt>
+</p>
+<p>
+Returns a newly allocated list queue containing the elements of <var>list-queue</var>.  This operation is O(n) where n is the length of <var>list-queue</var>
+</p>
+<p>
+<tt>(list-queue-unfold </tt><var>stop? mapper successor seed</var> [ <var>queue</var> ]<tt>)</tt>
+</p>
+<p>Performs the following algorithm:</p>
+
+<p>If the result of applying the predicate <var>stop?</var> to <var>seed</var> is true, return <var>queue</var>.  Otherwise, apply the procedure <var>mapper</var> to <var>seed</var>, returning a value which is added to the front of <var>queue</var>.  Then get a new seed by applying the procedure <var>successor</var> to <var>seed</var>, and repeat this algorithm.
+</p>
+
+<p>If <var>queue</var> is omitted, a newly allocated list queue is used.</p>
+
+<p>
+<tt>(list-queue-unfold-right </tt><var>stop? mapper successor seed</var> [ <var>queue</var> ]<tt>)</tt>
+</p>
+<p>Performs the following algorithm:</p>
+
+<p>If the result of applying the predicate <var>stop?</var> to <var>seed</var> is true, return the list queue.  Otherwise, apply the procedure <var>mapper</var> to <var>seed</var>, returning a value which is added to the back of the list queue.  Then get a new seed by applying the procedure <var>successor</var> to <var>seed</var>, and repeat this algorithm.</p>
+
+<p>If <var>queue</var> is omitted, a newly allocated list queue is used.</p>
+
+<h2 id="Predicates">Predicates</h2>
+<p>
+<tt>(list-queue? </tt><var>obj</var><tt>)</tt>
+</p>
+<p>
+Returns <tt>#t</tt> if <var>obj</var> is a list queue, and <tt>#f</tt> otherwise.  This operation is O(1).
+</p>
+<p>
+<tt>(list-queue-empty? </tt><var>list-queue</var><tt>)</tt>
+</p>
+<p>
+Returns <tt>#t</tt> if <var>list-queue</var> has no elements, and <tt>#f</tt> otherwise.  This operation is O(1).
+</p>
+<h2 id="Accessors">Accessors</h2>
+<p>
+<tt>(list-queue-front </tt><var>list-queue</var><tt>)</tt>
+</p>
+<p>
+Returns the first element of <var>list-queue</var>.  If the list queue is empty, it is an error.  This operation is O(1).
+</p>
+<p>
+<tt>(list-queue-back </tt><var>list-queue</var><tt>)</tt>
+</p>
+<p>
+Returns the last element of <var>list-queue</var>.  If the list queue is empty, it is an error.  This operation is O(1).
+</p>
+<p>
+<tt>(list-queue-list </tt><var>list-queue</var><tt>)</tt>
+</p>
+<p>
+Returns the list that contains the members of <var>list-queue</var> in order.  The result shares storage with <var>list-queue</var>.  This operation is O(1).
+</p>
+<p>
+<tt>(list-queue-first-last </tt><var>list-queue</var><tt>)</tt>
+</p>
+<p>
+Returns two values, the first and last pairs of the list that contains the members of <var>list-queue</var> in order.  If <var>list-queue</var> is empty, returns two empty lists.  The results share storage with <var>list-queue</var>.  This operation is O(1).
+</p>
+<h2 id="Mutators">Mutators</h2>
+<p>
+<tt>(list-queue-add-front! </tt><var>list-queue element</var><tt>)</tt>
+</p>
+<p>
+Adds <var>element</var> to the beginning of <var>list-queue</var>.  Returns an unspecified value.  This operation is O(1).
+</p>
+<p>
+<tt>(list-queue-add-back! </tt><var>list-queue element</var><tt>)</tt>
+</p>
+<p>
+Adds <var>element</var> to the end of <var>list-queue</var>.  Returns an unspecified value.  This operation is O(1).
+</p>
+<p>
+<tt>(list-queue-remove-front! </tt><var>list-queue</var><tt>)</tt>
+</p>
+<p>
+Removes the first element of <var>list-queue</var> and returns it. If the list queue is empty, it is an error.  This operation is O(1).
+</p>
+<p>
+<tt>(list-queue-remove-back! </tt><var>list-queue</var><tt>)</tt>
+</p>
+<p>
+Removes the last element of <var>list-queue</var> and returns it.  If the list queue is empty, it is an error.  This operation is O(n) where n is the length of <var>list-queue</var>, because queues do not not have backward links.
+</p>
+<p>
+<tt>(list-queue-remove-all! </tt><var>list-queue</var><tt>)</tt>
+</p>
+<p>
+Removes all the elements of <var>list-queue</var> and returns them in order as a list.  This operation is O(1).
+</p>
+<p>
+<p>
+<tt>(list-queue-set-list! </tt><var>list-queue list</var> [ <var>last</var> ]<tt>)</tt>
+</p>
+<p>
+Replaces the list associated with <var>list-queue</var> with <var>list</var>, effectively discarding all the elements of <var>list-queue</var> in favor of those in <var>list</var>.  Returns an unspecified value.  This operation is O(n) where n is the length of <var>list</var>.  If <var>last</var> is provided, it is treated in the same way as in <code>make-list-queue</code>, and the operation is O(1).
+</p>
+<p>
+Note: To apply a destructive list procedure to a list queue, use <tt>(list-queue-set-list! (</tt><var>proc</var><tt> (list-queue-list </tt><var>list-queue</var><tt>)))</tt>.
+</p>
+<p>
+<tt>(list-queue-append </tt><var>list-queue</var> ...<tt>)</tt>
+</p>
+<p>
+Returns a list queue which contains all the elements in front-to-back order from all the <var>list-queues</var> in front-to-back order.  The result does not share storage with any of the arguments.  This operation is O(n) in the total number of elements in all queues.
+</p>
+<p>
+<tt>(list-queue-append! </tt><var>list-queue</var> ...<tt>)</tt>
+</p>
+<p>
+Returns a list queue which contains all the elements in front-to-back order from all the <var>list-queues</var> in front-to-back order.  It is an error to assume anything about the contents of the <var>list-queues</var> after the procedure returns.  This operation is O(n) in the total number of queues, not elements.
+It is not part of the R7RS-small list API, but is included here for efficiency
+when pure functional append is not required.
+</p>
+<p>
+<tt>(list-queue-concatenate </tt><var>list-of-list-queues</var><tt>)</tt>
+</p>
+<p>
+Returns a list queue which contains all the elements in front-to-back order from all the list queues which are members of <var>list-of-list-queues</var> in front-to-back order.  The result does not share storage with any of the arguments.  This operation is O(n) in the total number of elements in all queues.  It is not part of the R7RS-small list API, but is included here to make appending a large number of queues possible in Schemes that limit the number of arguments to <tt>apply</tt>.
+</p>
+<h2 id="Mapping">Mapping</h2>
+<p>
+<tt>(list-queue-map </tt><var>proc list-queue</var><tt>)</tt>
+</p>
+<p>
+Applies <var>proc</var> to each element of <var>list-queue</var> in unspecified order and returns a newly allocated list queue containing the results.  This operation is O(n) where n is the length of <var>list-queue</var>.
+</p>
+<p>
+<tt>(list-queue-map! </tt><var>proc list-queue</var><tt>)</tt>
+</p>
+<p>
+Applies <var>proc</var> to each element of <var>list-queue</var> in front-to-back order and modifies <var>list-queue</var> to contain the results.  This operation is O(n) in the length of <var>list-queue</var>.  It is not part of the R7RS-small list API, but is included here to make transformation of a list queue by mutation more efficient.
+</p>
+<p>
+<tt>(list-queue-for-each </tt><var>proc list-queue</var><tt>)</tt>
+</p>
+<p>
+Applies <var>proc</var> to each element of <var>list-queue</var> in front-to-back order, discarding the returned values.  Returns an unspecified value.  This operation is O(n) where n is the length of <var>list-queue</var>.
+</p>
+
+<H1>Implementation</H1>
+
+<p>The sample implementation places the identifiers defined above into the <code>list-queue</code> library.</p>
+
+<p>The <a href="http://srfi.schemers.org/srfi-117/list-queues.tar.gz">sample implementation</a> contains the following files:</p>
+
+<ul><li><code>list-queues-impl.scm</code> – implementation of queues</li>
+<li><code>list-queues.sld</code> – an R7RS library named <code>(list-queue)</code></li>
+<li><code>list-queues.scm</code> – a Chicken library</li>
+<li><code>list-queues-test.scm</code> – tests using the Chicken test egg</li>
+</ul>
+
+<H1>Copyright</H1>
+Copyright © John Cowan, 2014. All Rights Reserved.
+<p>
+Permission is hereby granted, free of charge, to any person obtaining a
+copy of this software and associated documentation files (the "Software"),
+to deal in the Software without restriction, including without limitation
+the rights to use, copy, modify, merge, publish, distribute, sublicense,
+and/or sell copies of the Software, and to permit persons to whom the
+Software is furnished to do so, subject to the following conditions:</p>
+<p>
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.</p>
+<p>
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.</p>
+
+    <hr />
+    <address>Editor: <a href="mailto:srfi-editors at srfi dot schemers dot org">Michael Sperber</a></address>
+<!-- Created: Tue Sep 29 19:20:08 EDT 1998 -->
+<!-- hhmts start -->
+Last modified: Tue Jun  9 08:44:01 MST 2015
+<!-- hhmts end -->
+  </body>
+</html>

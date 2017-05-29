@@ -1,0 +1,1824 @@
+\section{Title}\label{title}
+
+Immutable Texts
+
+\section{Author}\label{author}
+
+William D Clinger
+
+\section{Status}\label{status}
+
+This SRFI is currently in \emph{final} status. Here is
+\href{http://srfi.schemers.org/srfi-process.html}{an explanation} of
+each status that a SRFI can hold. To provide input on this SRFI, please
+send email to \texttt{srfi-135@nospamsrfi.schemers.org}. To subscribe to
+the list, follow
+\href{http://srfi.schemers.org/srfi-list-subscribe.html}{these
+instructions}. You can access previous messages via the mailing list
+\href{http://srfi-email.schemers.org/srfi-135}{archive}.
+
+\begin{itemize}
+\tightlist
+\item
+  Received: 2016/6/6
+\item
+  60-day deadline: 2016/8/5
+\item
+  Draft \#1 published: 2016/6/6
+\item
+  Draft \#2 published: 2016/6/11
+\item
+  Draft \#3 published: 2016/6/17
+\item
+  Draft \#4 published: 2016/7/9
+\item
+  Finalized: 2016/9/6
+\end{itemize}
+
+\section{Table of contents}\label{table-of-contents}
+
+\protect\hyperlink{Abstract}{Abstract}
+
+\protect\hyperlink{Issues}{Issues}
+
+\protect\hyperlink{ProcedureIndex}{Procedure index}
+
+\protect\hyperlink{Rationale}{Rationale}
+
+\protect\hyperlink{Specification}{Specification}
+
+\begin{itemize}
+\tightlist
+\item
+  \protect\hyperlink{Specification}{Concepts}
+
+  \begin{itemize}
+  \tightlist
+  \item
+    \protect\hyperlink{LibraryName}{Name of library}
+  \item
+    \protect\hyperlink{ConceptualModel}{Conceptual model}
+  \item
+    \protect\hyperlink{Subtypes}{Subtypes}
+  \item
+    \protect\hyperlink{ExternalRepresentation}{External representation}
+  \item
+    \protect\hyperlink{TextualPorts}{Textual input and output ports}
+  \item
+    \protect\hyperlink{SharedStorage}{Shared storage}
+  \item
+    \protect\hyperlink{NamingConventions}{Naming conventions}
+  \item
+    \protect\hyperlink{PerformanceRequirements}{Performance
+    requirements}
+  \item
+    \protect\hyperlink{Unicode}{Unicode}
+  \end{itemize}
+\item
+  \protect\hyperlink{Notation}{Notation}
+\item
+  \protect\hyperlink{Procedures}{Procedures}
+
+  \begin{itemize}
+  \tightlist
+  \item
+    \protect\hyperlink{Predicates}{Predicates}
+  \item
+    \protect\hyperlink{Constructors}{Constructors}
+  \item
+    \protect\hyperlink{Conversion}{Conversion}
+  \item
+    \protect\hyperlink{Selection}{Selection}
+  \item
+    \protect\hyperlink{Replacement}{Replacement}
+  \item
+    \protect\hyperlink{Comparison}{Comparison}
+  \item
+    \protect\hyperlink{PrefixesSuffixes}{Prefixes \& suffixes}
+  \item
+    \protect\hyperlink{Searching}{Searching}
+  \item
+    \protect\hyperlink{CaseConversion}{Case conversion}
+  \item
+    \protect\hyperlink{Concatenation}{Concatenation}
+  \item
+    \protect\hyperlink{FoldMap}{Fold \& map \& friends}
+  \item
+    \protect\hyperlink{ReplicationSplitting}{Replication \& splitting}
+  \end{itemize}
+\item
+  \protect\hyperlink{SampleImp}{Sample implementations}
+\item
+  \protect\hyperlink{Acknowledgements}{Acknowledgements}
+\item
+  \protect\hyperlink{Links}{References \& Links}
+\item
+  \protect\hyperlink{Copyright}{Copyright}
+\end{itemize}
+
+\section{\texorpdfstring{\href{}{Abstract}}{Abstract}}\label{abstract}
+
+In Scheme, strings are a mutable data type. Although it ``is an error''
+(\protect\hyperlink{R5RS}{R5RS} and \protect\hyperlink{R7RS}{R7RS}) to
+use \texttt{string-set!} on literal strings or on strings returned by
+\texttt{symbol-\textgreater{}string}, and any attempt to do so ``should
+raise an exception'' (\protect\hyperlink{R6RS}{R6RS}), all other strings
+are mutable.
+
+Although many mutable strings are never actually mutated, the mere
+possibility of mutation complicates specifications of libraries that use
+strings, encourages precautionary copying of strings, and precludes
+structure sharing that could otherwise be used to make procedures such
+as \texttt{substring} and \texttt{string-append} faster and more
+space-efficient.
+
+This \protect\hyperlink{SRFI}{SRFI} specifies a new data type of
+immutable texts. It comes with efficient and portable sample
+implementations that guarantee O(1) indexing for both sequential and
+random access, even in systems whose \texttt{string-ref} procedure takes
+linear time.
+
+The operations of this new data type include analogues for all of the
+non-mutating operations on strings specified by the R7RS and most of
+those specified by \protect\hyperlink{SRFI-130}{SRFI 130}, but the
+immutability of texts and uniformity of character-based indexing
+simplify the specification of those operations while avoiding several
+inefficiencies associated with the mutability of Scheme's strings.
+
+\section{\texorpdfstring{\href{}{Issues}}{Issues}}\label{issues}
+
+None.
+
+\section{\texorpdfstring{\href{}{Procedure
+Index}}{Procedure Index}}\label{procedure-index}
+
+Here is a list of the procedures provided by this SRFI:
+
+\begin{description}
+\item[ Predicates]
+\begin{verbatim}
+text?                 textual?
+textual-null? 
+textual-every         textual-any
+\end{verbatim}
+\item[ Constructors]
+\begin{verbatim}
+make-text             text
+text-tabulate
+text-unfold           text-unfold-right
+\end{verbatim}
+\item[ Conversion]
+\begin{verbatim}
+textual->text
+textual->string       textual->vector         textual->list
+string->text          vector->text            list->text
+reverse-list->text
+textual->utf8         textual->utf16be
+textual->utf16        textual->utf16le
+utf8->text            utf16be->text
+utf16->text           utf16le->text
+\end{verbatim}
+\item[ Selection]
+\begin{verbatim}
+text-length           textual-length
+text-ref              textual-ref
+subtext               subtextual
+textual-copy
+textual-take          textual-take-right
+textual-drop          textual-drop-right
+textual-pad           textual-pad-right 
+textual-trim          textual-trim-right      textual-trim-both
+\end{verbatim}
+\item[ Replacement]
+\begin{verbatim}
+textual-replace
+\end{verbatim}
+\item[ Comparison]
+\begin{verbatim}
+textual=?             textual-ci=?
+textual<?             textual-ci<?
+textual>?             textual-ci>?
+textual<=?            textual-ci<=?
+textual>=?            textual-ci>=?
+\end{verbatim}
+\item[Prefixes \& suffixes]
+\begin{verbatim}
+textual-prefix-length textual-suffix-length
+textual-prefix?       textual-suffix?    
+\end{verbatim}
+\item[Searching]
+\begin{verbatim}
+textual-index         textual-index-right
+textual-skip          textual-skip-right
+textual-contains      textual-contains-right
+\end{verbatim}
+\item[ Case conversion]
+\begin{verbatim}
+textual-upcase        textual-downcase
+textual-foldcase      textual-titlecase
+\end{verbatim}
+\item[ Concatenation]
+\begin{verbatim}
+textual-append        textual-concatenate     textual-concatenate-reverse
+textual-join
+\end{verbatim}
+\item[Fold \& map \& friends]
+\begin{verbatim}
+textual-fold          textual-fold-right
+textual-map           textual-for-each
+textual-map-index     textual-for-each-index
+textual-count
+textual-filter        textual-remove
+\end{verbatim}
+\item[Replication \& splitting]
+\begin{verbatim}
+textual-replicate     textual-split
+\end{verbatim}
+\end{description}
+
+\section{\texorpdfstring{\href{}{Rationale}}{Rationale}}\label{rationale}
+
+The \protect\hyperlink{R6RS-Rationale}{R6RS Rationale} identified
+problems created by the mutability of strings, and several more problems
+were mentioned by SRFI 130 or came up during its discussion period:
+
+\begin{itemize}
+\tightlist
+\item
+  Mutability complicates the specification of higher-order procedures
+  that operate on strings.
+\item
+  Mutability inhibits several compiler optimizations, including common
+  subexpression elimination.
+\item
+  Mutability complicates reasoning about programs that use strings.
+\item
+  Mutations invalidate the string cursors of SRFI 130.
+\item
+  Using a SRFI 130 string cursor that has been invalidated by mutation
+  is an error, but that error is likely to go undetected, making
+  programs harder to test and to debug.
+\item
+  Mutations can be expensive if strings are represented as encapsulated
+  UTF-8 or UTF-16.
+\item
+  Although representations based on UTF-32 provide fast referencing as
+  well as fast mutation, they occupy more space than representations
+  based on UTF-8 or UTF-16.
+\item
+  Mutations preclude sharing of substructure that could save space while
+  making \texttt{substring} and \texttt{string-append} run faster.
+\end{itemize}
+
+Recognizing the first three of these problems, while acknowledging that
+removing mutable strings from the language would cause ``significant
+compatibility problems for existing code''
+\protect\hyperlink{R6RS-Rationale}{{[}R6RS-Rationale{]}}, the R6RS
+standard banished \texttt{string-set!} and \texttt{string-fill!} to a
+separate \texttt{(rnrs\ mutable-strings)} library in hope of
+discouraging and/or deprecating mutation of strings.
+
+The R7RS restored \texttt{string-set!} and \texttt{string-fill!} to the
+\texttt{(scheme\ base)} library and added a new mutator,
+\texttt{string-copy!}. Waiting for some revised standard to make strings
+immutable is not viable.
+
+We can, however, add a new data type of immutable texts capable of
+replacing Scheme's string data type for all applications that do not
+require mutation. Immutable texts do away with the problems listed above
+while offering these advantages over mutable strings:
+
+\begin{itemize}
+\tightlist
+\item
+  space efficiency approaching that of UTF-8 or UTF-16
+\item
+  faster sequential access (if strings use UTF-8 or UTF-16)
+\item
+  faster random access (if strings use UTF-8 or UTF-16)
+\item
+  fast extraction of subtexts
+\item
+  faster concatenation of texts
+\end{itemize}
+
+SRFI 130 aims for the second of those advantages, but cannot achieve
+that advantage in any portable implementation of its procedures.
+Furthermore SRFI 130 introduces a new data type (cursors) that is hard
+to use correctly (because its error situations are likely to go
+undetected, partly because many of its operations accept both cursors
+and character indexes, which are allowed but not required to be the same
+things).
+
+This SRFI offers all five advantages, at the expense of introducing a
+new data type (immutable texts) that can be implemented portably and
+efficiently and is easy to use correctly (partly because most of its
+error situations are detected by its sample implementations, and partly
+because its character indexes are the same as those used by Scheme's
+mutable strings).
+
+See also the \protect\hyperlink{Unicode}{discussion of Unicode}.
+
+This SRFI is based upon SRFI 130, copying much of its structure and
+wording, which should make it easier to compare this SRFI against SRFI
+130 and to convert programs using SRFI 130 to use immutable texts
+instead.
+
+\section{\texorpdfstring{\href{}{Specification}}{Specification}}\label{specification}
+
+\subsection{Basic concepts}\label{basic-concepts}
+
+\subsubsection{\texorpdfstring{\href{}{Name of
+library}}{Name of library}}\label{name-of-library}
+
+The procedures specified by this SRFI are exported by the
+\texttt{(srfi\ 135)} library. In R6RS systems that do not yet support
+R7RS library names, the name of this library is \texttt{(srfi\ :135)}.
+
+It is recommended, but not required, that this library also be made
+available under the alternative name \texttt{(srfi\ 135\ texts)}. That
+alternative library should export exactly the same bindings as the
+\texttt{(srfi\ 135)} library, so libraries and programs can import both
+libraries without name conflicts.
+
+\subsubsection{\texorpdfstring{\href{}{Conceptual
+model}}{Conceptual model}}\label{conceptual-model}
+
+Immutable texts are like strings except they can't be mutated.
+
+Immutability makes it easier to use space-efficient representations such
+as UTF-8 and UTF-16 without incurring the cost of scanning from the
+beginning when character indexes are used (as with \texttt{string-ref}).
+
+When mutation is not needed, immutable texts are likely to be more
+efficient than strings with respect to space or time. In some
+implementations, immutable texts may be more efficient than strings with
+respect to both space and time.
+
+\subsubsection{\texorpdfstring{\href{}{Subtypes}}{Subtypes}}\label{subtypes}
+
+This SRFI defines two new types:
+
+\begin{itemize}
+\tightlist
+\item
+  \emph{text} is a type consisting of the immutable texts for which
+  \texttt{text?} returns true.
+\item
+  \emph{textual} is a union type consisting of the texts and strings for
+  which \texttt{textual?} returns true.
+\end{itemize}
+
+The subtypes of the new \emph{textual} type include the new \emph{text}
+type and Scheme's traditional \emph{string} type, which consists of the
+values for which \texttt{string?} returns true. The \emph{string} type
+includes both mutable strings and the (conceptually) immutable strings
+that are the values of string literals and calls to
+\texttt{symbol-\textgreater{}string}.
+
+Implementations of this SRFI are free to extend the \emph{textual} type
+by adding new subtypes, provided all procedures whose names begin with
+\texttt{textual-} are extended to accept values of those new subtypes.
+Implementations of this SRFI should not extend the \emph{text} type
+unless its extended values are immutable, are accepted as texts by all
+procedures of this SRFI (including the \texttt{text?} predicate), and
+achieve the \protect\hyperlink{PerformanceRequirements}{performance
+required by this SRFI} with respect to both time and space.
+
+\subsubsection{\texorpdfstring{\href{}{External
+representation}}{External representation}}\label{external-representation}
+
+This SRFI does not require any particular external representation for
+immutable texts, but recommends immutable texts have almost the same
+external representation as strings, substituting Unicode's left-pointing
+and right-pointing double angle quotation marks (« and », code points
+\texttt{\#xab} and \texttt{\#xbb}) for the double quotes that delimit
+strings, and allowing those double angle quotation marks to be escaped
+within the external representations of both texts and strings. That
+external representation is used by this SRFI's examples.
+
+When feasible, implementations of this SRFI should also consider:
+
+\begin{itemize}
+\tightlist
+\item
+  extending the \texttt{equal?} procedure to regard two immutable texts
+  t1 and t2 as equal if and only if \texttt{(textual=?\ t1\ t2)}, while
+  regarding an immutable text as unequal to anything that isn't an
+  immutable text.
+\item
+  extending the \texttt{display} procedure to accept immutable texts,
+  treating them the same as strings;
+\item
+  extending the \texttt{write} procedure to generate the external syntax
+  recommended for immutable texts;
+\item
+  extending the \texttt{read} procedure to accept the external syntax
+  recommended for immutable texts;
+\item
+  extending interpreters and compilers to accept quoted literals
+  expressed using the external syntax recommended for immutable texts;
+  R7RS section 4.1.2 mandates this extension if \texttt{read} is
+  extended to accept the external syntax for texts.
+\end{itemize}
+
+\emph{Note:} Those extensions cannot be implemented portably, so
+portable code should not rely on them.
+
+\subsubsection{\texorpdfstring{\href{}{Textual input and output
+ports}}{Textual input and output ports}}\label{textual-input-and-output-ports}
+
+Textual input and output ports analogous to string input and output
+ports would be nice, but they too cannot be implemented portably.
+Leaving them for another SRFI allows all of this SRFI to be implemented
+portably with reasonable efficiency.
+
+\subsubsection{\texorpdfstring{\href{}{Shared
+storage}}{Shared storage}}\label{shared-storage}
+
+All strings and other mutable objects returned by the procedures
+specified within this SRFI are newly allocated and may be mutated with
+abandon.
+
+No externally visible string ever shares storage with any text. All
+strings and other mutable objects passed to the procedures specified
+within this SRFI may be mutated without affecting the behavior of any
+text.
+
+The immutability of texts allows sharing of substructure, so
+\texttt{subtext}, \texttt{textual-append}, and similar operations can be
+faster and more space-efficient than Scheme's \texttt{substring} and
+\texttt{string-append} operations.
+
+Although distinct texts may share storage internally, this is
+undetectable because texts are immutable and the procedures that operate
+on texts do not directly expose any of their internal components.
+
+Implementations that share storage between texts must satisfy the
+following requirement: There is some reasonably small fixed bound on the
+ratio of storage used by the shared representation divided by the
+storage that would be used by an unshared representation.
+
+\emph{Example:} For the \protect\hyperlink{SampleImp}{sample
+implementations} with their default configurations, the worst case
+arises with UTF-8, when a 1-character ASCII text retains up to 127
+characters of a text that is no longer reachable, and all 127 of those
+retained characters lie outside Unicode's Basic Multilingual Plane
+(BMP). Making reasonable assumptions about the representations of
+records, vectors, bytevectors, and strings on a 64-bit machine, that
+shared text would occupy no more than about 16 times the space occupied
+by an unshared representation. If the retained characters were in the
+BMP, the shared text would occupy no more than about 8 times the space
+occupied by an unshared representation. If the retained characters were
+ASCII, the shared text would occupy no more than about 4 times the space
+occupied by an unshared representation. The sample implementations can
+be configured to reduce those worst-case bounds, most obviously by
+reducing the maximum number of characters that can be shared with a very
+short text.
+
+\subsubsection{\texorpdfstring{\href{}{Naming
+conventions}}{Naming conventions}}\label{naming-conventions}
+
+The procedures of this SRFI follow a consistent naming scheme, and are
+consistent with the conventions developed in SRFI 1 and used in SRFI 13
+and SRFI 130. Indeed, most of the names specified here were derived from
+SRFI 130's names by replacing \texttt{string} with \texttt{text} or
+\texttt{textual}. As in SRFI 130, procedures that have left/right
+directional variants use no suffix to specify left-to-right operation,
+\texttt{-right} to specify right-to-left operation, and \texttt{-both}
+to specify both.
+
+Note, however, that \texttt{textual-index},
+\texttt{textual-index-right}, \texttt{textual-skip}, and
+\texttt{textual-skip-right}, return \texttt{\#f} when no match is found.
+In SRFI 130, their analogues always return cursors.
+
+The order of common arguments is consistent across the different
+procedures.
+
+For convenience, most procedures that accept a text as argument will
+also accept a string. When given a string, those procedures behave as
+though the string is first converted to a text, so passing a text is
+likely to be more efficient than passing a string.
+
+\subsubsection{\texorpdfstring{\href{}{Performance
+requirements}}{Performance requirements}}\label{performance-requirements}
+
+A few procedures are required to execute in O(1) time: \texttt{text?},
+\texttt{textual?}, \texttt{text-length}, and \texttt{text-ref}.
+
+If the first two arguments passed to \texttt{textual-contains} and
+\texttt{textual-contains-right} are texts, then those procedures must
+run in O(m n) time, where m and n are the lengths of the two subtexts
+specified by their arguments. If either of the first two arguments is a
+string, there is no such requirement.
+
+The other procedures specified by this SRFI should run in amortized
+linear time, not counting time spent in procedures and predicates that
+were passed as arguments. That is not an absolute requirement, but the
+sample implementations are designed to deliver that level of performance
+for most procedures provided none of their textual arguments are
+strings. When strings are passed as arguments, the running time is
+unlikely to be linear unless \texttt{string-ref} runs in constant time,
+and that is not required by any of the Scheme standards.
+
+Indeed, this SRFI was designed to make efficient text processing easier
+in systems whose \texttt{string-ref} procedure does not run in constant
+time. For efficiency, portable code should use strings only for fairly
+short sequences of characters. Representations with guaranteed
+efficiency (such as the immutable texts of this SRFI) should be used for
+longer texts.
+
+\emph{Note:} A procedure that runs in O(1) time does not necessarily
+take the same time for all inputs. Furthermore O(1) = O(1000), so
+procedures that run in O(1) time can still be quite slow. The
+\texttt{text-ref} procedure, for example, may have worst cases for which
+it is hundreds of times slower than \texttt{text?}. Even the average
+case for \texttt{text-ref} is likely to be several times as slow as the
+worst case for \texttt{text?}.
+
+\subsubsection{\texorpdfstring{\href{}{Unicode}}{Unicode}}\label{unicode}
+
+During the early development of Unicode, its designers believed a 16-bit
+character set would suffice, which is why Java's \texttt{char} type has
+only 16 bits. When Unicode expanded to 1114112 code points, 16 bits were
+no longer enough to encode all Unicode characters.
+
+The Unicode standard defines three encoding forms for arbitrary
+sequences of Unicode characters:
+
+\begin{description}
+\tightlist
+\item[ UTF-32 ]
+is a fixed-width encoding in which every character is represented by a
+straightforward 32-bit representation of its code point.
+\item[ UTF-16 ]
+is a variable-width encoding in which the most common characters are
+represented by 16-bit representations of their code points, but
+characters outside the Basic Multilingual Plane (BMP) are represented by
+a surrogate pair consisting of two consecutive 16-bit code units.
+\item[ UTF-8 ]
+is a variable-width encoding in which ASCII characters are represented
+by 8-bit representations of their code points, but other characters are
+encoded by a sequence of two, three, or four 8-bit code units.
+\end{description}
+
+UTF-32 is a convenient internal representation and is used as such by
+several string libraries for C, C++, and Python, but it is the least
+compact of the three representations and is seldom used in files. UTF-16
+is convenient for applications that use only the BMP, and supports fast
+sequential processing of arbitrary Unicode; variants of UTF-16 are used
+by Windows for files and by Java and C\# as an internal representation.
+UTF-8 is upwardly compatible with the ASCII encoding and supports fast
+sequential processing of arbitrary Unicode; it is widely used for files
+on non-Windows machines and is also used by some C libraries.
+
+The Scheme programming language does not expose the internal
+representation of strings. Some implementations of Scheme use UTF-32 or
+a similar encoding, which makes \texttt{string-length},
+\texttt{string-ref}, and \texttt{string-set!} run in O(1) time. Some
+implementations of Scheme use UTF-16, which saves space at the expense
+of making \texttt{string-ref} take time proportional to the length of a
+string. Some implementations of Scheme use UTF-8, which saves even more
+space for ASCII strings while making \texttt{string-ref} run in linear
+time.
+
+Although Scheme's string data type allows portable code to use strings
+independently of their internal representation, the variation in
+performance between implementations has created a problem for programs
+that use long strings. In some systems, long strings are inefficient
+with respect to space; in other systems, long strings are inefficient
+with respect to time.
+
+The portable solution to this dilemma is to use Scheme's mutable strings
+only for buffers and other relatively short sequences of characters,
+while using the immutable texts defined by this SRFI for long sequences
+of characters.
+
+\emph{Note:} SRFI 130 suggests an alternative solution: Portable code
+should process strings sequentially using cursors instead of indexes,
+and should avoid mutation of strings by using vectors of characters
+instead, while hoping all major implementations of Scheme will soon
+convert their strings to use compact internal representations such as
+UTF-8 or UTF-16. That hope is unlikely to be realized, because a lot of
+legacy code assumes \texttt{string-ref} runs in O(1) time, as
+recommended by the R6RS, and mutable strings represented in UTF-32 or
+similar are more efficient than vectors of characters with respect to
+both time and space. At present, several implementations of Scheme
+support Unicode while providing \texttt{string-ref} and
+\texttt{string-set!} procedures that run in O(1) time; making those
+operations run asymptotically slower would displease some users of those
+systems.
+
+\subsection{\texorpdfstring{\href{}{Notation}}{Notation}}\label{notation}
+
+In the following procedure specifications:
+
+\begin{itemize}
+\tightlist
+\item
+  A text argument is an immutable text.
+\item
+  A textual argument is an immutable text or a string.
+\item
+  A char argument is a character.
+\item
+  An idx argument is an exact non-negative integer specifying a valid
+  character index into a text or string. The valid character indexes of
+  a text or string textual of length n are the exact integers idx
+  satisfying 0 \textless{}= idx \textless{} n.
+\item
+  A k argument or result is a \emph{position}: an exact non-negative
+  integer that is either a valid character index for one of the textual
+  arguments or is the length of a textual argument.
+\item
+  start and end arguments are positions specifying a half-open interval
+  of indexes for a subtext or substring. When omitted, start defaults to
+  0 and end to the length of the corresponding textual argument. It is
+  an error unless 0 \textless{}= start \textless{}= end \textless{}=
+  \texttt{(textual-length\ textual)}; the sample implementations detect
+  that error and raise an exception.
+\item
+  A len or nchars argument is an exact non-negative integer specifying
+  some number of characters, usually the length of a text or string.
+\item
+  A pred argument is a unary character predicate, taking a character as
+  its one argument and returning a value that will be interpreted as
+  true or false. Unless noted otherwise, as with \texttt{textual-every}
+  and \texttt{textual-any}, all predicates passed to procedures
+  specified in this SRFI may be called in any order and any number of
+  times. It is an error if pred has side effects or does not behave
+  functionally (returning the same result whenever it is called with the
+  same character); the sample implementations do not detect those
+  errors.
+\item
+  An obj argument may be any value at all.
+\end{itemize}
+
+It is an error to pass values that violate the specification above.
+
+Arguments given in square brackets are optional. Unless otherwise noted
+in the text describing the procedure, any prefix of these optional
+arguments may be supplied, from zero arguments to the full list. When a
+procedure returns multiple values, this is shown by listing the return
+values in square brackets, as well. So, for example, the procedure with
+signature
+
+\begin{verbatim}
+halts? f [x init-store] → [boolean integer]
+\end{verbatim}
+
+would take one (f), two (f, x) or three (f, x, init-store) input
+arguments, and return two values, a boolean and an integer.
+
+An argument followed by "\texttt{...}" means zero or more elements. So
+the procedure with the signature
+
+\begin{verbatim}
+sum-squares x ...  → number
+\end{verbatim}
+
+takes zero or more arguments (x \ldots{}), while the procedure with
+signature
+
+\begin{verbatim}
+spell-check doc dict1 dict2 ... → string-list
+\end{verbatim}
+
+takes two required arguments (doc and dict\textsubscript{1}) and zero or
+more optional arguments (dict\textsubscript{2} \ldots{}).
+
+If a procedure's return value is said to be ``unspecified,'' the
+procedure returns a single result whose value is unconstrained and might
+even vary from call to call.
+
+\subsection{\texorpdfstring{\href{}{Procedures}}{Procedures}}\label{procedures}
+
+\subsubsection{\texorpdfstring{\href{}{Predicates}}{Predicates}}\label{predicates}
+
+\begin{description}
+\item[ \href{}{} \texttt{text?} obj → boolean ]
+Is obj an immutable text? In particular, \texttt{(text?\ obj)} returns
+false if \texttt{(string?\ obj)} returns true, which implies
+\texttt{string?} returns false if \texttt{text?} returns true. Must
+execute in O(1) time.
+\item[ \href{}{} \texttt{textual?} obj → boolean ]
+Returns true if and only obj is an immutable text or a string. Must
+execute in O(1) time.
+\item[ \href{}{} \texttt{textual-null?} text → boolean ]
+Is text the empty text? Must execute in O(1) time.
+\item[ \href{}{} \href{}{} \texttt{textual-every} pred textual {[}start
+end{]} → value\\
+\texttt{textual-any~~} pred textual {[}start end{]} → value ]
+Checks to see if every/any character in textual satisfies pred,
+proceeding from left (index start) to right (index end).
+\texttt{textual-every} These procedures are short-circuiting: if pred
+returns false, \texttt{textual-every} does not call pred on subsequent
+characters; if pred returns true, \texttt{textual-any} does not call
+pred on subsequent characters; Both procedures are
+``witness-generating'':
+
+\begin{itemize}
+\tightlist
+\item
+  If \texttt{textual-every} is given an empty interval (with start =
+  end), it returns \texttt{\#t}.
+\item
+  If \texttt{textual-every} returns true for a non-empty interval (with
+  start \textless{} end), the returned true value is the one returned by
+  the final call to the predicate on
+  \texttt{(text-ref\ (textual-copy\ text)\ (-\ end\ 1))}.
+\item
+  If \texttt{textual-any} returns true, the returned true value is the
+  one returned by the predicate.
+\end{itemize}
+
+\emph{Note:} The names of these procedures do not end with a question
+mark. This indicates a general value is returned instead of a simple
+boolean (\texttt{\#t} or \texttt{\#f}).
+\end{description}
+
+\subsubsection{\texorpdfstring{\href{}{Constructors}}{Constructors}}\label{constructors}
+
+\begin{description}
+\item[ \href{}{} \texttt{make-text} len char → text ]
+Returns a text of the given length filled with the given character.
+\item[ \href{}{} \texttt{text} char \ldots{} → text ]
+Returns a text consisting of the given characters.
+\item[ \href{}{} \texttt{text-tabulate} proc len → text ]
+Proc is a procedure that accepts an exact integer as its argument and
+returns a character. Constructs a text of size len by calling proc on
+each value from 0 (inclusive) to len (exclusive) to produce the
+corresponding element of the text. The order in which proc is called on
+those indexes is not specified.
+
+\emph{Rationale:} Although \texttt{text-unfold} is more general,
+\texttt{text-tabulate} is likely to run faster for the common special
+case it implements.
+\item[ \href{}{} \texttt{text-unfold} stop? mapper successor seed
+{[}base make-final{]} → text ]
+This is a fundamental constructor for texts.
+
+\begin{itemize}
+\tightlist
+\item
+  successor is used to generate a series of ``seed'' values from the
+  initial seed:
+
+  seed, (successor seed), (successor\textsuperscript{2} seed),
+  (successor\textsuperscript{3} seed), \ldots{}
+\item
+  stop? tells us when to stop --- when it returns true when applied to
+  one of these seed values.
+\item
+  mapper maps each seed value to the corresponding character(s) in the
+  result text, which are assembled into that text in left-to-right
+  order. It is an error for mapper to return anything other than a
+  character, string, or text.
+\item
+  base is the optional initial/leftmost portion of the constructed text,
+  which defaults to the empty text \texttt{(text)}. It is an error if
+  base is anything other than a character, string, or text.
+\item
+  make-final is applied to the terminal seed value (on which stop?
+  returns true) to produce the final/rightmost portion of the
+  constructed text. It defaults to \texttt{(lambda\ (x)\ (text))}. It is
+  an error for make-final to return anything other than a character,
+  string, or text.
+\end{itemize}
+
+\texttt{text-unfold} is a fairly powerful text constructor. You can use
+it to convert a list to a text, read a port into a text, reverse a text,
+copy a text, and so forth. Examples:
+
+\begin{verbatim}
+(port->text p) = (text-unfold eof-object?
+                           values
+                           (lambda (x) (read-char p))
+                           (read-char p))
+
+(list->text lis) = (text-unfold null? car cdr lis)
+
+(text-tabulate f size) = (text-unfold (lambda (i) (= i size)) f add1 0)
+\end{verbatim}
+
+To map f over a list lis, producing a text:
+
+\begin{verbatim}
+(text-unfold null? (compose f car) cdr lis)
+\end{verbatim}
+
+Interested functional programmers may enjoy noting that
+\texttt{textual-fold-right} and \texttt{text-unfold} are in some sense
+inverses. That is, given operations knull?, kar, kdr, kons, and knil
+satisfying
+
+\begin{verbatim}
+(kons (kar x) (kdr x)) = x  and  (knull? knil) = #t
+\end{verbatim}
+
+then
+
+\begin{verbatim}
+(textual-fold-right kons knil (text-unfold knull? kar kdr x)) = x
+\end{verbatim}
+
+and
+
+\begin{verbatim}
+(text-unfold knull? kar kdr (textual-fold-right kons knil text)) = text.
+\end{verbatim}
+
+This combinator pattern is sometimes called an ``anamorphism.''
+
+\emph{Note:} Implementations should not allow the size of texts created
+by \texttt{text-unfold} to be limited by limits on stack size.
+\item[ \href{}{} \texttt{text-unfold-right} stop? mapper successor seed
+{[}base make-final{]} → text ]
+This is a fundamental constructor for texts. It is the same as
+\texttt{text-unfold} except the results of mapper are assembled into the
+text in right-to-left order, base is the optional rightmost portion of
+the constructed text, and make-final produces the leftmost portion of
+the constructed text.
+
+\begin{verbatim}
+(text-unfold-right (lambda (n) (< n (char->integer #\A)))
+                   (lambda (n) (char-downcase (integer->char n)))
+                   (lambda (n) (- n 1))
+                   (char->integer #\Z)
+                   #\space
+                   (lambda (n) " The English alphabet: "))
+    => « The English alphabet: abcdefghijklmnopqrstuvwxyz »
+\end{verbatim}
+\end{description}
+
+\subsubsection{\texorpdfstring{\href{}{Conversion}}{Conversion}}\label{conversion}
+
+\begin{description}
+\item[ \href{}{} \texttt{textual-\textgreater{}text} textual → text ]
+When given a text, \texttt{textual-\textgreater{}text} just returns that
+text. When given a string, \texttt{textual-\textgreater{}text} returns
+the result of calling \texttt{string-\textgreater{}text} on that string.
+Signals an error when its argument is neither string nor text.
+\item[ \href{}{} \href{}{} \href{}{}
+\texttt{textual-\textgreater{}string} textual {[}start end{]} → string\\
+\texttt{textual-\textgreater{}vector} textual {[}start end{]} →
+char-vector\\
+\texttt{textual-\textgreater{}list~~} textual {[}start end{]} →
+char-list ]
+\texttt{textual-\textgreater{}string},
+\texttt{textual-\textgreater{}vector}, and
+\texttt{textual-\textgreater{}list} return a newly allocated (unless
+empty) mutable string, vector, or list of the characters that make up
+the given subtext or substring.
+\item[ \href{}{} \href{}{} \href{}{} \texttt{string-\textgreater{}text}
+string {[}start end{]} → text\\
+\texttt{vector-\textgreater{}text} char-vector {[}start end{]} → text\\
+\texttt{list-\textgreater{}text~~} char-list {[}start end{]} → text ]
+These procedures return a text containing the characters of the given
+substring, subvector, or sublist. The behavior of the text will not be
+affected by subsequent mutation of the given string, vector, or list.
+\item[ \href{}{} \texttt{reverse-list-\textgreater{}text} char-list →
+text ]
+An efficient implementation of
+\texttt{(compose\ list-\textgreater{}text\ reverse)}:
+
+\begin{verbatim}
+(reverse-list->text '(#\a #\B #\c)) → «cBa»
+\end{verbatim}
+
+This is a common idiom in the epilogue of text-processing loops that
+accumulate their result using a list in reverse order. (See also
+\texttt{textual-concatenate-reverse} for the ``chunked'' variant.)
+\item[ \href{}{} \href{}{} \href{}{} \href{}{}
+\texttt{textual-\textgreater{}utf8~~~} textual {[}start end{]} →
+bytevector\\
+\texttt{textual-\textgreater{}utf16~~} textual {[}start end{]} →
+bytevector\\
+\texttt{textual-\textgreater{}utf16be} textual {[}start end{]} →
+bytevector\\
+\texttt{textual-\textgreater{}utf16le} textual {[}start end{]} →
+bytevector ]
+These procedures return a newly allocated (unless empty) bytevector
+containing a UTF-8 or UTF-16 encoding of the given subtext or substring.
+
+The bytevectors returned by \texttt{textual-\textgreater{}utf8},
+\texttt{textual-\textgreater{}utf16be}, and
+\texttt{textual-\textgreater{}utf16le} do not contain a byte-order mark
+(BOM). \texttt{textual-\textgreater{}utf16be} returns a big-endian
+encoding, while \texttt{textual-\textgreater{}utf16le} returns a
+little-endian encoding.
+
+The bytevectors returned by \texttt{textual-\textgreater{}utf16} begin
+with a BOM that declares an implementation-dependent endianness, and the
+bytevector elements following that BOM encode the given subtext or
+substring using that endianness.
+
+\emph{Rationale:} These procedures are consistent with the Unicode
+standard. Unicode suggests UTF-16 should default to big-endian, but
+Microsoft prefers little-endian.
+\item[ \href{}{} \href{}{} \href{}{} \href{}{}
+\texttt{utf8-\textgreater{}text~~~} bytevector {[}start end{]} → text\\
+\texttt{utf16-\textgreater{}text~~} bytevector {[}start end{]} → text\\
+\texttt{utf16be-\textgreater{}text} bytevector {[}start end{]} → text\\
+\texttt{utf16le-\textgreater{}text} bytevector {[}start end{]} → text ]
+These procedures interpret their bytevector argument as a UTF-8 or
+UTF-16 encoding of a sequence of characters, and return a text
+containing that sequence.
+
+The bytevector subrange given to \texttt{utf16-\textgreater{}text} may
+begin with a byte order mark (BOM); if so, that BOM determines whether
+the rest of the subrange is to be interpreted as big-endian or
+little-endian; in either case, the BOM will not become a character in
+the returned text. If the subrange does not begin with a BOM, it is
+decoded using the same implementation-dependent endianness used by
+\texttt{textual-\textgreater{}utf16}.
+
+The \texttt{utf16be-\textgreater{}text} and
+\texttt{utf16le-\textgreater{}text} procedures interpret their inputs as
+big-endian or little-endian, respectively. If a BOM is present, it is
+treated as a normal character and will become part of the result.
+
+It is an error if the bytevector subrange given to
+\texttt{utf8-\textgreater{}text} contains invalid UTF-8 byte sequences.
+For the other three procedures, it is an error if start or end are odd,
+or if the bytevector subrange contains invalid UTF-16 byte sequences.
+\end{description}
+
+\subsubsection{\texorpdfstring{\href{}{Selection}}{Selection}}\label{selection}
+
+\begin{description}
+\item[ \href{}{} \texttt{text-length} text → len ]
+Returns the number of characters within the given text. Must execute in
+O(1) time.
+\item[ \href{}{} \texttt{text-ref} text idx → char ]
+Returns character text{[}idx{]}, using 0-origin indexing. Must execute
+in O(1) time.
+\item[ \href{}{} \href{}{} \texttt{textual-length} textual → len\\
+\texttt{textual-ref} textual idx → char ]
+\texttt{textual-length} returns the number of characters in textual, and
+\texttt{textual-ref} returns the character at character index idx, using
+0-origin indexing. These procedures are the generalizations of
+\texttt{text-length} and \texttt{text-ref} to accept strings as well as
+texts. If textual is a text, they must execute in O(1) time, but there
+is no such requirement if textual is a string.
+
+\emph{Rationale}: These procedures may be more convenient than the
+text-only versions, but compilers may generate faster code for calls to
+the text-only versions.
+\item[ \href{}{} \href{}{} \texttt{subtext~~~} text start end → text\\
+\texttt{subtextual} textual start end → text ]
+These procedures return a text containing the characters of text or
+textual beginning with index start (inclusive) and ending with index end
+(exclusive).
+
+If textual is a string, then that string does not share any storage with
+the result, so subsequent mutation of that string will not affect the
+text returned by \texttt{subtextual}. When the first argument is a text,
+as is required by \texttt{subtext}, implementations are encouraged to
+return a result that shares storage with that text, to whatever extent
+sharing is possible while maintaining some small fixed bound on the
+ratio of storage used by the shared representation divided by the
+storage that would be used by an unshared representation. In particular,
+these procedures should just return their first argument when that
+argument is a text, start is 0, and end is the length of that text.
+\item[ \href{}{} \texttt{textual-copy} textual {[}start end{]} → text ]
+Returns a text containing the characters of textual beginning with index
+start (inclusive) and ending with index end (exclusive).
+
+Unlike \texttt{subtext} and \texttt{subtextual}, the result of
+\texttt{textual-copy} never shares substructures that would retain
+characters or sequences of characters that are substructures of its
+first argument or previously allocated objects.
+
+If \texttt{textual-copy} returns an empty text, that empty text may be
+\texttt{eq?} or \texttt{eqv?} to the text returned by \texttt{(text)}.
+If the text returned by \texttt{textual-copy} is non-empty, then it is
+not \texttt{eqv?} to any previously extant object.
+\item[ \href{}{} \href{}{} \href{}{} \href{}{}
+\texttt{textual-take~~~~~~} textual nchars → text\\
+\texttt{textual-drop~~~~~~} textual nchars → text\\
+\texttt{textual-take-right} textual nchars → text\\
+\texttt{textual-drop-right} textual nchars → text ]
+\texttt{textual-take} returns a text containing the first nchars of
+textual; \texttt{textual-drop} returns a text containing all but the
+first nchars of textual. \texttt{textual-take-right} returns a text
+containing the last nchars of textual; \texttt{textual-drop-right}
+returns a text containing all but the last nchars of textual.
+
+If textual is a string, then that string does not share any storage with
+the result, so subsequent mutation of that string will not affect the
+text returned by these procedures. If textual is a text, implementations
+are encouraged to return a result that shares storage with that text
+(which is easily accomplished by using \texttt{subtext} to create the
+result).
+
+\begin{verbatim}
+(textual-take "Pete Szilagyi" 6) => «Pete S»
+(textual-drop "Pete Szilagyi" 6) => «zilagyi»
+
+(textual-take-right "Beta rules" 5) => «rules»
+(textual-drop-right "Beta rules" 5) => «Beta »
+\end{verbatim}
+
+It is an error to take or drop more characters than are in the text:
+
+\begin{verbatim}
+(textual-take "foo" 37) => error
+\end{verbatim}
+\item[ \href{}{} \href{}{} \texttt{textual-pad~~~~~~} textual len
+{[}char start end{]} → text\\
+\texttt{textual-pad-right} textual len {[}char start end{]} → text ]
+Returns a text of length len comprised of the characters drawn from the
+given subrange of textual, padded on the left (right) by as many
+occurrences of the character char as needed. If textual has more than
+len chars, it is truncated on the left (right) to length len. char
+defaults to \texttt{\#\textbackslash{}space}.
+
+If textual is a string, then that string does not share any storage with
+the result, so subsequent mutation of that string will not affect the
+text returned by these procedures. If textual is a text, implementations
+are encouraged to return a result that shares storage with that text
+whenever sharing would be space-efficient.
+
+\begin{verbatim}
+(textual-pad     "325" 5) => «  325»
+(textual-pad   "71325" 5) => «71325»
+(textual-pad "8871325" 5) => «71325»
+\end{verbatim}
+\item[ \href{}{} \href{}{} \href{}{} \texttt{textual-trim~~~~~~} textual
+{[}pred start end{]} → text\\
+\texttt{textual-trim-right} textual {[}pred start end{]} → text\\
+\texttt{textual-trim-both~} textual {[}pred start end{]} → text ]
+Returns a text obtained from the given subrange of textual by skipping
+over all characters on the left / on the right / on both sides that
+satisfy the second argument pred: pred defaults to
+\texttt{char-whitespace?}.
+
+If textual is a string, then that string does not share any storage with
+the result, so subsequent mutation of that string will not affect the
+text returned by these procedures. If textual is a text, implementations
+are encouraged to return a result that shares storage with that text
+whenever sharing would be space-efficient.
+
+\begin{verbatim}
+(textual-trim-both "  The outlook wasn't brilliant,  \n\r")
+    => «The outlook wasn't brilliant,»
+\end{verbatim}
+\end{description}
+
+\subsubsection{\texorpdfstring{\href{}{Replacement}}{Replacement}}\label{replacement}
+
+\begin{description}
+\item[ \href{}{} \texttt{textual-replace} textual1 textual2 start1 end1
+{[}start2 end2{]} → text ]
+Returns
+
+\begin{verbatim}
+(textual-append (subtextual textual1 0 start1)
+                (subtextual textual2 start2 end2)
+                (subtextual textual1 end1 (textual-length textual1)))
+\end{verbatim}
+
+That is, the segment of characters in textual1 from start1 to end1 is
+replaced by the segment of characters in textual2 from start2 to end2.
+If start1=end1, this simply splices the characters drawn from textual2
+into textual1 at that position.
+
+Examples:
+
+\begin{verbatim}
+(textual-replace "The TCL programmer endured daily ridicule."
+                 "another miserable perl drone" 4 7 8 22)
+    => «The miserable perl programmer endured daily ridicule.»
+
+(textual-replace "It's easy to code it up in Scheme." "lots of fun" 5 9)
+    => «It's lots of fun to code it up in Scheme.»
+
+(define (textual-insert s i t) (textual-replace s t i i))
+
+(textual-insert "It's easy to code it up in Scheme." 5 "really ")
+    => «It's really easy to code it up in Scheme.»
+
+(define (textual-set s i c) (textual-replace s (text c) i (+ i 1)))
+
+(textual-set "Text-ref runs in O(n) time." 19 #\1)
+    => «Text-ref runs in O(1) time.»
+\end{verbatim}
+\end{description}
+
+\subsubsection{\texorpdfstring{\href{}{Comparison}}{Comparison}}\label{comparison}
+
+\begin{description}
+\item[ \href{}{} \texttt{textual=?} textual1 textual2 textual3 \ldots{}
+→ boolean ]
+Returns \texttt{\#t} if all the texts have the same length and contain
+exactly the same characters in the same positions; otherwise returns
+\texttt{\#f}.
+\item[ \href{}{} \href{}{} \href{}{} \href{}{}
+\texttt{textual\textless{}?~} textual1 textual2 textual3 \ldots{} →
+boolean\\
+\texttt{textual\textgreater{}?~} textual1 textual2 textual3 \ldots{} →
+boolean\\
+\texttt{textual\textless{}=?} textual1 textual2 textual3 \ldots{} →
+boolean\\
+\texttt{textual\textgreater{}=?} textual1 textual2 textual3 \ldots{} →
+boolean ]
+These procedures return \texttt{\#t} if their arguments are
+(respectively): monotonically increasing, monotonically decreasing,
+monotonically non-decreasing, or monotonically non-increasing.
+
+These comparison predicates are required to be transitive.
+
+These procedures compare texts in an implementation-defined way. One
+approach is to make them the lexicographic extensions to texts of the
+corresponding orderings on characters. In that case,
+\texttt{text\textless{}?} would be the lexicographic ordering on texts
+induced by the ordering \texttt{char\textless{}?} on characters, and if
+two texts differ in length but are the same up to the length of the
+shorter text, the shorter text would be considered to be
+lexicographically less than the longer string. However, implementations
+are also allowed to use more sophisticated locale-specific orderings.
+
+In all cases, a pair of texts must satisfy exactly one of
+\texttt{textual\textless{}?}, \texttt{textual=?}, and
+\texttt{textual\textgreater{}?}, must satisfy
+\texttt{textual\textless{}=?} if and only if they do not satisfy
+\texttt{textual\textgreater{}?}, and must satisfy
+\texttt{textual\textgreater{}=?} if and only if they do not satisfy
+\texttt{textual\textless{}?}.
+
+\emph{Note:} Implementations are encouraged to use the same orderings
+for texts as are used by the corresponding comparisons on strings, but
+are allowed to use different orderings.
+
+\emph{Rationale:} The only portable way to ensure these comparison
+predicates use the same orderings used by the corresponding comparisons
+on strings is to convert all texts to strings, which would be
+unacceptably inefficient.
+\item[ \href{}{} \texttt{textual-ci=?} textual1 textual2 textual3
+\ldots{} → boolean ]
+Returns \texttt{\#t} if, after calling \texttt{textual-foldcase} on each
+of the arguments, all of the case-folded texts would have the same
+length and contain the same characters in the same positions; otherwise
+returns \texttt{\#f}.
+\item[ \href{}{} \href{}{} \href{}{} \href{}{}
+\texttt{textual-ci\textless{}?~} textual1 textual2 textual3 \ldots{} →
+boolean\\
+\texttt{textual-ci\textgreater{}?~} textual1 textual2 textual3 \ldots{}
+→ boolean\\
+\texttt{textual-ci\textless{}=?} textual1 textual2 textual3 \ldots{} →
+boolean\\
+\texttt{textual-ci\textgreater{}=?} textual1 textual2 textual3 \ldots{}
+→ boolean ]
+These procedures behave as though they had called
+\texttt{textual-foldcase} on their arguments before applying the
+corresponding procedures without "\texttt{-ci}".
+\end{description}
+
+\subsubsection{\texorpdfstring{\href{}{Prefixes \&
+suffixes}}{Prefixes \& suffixes}}\label{prefixes-suffixes}
+
+\begin{description}
+\item[ \href{}{} \href{}{} \texttt{textual-prefix-length} textual1
+textual2 {[}start1 end1 start2 end2{]} → integer\\
+\texttt{textual-suffix-length} textual1 textual2 {[}start1 end1 start2
+end2{]} → integer ]
+Return the length of the longest common prefix/suffix of textual1 and
+textual2. For prefixes, this is equivalent to their ``mismatch index''
+(relative to the start indexes).
+
+The optional start/end indexes restrict the comparison to the indicated
+subtexts of textual1 and textual2.
+\item[ \href{}{} \href{}{} \href{}{} \href{}{} \texttt{textual-prefix?}
+textual1 textual2 {[}start1 end1 start2 end2{]} → boolean\\
+\texttt{textual-suffix?} textual1 textual2 {[}start1 end1 start2 end2{]}
+→ boolean ]
+Is textual1 a prefix/suffix of textual2?
+
+The optional start/end indexes restrict the comparison to the indicated
+subtexts of textual1 and textual2.
+\end{description}
+
+\subsubsection{\texorpdfstring{\href{}{Searching}}{Searching}}\label{searching}
+
+\begin{description}
+\item[ \href{}{} \href{}{} \href{}{} \href{}{}
+\texttt{textual-index~~~~~~} textual pred {[}start end{]} →
+idx-or-false\\
+\texttt{textual-index-right} textual pred {[}start end{]} →
+idx-or-false\\
+\texttt{textual-skip~~~~~~~} textual pred {[}start end{]} →
+idx-or-false\\
+\texttt{textual-skip-right~} textual pred {[}start end{]} → idx-or-false
+]
+\texttt{textual-index} searches through the given subtext or substring
+from the left, returning the index of the leftmost character satisfying
+the predicate pred. \texttt{textual-index-right} searches from the
+right, returning the index of the rightmost character satisfying the
+predicate pred. If no match is found, these procedures return
+\texttt{\#f}.
+
+\emph{Rationale:} The SRFI 130 analogues of these procedures return
+cursors, even when no match is found, and SRFI 130's
+\texttt{string-index-right} returns the \emph{successor} of the cursor
+for the first character that satisfies the predicate. As there are no
+cursors in this SRFI, it seems best to follow the more intuitive and
+long-standing precedent set by SRFI 13.
+
+The start and end arguments specify the beginning and end of the search;
+the valid indexes relevant to the search include start but exclude end.
+Beware of ``fencepost'' errors: when searching right-to-left, the first
+index considered is \texttt{(-\ end\ 1)}, whereas when searching
+left-to-right, the first index considered is start. That is, the
+start/end indexes describe the same half-open interval {[}start,end) in
+these procedures that they do in all other procedures specified by this
+SRFI.
+
+The skip functions are similar, but use the complement of the criterion:
+they search for the first char that \emph{doesn't} satisfy pred. To skip
+over initial whitespace, for example, say
+
+\begin{verbatim}
+(subtextual text
+            (or (textual-skip text char-whitespace?)
+                (textual-length text))
+            (textual-length text))
+\end{verbatim}
+
+These functions can be trivially composed with \texttt{textual-take} and
+\texttt{textual-drop} to produce take-while, drop-while, span, and break
+procedures without loss of efficiency.
+\item[ \href{}{} \href{}{} \texttt{textual-contains~~~~~~} textual1
+textual2 {[}start1 end1 start2 end2{]} → idx-or-false\\
+\texttt{textual-contains-right} textual1 textual2 {[}start1 end1 start2
+end2{]} → idx-or-false ]
+Does the subtext of textual1 specified by start1 and end1 contain the
+sequence of characters given by the subtext of textual2 specified by
+start2 and end2?
+
+Returns \texttt{\#f} if there is no match. If start2 = end2,
+\texttt{textual-contains} returns start1 but
+\texttt{textual-contains-right} returns end1. Otherwise returns the
+index in textual1 for the first character of the first/last match; that
+index lies within the half-open interval {[}start1,end1), and the match
+lies entirely within the {[}start1,end1) range of textual1.
+
+\begin{verbatim}
+(textual-contains "eek -- what a geek." "ee" 12 18) ; Searches "a geek"
+    => 15
+\end{verbatim}
+
+\emph{Note:} The names of these procedures do not end with a question
+mark. This indicates a useful value is returned when there is a match.
+\end{description}
+
+\subsubsection{\texorpdfstring{\href{}{Case
+conversion}}{Case conversion}}\label{case-conversion}
+
+\begin{description}
+\tightlist
+\item[ \href{}{} \href{}{} \href{}{} \href{}{} \texttt{textual-upcase~~}
+textual → text\\
+\texttt{textual-downcase} textual → text\\
+\texttt{textual-foldcase} textual → text\\
+\texttt{textual-titlecase} textual → text ]
+These procedures return the text obtained by applying Unicode's full
+uppercasing, lowercasing, case-folding, or title-casing algorithms to
+their argument. In some cases, the length of the result may be different
+from the length of the argument. Note that language-sensitive mappings
+and foldings are not used.
+\end{description}
+
+\subsubsection{\texorpdfstring{\href{}{Concatenation}}{Concatenation}}\label{concatenation}
+
+\begin{description}
+\item[ \href{}{} \texttt{textual-append} textual \ldots{} → text ]
+Returns a text whose sequence of characters is the concatenation of the
+sequences of characters in the given arguments.
+\item[ \href{}{} \texttt{textual-concatenate} textual-list → text ]
+Concatenates the elements of \texttt{textual-list} together into a
+single text.
+
+If any elements of textual-list are strings, then those strings do not
+share any storage with the result, so subsequent mutation of those
+string will not affect the text returned by this procedure.
+Implementations are encouraged to return a result that shares storage
+with some of the texts in the list if that sharing would be
+space-efficient.
+
+\emph{Rationale:} Some implementations of Scheme limit the number of
+arguments that may be passed to an n-ary procedure, so the
+\texttt{(apply\ textual-append\ textual-list)} idiom, which is otherwise
+equivalent to using this procedure, is not as portable.
+\item[ \href{}{} \texttt{textual-concatenate-reverse} textual-list
+{[}final-textual end{]} → text ]
+With no optional arguments, calling this procedure is equivalent to
+
+\begin{verbatim}
+(textual-concatenate (reverse textual-list))
+\end{verbatim}
+
+If the optional argument final-textual is specified, it is effectively
+consed onto the beginning of textual-list before performing the
+\texttt{list-reverse} and \texttt{textual-concatenate} operations.
+
+If the optional argument end is given, only the characters up to but not
+including end in final-textual are added to the result, thus producing
+
+\begin{verbatim}
+(textual-concatenate 
+  (reverse (cons (subtext final-textual 0 end)
+                 textual-list)))
+\end{verbatim}
+
+For example:
+
+\begin{verbatim}
+(textual-concatenate-reverse '(" must be" "Hello, I") " going.XXXX" 7)
+  => «Hello, I must be going.»
+\end{verbatim}
+
+\emph{Rationale:} This procedure is useful when constructing procedures
+that accumulate character data into lists of textual buffers, and wish
+to convert the accumulated data into a single text when done. The
+optional end argument accommodates that use case when final-textual is a
+mutable string, and is allowed (for uniformity) when final-textual is an
+immutable text.
+\item[ \href{}{} \texttt{textual-join} textual-list {[}delimiter
+grammar{]} → text ]
+This procedure is a simple unparser; it pastes texts together using the
+delimiter text.
+
+textual-list is a list of texts and/or strings. delimiter is a text or a
+string. The grammar argument is a symbol that determines how the
+delimiter is used, and defaults to \texttt{\textquotesingle{}infix}. It
+is an error for grammar to be any symbol other than these four:
+
+\begin{itemize}
+\tightlist
+\item
+  \texttt{\textquotesingle{}infix} means an infix or separator grammar:
+  insert the delimiter between list elements. An empty list will produce
+  an empty text.
+\item
+  \texttt{\textquotesingle{}strict-infix} means the same as
+  \texttt{\textquotesingle{}infix} if the textual-list is non-empty, but
+  will signal an error if given an empty list. (This avoids an ambiguity
+  shown in the examples below.)
+\item
+  \texttt{\textquotesingle{}suffix} means a suffix or terminator
+  grammar: insert the delimiter after every list element.
+\item
+  \texttt{\textquotesingle{}prefix} means a prefix grammar: insert the
+  delimiter before every list element.
+\end{itemize}
+
+The delimiter is the text used to delimit elements; it defaults to a
+single space ``~''.
+
+\begin{verbatim}
+(textual-join '("foo" "bar" "baz"))
+         => «foo bar baz»
+(textual-join '("foo" "bar" "baz") "")
+         => «foobarbaz»
+(textual-join '("foo" "bar" "baz") «:»)
+         => «foo:bar:baz»
+(textual-join '("foo" "bar" "baz") ":" 'suffix)
+         => «foo:bar:baz:»
+
+;; Infix grammar is ambiguous wrt empty list vs. empty text:
+(textual-join '()   ":") => «»
+(textual-join '("") ":") => «»
+
+;; Suffix and prefix grammars are not:
+(textual-join '()   ":" 'suffix)) => «»
+(textual-join '("") ":" 'suffix)) => «:»
+\end{verbatim}
+\end{description}
+
+\subsubsection{\texorpdfstring{\href{}{Fold \& map \&
+friends}}{Fold \& map \& friends}}\label{fold-map-friends}
+
+\begin{description}
+\item[ \href{}{} \href{}{} \texttt{textual-fold~~~~~~} kons knil textual
+{[}start end{]} → value\\
+\texttt{textual-fold-right} kons knil textual {[}start end{]} → value ]
+These are the fundamental iterators for texts.
+
+The \texttt{textual-fold} procedure maps the kons procedure across the
+given text or string from left to right:
+
+\begin{verbatim}
+(... (kons textual[2] (kons textual[1] (kons textual[0] knil))))
+\end{verbatim}
+
+In other words, \texttt{textual-fold} obeys the (tail) recursion
+
+\begin{verbatim}
+  (textual-fold kons knil textual start end)
+= (textual-fold kons (kons textual[start] knil) start+1 end)
+\end{verbatim}
+
+The \texttt{textual-fold-right} procedure maps kons across the given
+text or string from right to left:
+
+\begin{verbatim}
+(kons textual[0]
+      (... (kons textual[end-3]
+                 (kons textual[end-2]
+                       (kons textual[end-1]
+                             knil)))))
+\end{verbatim}
+
+obeying the (tail) recursion
+
+\begin{verbatim}
+  (textual-fold-right kons knil textual start end)
+= (textual-fold-right kons (kons textual[end-1] knil) start end-1)
+\end{verbatim}
+
+Examples:
+
+\begin{verbatim}
+;;; Convert a text or string to a list of chars.
+(textual-fold-right cons '() textual)
+
+;;; Count the number of lower-case characters in a text or string.
+(textual-fold (lambda (c count)
+                (if (char-lower-case? c)
+                    (+ count 1)
+                    count))
+              0
+              textual)
+\end{verbatim}
+
+The \texttt{textual-fold-right} combinator is sometimes called a
+``catamorphism.''
+\item[ \href{}{} \texttt{textual-map} proc textual1 textual2 \ldots{} →
+text ]
+It is an error if proc does not accept as many arguments as the number
+of textual arguments passed to \texttt{textual-map}, does not accept
+characters as arguments, or returns a value that is not a character,
+string, or text.
+
+The \texttt{textual-map} procedure applies proc element-wise to the
+characters of the textual arguments, converts each value returned by
+proc to a text, and returns the concatenation of those texts. If more
+than one textual argument is given and not all have the same length,
+then \texttt{textual-map} terminates when the shortest textual argument
+runs out. The dynamic order in which proc is called on the characters of
+the textual arguments is unspecified, as is the dynamic order in which
+the coercions are performed. If any strings returned by proc are mutated
+after they have been returned and before the call to
+\texttt{textual-map} has returned, then \texttt{textual-map} returns a
+text with unspecified contents; the \texttt{textual-map} procedure
+itself does not mutate those strings.
+
+Example:
+
+\begin{verbatim}
+(textual-map (lambda (c0 c1 c2)
+               (case c0
+                ((#\1) c1)
+                ((#\2) (string c2))
+                ((#\-) (text #\- c1))))
+             (string->text "1222-1111-2222")
+             (string->text "Hi There!")
+             (string->text "Dear John"))
+     => «Hear-here!»
+\end{verbatim}
+\item[ \href{}{} \texttt{textual-for-each} proc textual1 textual2
+\ldots{} → unspecified ]
+It is an error if proc does not accept as many arguments as the number
+of textual arguments passed to \texttt{textual-map} or does not accept
+characters as arguments.
+
+The \texttt{textual-for-each} procedure applies proc element-wise to the
+characters of the textual arguments, going from left to right. If more
+than one textual argument is given and not all have the same length,
+then \texttt{textual-for-each} terminates when the shortest textual
+argument runs out.
+\item[ \href{}{} \texttt{textual-map-index} proc textual {[}start end{]}
+→ text ]
+Calls proc on each valid index of the specified subtext or substring,
+converts the results of those calls into texts, and returns the
+concatenation of those texts. It is an error for proc to return anything
+other than a character, string, or text. The dynamic order in which proc
+is called on the indexes is unspecified, as is the dynamic order in
+which the coercions are performed. If any strings returned by proc are
+mutated after they have been returned and before the call to
+\texttt{textual-map-index} has returned, then \texttt{textual-map-index}
+returns a text with unspecified contents; the \texttt{textual-map-index}
+procedure itself does not mutate those strings.
+\item[ \href{}{} \texttt{textual-for-each-index} proc textual {[}start
+end{]} → unspecified ]
+Calls proc on each valid index of the specified subtext or substring, in
+increasing order, discarding the results of those calls. This is simply
+a safe and correct way to loop over a subtext or substring.
+
+Example:
+
+\begin{verbatim}
+(let ((txt (string->text "abcde"))
+      (v '()))
+  (textual-for-each-index
+    (lambda (cur) (set! v (cons (char->integer (text-ref txt cur)) v)))
+    txt)
+  v) => (101 100 99 98 97)
+\end{verbatim}
+\item[ \href{}{} \texttt{textual-count} textual pred {[}start end{]} →
+integer ]
+Returns a count of the number of characters in the specified subtext of
+textual that satisfy the given predicate.
+\item[ \href{}{} \href{}{} \texttt{textual-filter} pred textual {[}start
+end{]} → text\\
+\texttt{textual-remove} pred textual {[}start end{]} → text ]
+Filter the given subtext of textual, retaining only those characters
+that satisfy / do not satisfy pred.
+
+If textual is a string, then that string does not share any storage with
+the result, so subsequent mutation of that string will not affect the
+text returned by these procedures. If textual is a text, implementations
+are encouraged to return a result that shares storage with that text
+whenever sharing would be space-efficient.
+\end{description}
+
+\subsubsection{\texorpdfstring{\href{}{Replication \&
+splitting}}{Replication \& splitting}}\label{replication-splitting}
+
+\begin{description}
+\item[ \href{}{} \texttt{textual-replicate} textual from to {[}start
+end{]} → text ]
+This is an ``extended subtext'' procedure that implements replicated
+copying of a subtext or substring.
+
+textual is a text or string; start and end are optional arguments that
+specify a subtext of textual, defaulting to 0 and the length of textual.
+This subtext is conceptually replicated both up and down the index
+space, in both the positive and negative directions. For example, if
+textual is \texttt{"abcdefg"}, start is 3, and end is6, then we have the
+conceptual bidirectionally-infinite text
+
+\begin{verbatim}
+    ...  d  e  f  d  e  f  d  e  f  d  e  f  d  e  f  d  e  f  d ...
+        -9 -8 -7 -6 -5 -4 -3 -2 -1  0 +1 +2 +3 +4 +5 +6 +7 +8 +9
+\end{verbatim}
+
+\texttt{textual-replicate} returns the subtext of this text beginning at
+index from, and ending at to. It is an error if from is greater than to.
+
+You can use \texttt{textual-replicate} to perform a variety of tasks:
+
+\begin{itemize}
+\tightlist
+\item
+  To rotate a text left: \texttt{(textual-replicate\ "abcdef"\ 2\ 8)}
+  =\textgreater{} \texttt{«cdefab»}
+\item
+  To rotate a text right: \texttt{(textual-replicate\ "abcdef"\ -2\ 4)}
+  =\textgreater{} \texttt{«efabcd»}
+\item
+  To replicate a text: \texttt{(textual-replicate\ "abc"\ 0\ 7)}
+  =\textgreater{} \texttt{«abcabca»}
+\end{itemize}
+
+Note that
+
+\begin{itemize}
+\tightlist
+\item
+  The from/to arguments give a half-open range containing the characters
+  from index from up to, but not including, index to.
+\item
+  The from/to indexes are not expressed in the index space of textual.
+  They refer instead to the replicated index space of the subtext
+  defined by textual, start, and end.
+\end{itemize}
+
+It is an error if start=end, unless from=to, which is allowed as a
+special case.
+\item[ \href{}{} \texttt{textual-split} textual delimiter {[}grammar
+limit start end{]} → list ]
+Returns a list of texts representing the words contained in the subtext
+of textual from start (inclusive) to end (exclusive). The delimiter is a
+text or string to be used as the word separator. This will often be a
+single character, but multiple characters are allowed for use cases such
+as splitting on \texttt{"\textbackslash{}r\textbackslash{}n"}. The
+returned list will have one more item than the number of non-overlapping
+occurrences of the delimiter in the text. If delimiter is an empty text,
+then the returned list contains a list of texts, each of which contains
+a single character.
+
+The grammar is a symbol with the same meaning as in the
+\texttt{textual-join} procedure. If it is \texttt{infix}, which is the
+default, processing is done as described above, except an empty textual
+produces the empty list; if grammar is \texttt{strict-infix}, then an
+empty textual signals an error. The values \texttt{prefix} and
+\texttt{suffix} cause a leading/trailing empty text in the result to be
+suppressed.
+
+If limit is a non-negative exact integer, at most that many splits
+occur, and the remainder of textual is returned as the final element of
+the list (so the result will have at most limit+1 elements). If limit is
+not specified or is \texttt{\#f}, then as many splits as possible are
+made. It is an error if limit is any other value.
+
+To split on a regular expression re, use SRFI 115's
+\texttt{regexp-split} procedure:
+
+\begin{verbatim}
+(map string->text (regexp-split re (textual->string txt)))
+\end{verbatim}
+
+\emph{Rationale:} Although it would be more efficient to have a version
+of \texttt{regexp-split} that operates on texts directly, the scope of
+this SRFI is limited to specifying operations on texts analogous to
+those specified for strings by R7RS and SRFI 130.
+\end{description}
+
+\section{\texorpdfstring{\href{}{Sample
+implementation}}{Sample implementation}}\label{sample-implementation}
+
+This SRFI comes with sample implementations organized as a
+representation-independent library that imports one of three kernel
+libraries:
+
+\begin{itemize}
+\tightlist
+\item
+  \texttt{kernel16} uses an internal representation based on UTF-16,
+  which performs well when strings can represent any Unicode text and
+  non-ASCII characters are common.
+\item
+  \texttt{kernel8} uses an internal representation based on UTF-8, which
+  performs well when strings can represent any Unicode text but most
+  texts consist of ASCII characters.
+\item
+  \texttt{kernel0} uses an internal representation based on Scheme
+  strings, which performs well if strings are acceptably space-efficient
+  and the \texttt{string-ref} procedure runs in constant time. It also
+  performs well in interpreted systems even when \texttt{string-ref}
+  takes linear time, because the built-in \texttt{string-ref} is likely
+  to run faster on short strings than any UTF-8 or UTF-16 scanner that
+  could be written in Scheme.
+\end{itemize}
+
+All three kernels implement a \texttt{text-ref} procedure that runs in
+O(1) time. All three kernels use shared substructures to improve both
+space efficiency and running time.
+
+The sample implementations come with a black-box test program derived
+from a black-box test program written for SRFI 130.
+
+There is also a program that compares the performance of strings and
+texts on a number of micro-benchmarks. These benchmarks are hardly
+typical, but they provide a rational basis for discussing performance
+tradeoffs between immutable texts, mutable strings with SRFI 130 cursors
+and operations, and the standard R7RS operations on strings.
+
+\section{\texorpdfstring{\href{}{Acknowledgements}}{Acknowledgements}}\label{acknowledgements}
+
+For three decades, I have been hoping the Scheme standards would either
+make strings immutable or add a new data type of immutable texts; with
+Unicode, that hope became more urgent. During that time, I have
+discussed this with far more people than I can now remember. Most of
+those I do remember are among those acknowledged below by John Cowan or
+Olin Shivers, but I am pleased to add Lars T Hansen, Chris Hanson, Felix
+Klock, and Jonathan Rees to the list of those whose ideas (and
+counter-arguments!) have contributed to this SRFI.
+
+John Cowan, the author of SRFI 130, deserves special thanks for blessing
+my desire to use SRFI 130 as the starting point for this SRFI, for
+designing the spans API whose implementations tested the key ideas of
+this SRFI's sample implementations, for chairing Working Group 2, and
+for a lot more I won't mention here.
+
+To acknowledge all those who contributed to SRFI 130 and to its
+predecessor SRFI 13, written by Olin Shivers, I hereby reproduce John
+Cowan's acknowledgements from SRFI 130:
+
+\begin{quote}
+Thanks to the members of the SRFI 130 mailing list who made this SRFI
+what it now is, including Per Bothner, Arthur Gleckler, Shiro Kawai, Jim
+Rees, and especially Alex Shinn, whose idea it was to make cursors and
+indexes disjoint, and who provided the foof implementation. The
+following acknowledgements by Olin Shivers are taken from SRFI 13:
+
+\begin{quote}
+The design of this library benefited greatly from the feedback provided
+during the SRFI discussion phase. Among those contributing thoughtful
+commentary and suggestions, both on the mailing list and by private
+discussion, were Paolo Amoroso, Lars Arvestad, Alan Bawden, Jim Bender,
+Dan Bornstein, Per Bothner, Will Clinger, Brian Denheyer, Mikael
+Djurfeldt, Kent Dybvig, Sergei Egorov, Marc Feeley, Matthias Felleisen,
+Will Fitzgerald, Matthew Flatt, Arthur A. Gleckler, Ben Goetter, Sven
+Hartrumpf, Erik Hilsdale, Richard Kelsey, Oleg Kiselyov, Bengt Kleberg,
+Donovan Kolbly, Bruce Korb, Shriram Krishnamurthi, Bruce Lewis, Tom
+Lord, Brad Lucier, Dave Mason, David Rush, Klaus Schilling, Jonathan
+Sobel, Mike Sperber, Mikael Staldal, Vladimir Tsyshevsky, Donald Welsh,
+and Mike Wilson. I am grateful to them for their assistance.
+
+I am also grateful to the authors, implementors and documentors of all
+the systems mentioned in the introduction. Aubrey Jaffer and Kent Pitman
+should be noted for their work in producing Web-accessible versions of
+the \protect\hyperlink{R5RS}{R5RS} and Common Lisp spec, which was a
+tremendous aid.
+
+This is not to imply that these individuals necessarily endorse the
+final results, of course.
+
+During this document's long development period, great patience was
+exhibited by Mike Sperber, who is the editor for the SRFI, and by
+Hillary Sullivan, who is not.
+\end{quote}
+\end{quote}
+
+As Olin said, we should not assume any of those individuals endorse this
+SRFI.
+
+\section{\texorpdfstring{\href{}{References \&
+links}}{References \& links}}\label{references-links}
+
+\begin{description}
+\item[\textbf{\href{}{{[}CommonLisp{]}}}]
+\emph{Common Lisp: the Language.}\\
+Guy L. Steele Jr. (editor).\\
+Digital Press, Maynard, Mass., second edition 1990.\\
+Available at
+\url{http://www.elwood.com/alu/table/references.htm\#cltl2}.
+
+The Common Lisp ``HyperSpec,'' produced by Kent Pitman, is essentially
+the ANSI spec for Common Lisp:
+\url{http://www.harlequin.com/education/books/HyperSpec/}.
+\item[\textbf{\href{}{{[}MIT-Scheme{]}}} ]
+\url{http://www.swiss.ai.mit.edu/projects/scheme/}
+\item[\textbf{\href{}{{[}R5RS{]}}}]
+Revised\textsuperscript{5} report on the algorithmic language Scheme.\\
+R. Kelsey, W. Clinger, J. Rees (editors).\\
+Higher-Order and Symbolic Computation, Vol. 11, No. 1, September,
+1998.\\
+and ACM SIGPLAN Notices, Vol. 33, No. 9, October, 1998.\\
+Available at \url{http://www.schemers.org/Documents/Standards/}.
+\item[\textbf{\href{}{{[}R6RS{]}}}]
+Revised\textsuperscript{6} report on the algorithmic language Scheme.\\
+M. Sperber, R. K. Dybvig, M. Flatt, A. van Straaten (editors).\\
+Available at \url{http://r6rs.org}.
+\item[\textbf{\href{}{{[}R6RSlibraries{]}}}]
+Revised\textsuperscript{6} report on the algorithmic language Scheme ---
+Standard Libraries.\\
+M. Sperber, R. K. Dybvig, M. Flatt, A. van Straaten (editors).\\
+Available at \url{http://r6rs.org}.
+\item[\textbf{\href{}{{[}R6RS-Rationale{]}}}]
+Revised\textsuperscript{6} report on the algorithmic language Scheme ---
+Rationale.\\
+M. Sperber, R. K. Dybvig, M. Flatt, A. van Straaten (editors).\\
+Available at \url{http://r6rs.org}.
+\item[\textbf{\href{}{{[}R7RS{]}}}]
+Revised\textsuperscript{7} report on the algorithmic language Scheme.\\
+A. Shinn, J. Cowan, A. Gleckler (editors).\\
+Available at \url{http://r7rs.org}.
+\item[\textbf{\href{}{{[}SRFI{]}}}]
+The SRFI web site.\\
+\url{http://srfi.schemers.org/}
+\item[\textbf{\href{}{{[}SRFI-13{]}}}]
+O. Shivers.\\
+SRFI-13: String libraries.\\
+\url{http://srfi.schemers.org/srfi-13/}
+\item[\textbf{\href{}{{[}SRFI-130{]}}} ]
+J. Cowan.\\
+SRFI-130: Cursor-based string library.\\
+\url{http://srfi.schemers.org/srfi-130/}
+\item[\textbf{\href{}{{[}DesignNotes{]}}} ]
+W. D. Clinger.\\
+\href{https://github.com/larcenists/larceny/wiki/ImmutableTexts}{Immutable
+texts.}\\
+(This reference consists of rough design notes for the sample
+implementations. This reference should be removed before the SRFI is
+finalized.)
+\item[\textbf{\href{}{{[}Unicode{]}}} ]
+The Unicode Consortium. Unicode. \url{http://unicode.org/}
+\end{description}
+
+\section{\texorpdfstring{\href{}{Copyright}}{Copyright}}\label{copyright}
+
+Copyright (C) William D Clinger (2016). All Rights Reserved.
+
+Permission is hereby granted, free of charge, to any person obtaining a
+copy of this software and associated documentation files (the
+``Software''), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be included
+in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED ``AS IS'', WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
